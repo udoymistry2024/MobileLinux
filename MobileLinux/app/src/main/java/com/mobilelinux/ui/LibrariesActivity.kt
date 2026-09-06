@@ -268,20 +268,28 @@ class LibrariesActivity : AppCompatActivity() {
                     .map { it.substringAfter("INSTALLED:").trim() }
                     .toSet()
 
+                // Real verification of Conda binary existence
+                val realCondaInstalled = runtime.runCommand(
+                    "[ -x /home/ubuntu/miniforge3/bin/conda ] || [ -x /root/miniconda3/bin/conda ] || [ -x /opt/conda/bin/conda ]"
+                ).first == 0
+
                 // Check whether Conda is already activated in .bashrc and .condarc
-                val isCondaActivated = runtime.runCommand(
+                val isCondaActivated = realCondaInstalled && runtime.runCommand(
                     "grep -q 'conda initialize' /home/ubuntu/.bashrc 2>/dev/null && [ -f /home/ubuntu/.condarc ]"
                 ).first == 0
 
                 allPackages.forEach { pkg ->
-                    if (installedIds.contains(pkg.id)) {
-                        pkg.isInstalled = true
-                        if (pkg.id == "miniconda") {
-                            pkg.isActivated = isCondaActivated
-                            pkg.statusText = if (isCondaActivated) "Active & Ready (base)" else "Installed. Click Activate to enable."
-                        } else {
-                            pkg.statusText = "Installed and ready"
+                    if (pkg.id == "miniconda") {
+                        pkg.isInstalled = realCondaInstalled
+                        pkg.isActivated = isCondaActivated
+                        pkg.statusText = when {
+                            !realCondaInstalled -> "Ready to install"
+                            isCondaActivated -> "Active & Ready (base)"
+                            else -> "Installed. Click Activate to enable."
                         }
+                    } else if (installedIds.contains(pkg.id)) {
+                        pkg.isInstalled = true
+                        pkg.statusText = "Installed and ready"
                     }
                 }
             } catch (ignored: Exception) {
@@ -336,18 +344,41 @@ class LibrariesActivity : AppCompatActivity() {
                 withContext(Dispatchers.Main) {
                     pkg.isInstalling = false
                     if (result.first == 0) {
-                        pkg.isInstalled = true
-                        pkg.progressPercent = 100
                         if (pkg.id == "miniconda") {
-                            pkg.isActivated = false
-                            pkg.statusText = "Installed. Click Activate to enable."
-                            adapter.updateItem(pkg.id)
-                            Toast.makeText(
-                                this@LibrariesActivity,
-                                "Miniconda installed! Tap 'Activate' to enable Conda in your terminal.",
-                                Toast.LENGTH_LONG
-                            ).show()
+                            val checkConda = withContext(Dispatchers.IO) {
+                                runtime.runCommand(
+                                    "[ -x /home/ubuntu/miniforge3/bin/conda ] || [ -x /root/miniconda3/bin/conda ] || [ -x /opt/conda/bin/conda ]"
+                                )
+                            }
+                            if (checkConda.first == 0) {
+                                pkg.isInstalled = true
+                                pkg.isActivated = true
+                                pkg.progressPercent = 100
+                                pkg.statusText = "Active & Ready (base)"
+                                withContext(Dispatchers.IO) {
+                                    runtime.configureCondaEnvironment()
+                                }
+                                adapter.updateItem(pkg.id)
+                                Toast.makeText(
+                                    this@LibrariesActivity,
+                                    "Miniconda3 / Conda installed and activated successfully! (base) is active.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            } else {
+                                pkg.isInstalled = false
+                                pkg.isActivated = false
+                                pkg.progressPercent = -1
+                                pkg.statusText = "Install completed but binary missing"
+                                adapter.updateItem(pkg.id)
+                                Toast.makeText(
+                                    this@LibrariesActivity,
+                                    "Conda installation finished, but binary not found.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
                         } else {
+                            pkg.isInstalled = true
+                            pkg.progressPercent = 100
                             pkg.statusText = "Installed and ready"
                             adapter.updateItem(pkg.id)
                             Toast.makeText(
@@ -404,13 +435,37 @@ class LibrariesActivity : AppCompatActivity() {
         if (pkg.isActivating) return
 
         pkg.isActivating = true
-        pkg.statusText = "Activating Conda base environment..."
+        pkg.statusText = "Verifying Conda installation..."
         adapter.updateItem(pkg.id)
-
-        Toast.makeText(this, "Activating Conda base environment...", Toast.LENGTH_SHORT).show()
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
+                // Verify real conda binary exists
+                val checkConda = runtime.runCommand(
+                    "[ -x /home/ubuntu/miniforge3/bin/conda ] || [ -x /root/miniconda3/bin/conda ] || [ -x /opt/conda/bin/conda ]"
+                )
+                if (checkConda.first != 0) {
+                    withContext(Dispatchers.Main) {
+                        pkg.isActivating = false
+                        pkg.isInstalled = false
+                        pkg.isActivated = false
+                        pkg.statusText = "Ready to install"
+                        adapter.updateItem(pkg.id)
+                        Toast.makeText(
+                            this@LibrariesActivity,
+                            "Conda binary not found. Please tap 'Install' to install Conda first.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                    return@launch
+                }
+
+                withContext(Dispatchers.Main) {
+                    pkg.statusText = "Activating Conda base environment..."
+                    adapter.updateItem(pkg.id)
+                    Toast.makeText(this@LibrariesActivity, "Activating Conda base environment...", Toast.LENGTH_SHORT).show()
+                }
+
                 // Ensure miniforge3 permissions and binaries are executable
                 runtime.runCommand("chmod -R u+rx /home/ubuntu/miniforge3/bin 2>/dev/null || true")
 

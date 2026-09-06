@@ -92,26 +92,35 @@ detect_and_init_conda() {
         local ans
         read -r ans
         if [[ ! "$ans" =~ ^[nN] ]]; then
-            echo ""
-            echo -e "${C_CYAN}Downloading Miniforge3 (ARM64)...${C_RESET}"
-            local tmp_installer="/tmp/Miniforge3-Linux-aarch64.sh"
-            if curl -L -o "$tmp_installer" "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh"; then
-                echo ""
-                echo -e "${C_CYAN}Installing into $HOME/miniforge3...${C_RESET}"
-                bash "$tmp_installer" -b -p "$HOME/miniforge3" -u
-                rm -f "$tmp_installer"
-                "$HOME/miniforge3/bin/conda" init bash 2>/dev/null || true
-                "$HOME/miniforge3/bin/conda" config --set always_copy true 2>/dev/null || true
+            if [ -x /usr/local/bin/install-conda ]; then
+                /usr/local/bin/install-conda
                 export PATH="$HOME/miniforge3/bin:$HOME/miniforge3/condabin:$PATH"
                 if [ -f "$HOME/miniforge3/etc/profile.d/conda.sh" ]; then
                     source "$HOME/miniforge3/etc/profile.d/conda.sh"
                 fi
-                echo ""
-                echo -e "${C_GREEN}Miniforge3 installed successfully!${C_RESET}"
-                sleep 1
             else
-                echo -e "${C_RED}Download failed. Check your connection.${C_RESET}"
-                safe_exit 1
+                echo ""
+                echo -e "${C_CYAN}Downloading Miniforge3 (ARM64)...${C_RESET}"
+                local tmp_installer="$HOME/.miniforge_installer.sh"
+                if curl -fSL -o "$tmp_installer" "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh" || curl -fSL -o "$tmp_installer" "https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh"; then
+                    echo ""
+                    echo -e "${C_CYAN}Installing into $HOME/miniforge3...${C_RESET}"
+                    bash "$tmp_installer" -b -p "$HOME/miniforge3" -u
+                    rm -f "$tmp_installer"
+                    "$HOME/miniforge3/bin/conda" init bash 2>/dev/null || true
+                    "$HOME/miniforge3/bin/conda" config --set always_copy true 2>/dev/null || true
+                    "$HOME/miniforge3/bin/conda" config --set auto_activate_base true 2>/dev/null || true
+                    export PATH="$HOME/miniforge3/bin:$HOME/miniforge3/condabin:$PATH"
+                    if [ -f "$HOME/miniforge3/etc/profile.d/conda.sh" ]; then
+                        source "$HOME/miniforge3/etc/profile.d/conda.sh"
+                    fi
+                    echo ""
+                    echo -e "${C_GREEN}Miniforge3 installed successfully!${C_RESET}"
+                    sleep 1
+                else
+                    echo -e "${C_RED}Download failed. Check your connection.${C_RESET}"
+                    safe_exit 1
+                fi
             fi
         else
             echo "Exiting."

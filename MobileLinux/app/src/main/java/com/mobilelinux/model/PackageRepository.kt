@@ -869,8 +869,12 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "ARM64",
             description = "Lightweight installer for Conda, Python package and virtual environment manager.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y curl wget bzip2 ca-certificates && if [ -x /usr/bin/curl ]; then curl -fSL https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh -o /tmp/miniforge.sh || curl -fSL https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh -o /tmp/miniforge.sh; else wget -O /tmp/miniforge.sh https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh || wget -O /tmp/miniforge.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh; fi && bash /tmp/miniforge.sh -b -p /home/ubuntu/miniforge3 -u && rm -f /tmp/miniforge.sh",
-            checkInstalledCommand = "which conda || [ -x /home/ubuntu/miniforge3/bin/conda ] || [ -x /root/miniconda3/bin/conda ]",
+            installCommand = "if [ -x /usr/local/bin/install-conda ]; then /usr/local/bin/install-conda; else " +
+                    "(which curl >/dev/null 2>&1 || which wget >/dev/null 2>&1 || (sudo apt-get -o DPkg::Lock::Timeout=60 update -y && sudo apt-get -o DPkg::Lock::Timeout=60 install -y --no-install-recommends curl ca-certificates)) && " +
+                    "if which curl >/dev/null 2>&1; then (curl -fSL https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh -o /home/ubuntu/.miniforge.sh || curl -fSL https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh -o /home/ubuntu/.miniforge.sh); else (wget -O /home/ubuntu/.miniforge.sh https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh || wget -O /home/ubuntu/.miniforge.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh); fi && " +
+                    "bash /home/ubuntu/.miniforge.sh -b -p /home/ubuntu/miniforge3 -u && rm -f /home/ubuntu/.miniforge.sh && " +
+                    "/home/ubuntu/miniforge3/bin/conda init bash && /home/ubuntu/miniforge3/bin/conda config --set always_copy true && /home/ubuntu/miniforge3/bin/conda config --set auto_activate_base true; fi",
+            checkInstalledCommand = "[ -x /home/ubuntu/miniforge3/bin/conda ] || [ -x /root/miniconda3/bin/conda ] || [ -x /opt/conda/bin/conda ]",
             launchUrl = null
         ),
         LinuxPackage(

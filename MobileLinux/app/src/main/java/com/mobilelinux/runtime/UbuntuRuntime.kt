@@ -1033,6 +1033,16 @@ class UbuntuRuntime(private val context: Context) {
                 condaManagerFile.setReadable(true, false)
             } catch (ignored: Exception) {}
 
+            val installCondaFile = File(usrLocalBin, "install-conda")
+            safeWriteFile(installCondaFile, getInstallCondaScript())
+            installCondaFile.setExecutable(true, false)
+            installCondaFile.setReadable(true, false)
+
+            val condaInstallAlias = File(usrLocalBin, "conda-install")
+            safeWriteFile(condaInstallAlias, getInstallCondaScript())
+            condaInstallAlias.setExecutable(true, false)
+            condaInstallAlias.setReadable(true, false)
+
             // Smart CLI Wrappers for Python Scientific & Developer Libraries
             val pythonModuleConfigs = listOf(
                 PythonModuleWrapperConfig(
@@ -2139,7 +2149,7 @@ class UbuntuRuntime(private val context: Context) {
         "    exit 1",
         "fi",
         "export DEBIAN_FRONTEND=noninteractive",
-        "sudo apt-get update -y && sudo apt-get install -y --no-install-recommends \"\$@\"\n"
+        "sudo apt-get -o DPkg::Lock::Timeout=60 -o Acquire::ForceIPv4=true update -y && sudo apt-get -o DPkg::Lock::Timeout=60 -o Acquire::ForceIPv4=true install -y --no-install-recommends \"\$@\"\n"
     ).joinToString("\n")
 
     data class PythonModuleWrapperConfig(
@@ -2355,6 +2365,116 @@ class UbuntuRuntime(private val context: Context) {
         "echo -e \"\\033[1;32m[MobileLinux]\\033[0m ✓ Sync complete for environment '\$TARGET_ENV'!\\n\"\n"
     ).joinToString("\n")
 
+    private fun getInstallCondaScript(): String = listOf(
+        "#!/bin/bash",
+        "# MobileLinux Automated Miniforge3 / Conda Installer & Configurator",
+        "set -e",
+        "",
+        "INSTALL_DIR=\"/home/ubuntu/miniforge3\"",
+        "CONDA_BIN=\"\$INSTALL_DIR/bin/conda\"",
+        "TMP_INSTALLER=\"/home/ubuntu/.miniforge_installer.sh\"",
+        "",
+        "echo -e \"\\033[1;36m[MobileLinux]\\033[0m Starting Miniforge3 / Conda ARM64 installation...\"",
+        "",
+        "# 1. If already installed, just configure and activate",
+        "if [ -x \"\$CONDA_BIN\" ]; then",
+        "    echo -e \"\\033[1;32m[MobileLinux]\\033[0m Conda already exists at \$INSTALL_DIR.\"",
+        "    \"\$CONDA_BIN\" init bash 2>/dev/null || true",
+        "    \"\$CONDA_BIN\" config --set always_copy true 2>/dev/null || true",
+        "    \"\$CONDA_BIN\" config --set auto_activate_base true 2>/dev/null || true",
+        "    echo -e \"\\033[1;32m[MobileLinux]\\033[0m ✓ Conda is configured and ready!\"",
+        "    exit 0",
+        "fi",
+        "",
+        "# 2. Ensure downloader exists (curl or wget)",
+        "if ! which curl >/dev/null 2>&1 && ! which wget >/dev/null 2>&1; then",
+        "    echo -e \"\\033[1;33m[MobileLinux]\\033[0m Network tools missing. Installing curl & certificates...\"",
+        "    export DEBIAN_FRONTEND=noninteractive",
+        "    sudo apt-get -o DPkg::Lock::Timeout=60 -o Acquire::ForceIPv4=true update -y || true",
+        "    sudo apt-get -o DPkg::Lock::Timeout=60 -o Acquire::ForceIPv4=true install -y --no-install-recommends curl ca-certificates || true",
+        "fi",
+        "",
+        "# 3. Clean up any leftover previous incomplete download",
+        "rm -f \"\$TMP_INSTALLER\" /tmp/miniforge.sh /tmp/Miniforge3-Linux-aarch64.sh",
+        "",
+        "# 4. Download Miniforge3 ARM64 installer",
+        "URL1=\"https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh\"",
+        "URL2=\"https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh\"",
+        "DOWNLOAD_OK=0",
+        "",
+        "echo -e \"\\033[1;36m[MobileLinux]\\033[0m Downloading Miniforge3 installer (ARM64)...\"",
+        "if which curl >/dev/null 2>&1; then",
+        "    if curl -fSL --retry 3 --connect-timeout 20 \"\$URL1\" -o \"\$TMP_INSTALLER\"; then",
+        "        DOWNLOAD_OK=1",
+        "    elif curl -fSL --retry 3 --connect-timeout 20 -k \"\$URL1\" -o \"\$TMP_INSTALLER\"; then",
+        "        DOWNLOAD_OK=1",
+        "    elif curl -fSL --retry 3 --connect-timeout 20 \"\$URL2\" -o \"\$TMP_INSTALLER\"; then",
+        "        DOWNLOAD_OK=1",
+        "    fi",
+        "elif which wget >/dev/null 2>&1; then",
+        "    if wget --tries=3 --timeout=20 -O \"\$TMP_INSTALLER\" \"\$URL1\"; then",
+        "        DOWNLOAD_OK=1",
+        "    elif wget --tries=3 --timeout=20 --no-check-certificate -O \"\$TMP_INSTALLER\" \"\$URL1\"; then",
+        "        DOWNLOAD_OK=1",
+        "    elif wget --tries=3 --timeout=20 -O \"\$TMP_INSTALLER\" \"\$URL2\"; then",
+        "        DOWNLOAD_OK=1",
+        "    fi",
+        "fi",
+        "",
+        "if [ \"\$DOWNLOAD_OK\" -ne 1 ] || [ ! -f \"\$TMP_INSTALLER\" ]; then",
+        "    echo -e \"\\033[1;31m[MobileLinux]\\033[0m Failed to download Conda installer. Check network connection.\"",
+        "    exit 1",
+        "fi",
+        "",
+        "# Verify downloaded size (must be > 20MB)",
+        "FILE_SIZE=$(wc -c < \"\$TMP_INSTALLER\" 2>/dev/null || echo 0)",
+        "if [ \"\$FILE_SIZE\" -lt 20000000 ]; then",
+        "    echo -e \"\\033[1;31m[MobileLinux]\\033[0m Downloaded installer file is incomplete (\$FILE_SIZE bytes).\"",
+        "    rm -f \"\$TMP_INSTALLER\"",
+        "    exit 1",
+        "fi",
+        "",
+        "# 5. Run the installer",
+        "echo -e \"\\033[1;36m[MobileLinux]\\033[0m Unpacking & installing Miniforge3 into \$INSTALL_DIR...\"",
+        "bash \"\$TMP_INSTALLER\" -b -p \"\$INSTALL_DIR\" -u",
+        "rm -f \"\$TMP_INSTALLER\"",
+        "",
+        "# 6. Verify installation",
+        "if [ ! -x \"\$CONDA_BIN\" ]; then",
+        "    echo -e \"\\033[1;31m[MobileLinux]\\033[0m Installation finished but \$CONDA_BIN not found.\"",
+        "    exit 1",
+        "fi",
+        "",
+        "chmod -R u+rx \"\$INSTALL_DIR/bin\" 2>/dev/null || true",
+        "",
+        "# 7. Configure Conda",
+        "echo -e \"\\033[1;36m[MobileLinux]\\033[0m Configuring Conda environment...\"",
+        "\"\$CONDA_BIN\" init bash 2>/dev/null || true",
+        "\"\$CONDA_BIN\" config --set always_copy true 2>/dev/null || true",
+        "\"\$CONDA_BIN\" config --set auto_activate_base true 2>/dev/null || true",
+        "",
+        "# Write ~/.condarc",
+        "if [ ! -f /home/ubuntu/.condarc ]; then",
+        "    cat << 'EOF' > /home/ubuntu/.condarc",
+        "always_copy: true",
+        "auto_activate_base: true",
+        "notify_outdated_conda: false",
+        "EOF",
+        "fi",
+        "",
+        "# Root condarc as well",
+        "if [ -d /root ]; then",
+        "    cp -f /home/ubuntu/.condarc /root/.condarc 2>/dev/null || true",
+        "fi",
+        "",
+        "# Run conda-sync-packages if present",
+        "if [ -x /usr/local/bin/conda-sync-packages ]; then",
+        "    /usr/local/bin/conda-sync-packages 2>/dev/null || true",
+        "fi",
+        "",
+        "echo -e \"\\033[1;32m[MobileLinux]\\033[0m ✓ Miniforge3 / Conda successfully installed and activated!\\n\"\n"
+    ).joinToString("\n")
+
     private fun getMobileLinuxRmPyScript(): String = listOf(
         "#!/usr/bin/env python3",
         "import sys",
@@ -2528,8 +2648,8 @@ class UbuntuRuntime(private val context: Context) {
                 ensureRealDirectory(etcMl)
 
                 val installCmd = "export DEBIAN_FRONTEND=noninteractive && " +
-                        "apt-get update -y && " +
-                        "apt-get install -y --no-install-recommends nano vim-tiny git python3-pip htop tree unzip zip && " +
+                        "apt-get -o DPkg::Lock::Timeout=60 -o Acquire::ForceIPv4=true update -y && " +
+                        "apt-get -o DPkg::Lock::Timeout=60 -o Acquire::ForceIPv4=true install -y --no-install-recommends curl wget ca-certificates nano vim-tiny git python3-pip htop tree unzip zip && " +
                         "touch /etc/mobilelinux/.tools_installed"
 
                 val result = runCommand(installCmd)

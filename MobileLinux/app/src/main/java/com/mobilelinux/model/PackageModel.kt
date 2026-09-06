@@ -21,5 +21,6 @@ data class LinuxPackage(
     val launchUrl: String? = null,
     var isInstalled: Boolean = false,
     var isInstalling: Boolean = false,
-    var statusText: String = ""
+    var statusText: String = "",
+    var progressPercent: Int = -1
 )

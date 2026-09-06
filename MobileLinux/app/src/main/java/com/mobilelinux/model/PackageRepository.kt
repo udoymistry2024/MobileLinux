@@ -859,7 +859,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Latest / Web IDE",
             description = "Interactive web-based notebooks, code cells, terminal, and visualization dashboard.",
-            installCommand = "if [ -x /home/ubuntu/miniforge3/bin/conda ]; then /home/ubuntu/miniforge3/bin/conda install -y jupyterlab notebook 2>/dev/null || true; fi; sudo apt-get update -y && sudo apt-get install -y jupyter jupyter-core python3-pip && pip3 install --break-system-packages --no-cache-dir jupyterlab notebook",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y jupyter jupyter-core python3-pip && pip3 install --break-system-packages --no-cache-dir jupyterlab notebook; if [ -x /home/ubuntu/miniforge3/bin/pip ]; then /home/ubuntu/miniforge3/bin/pip install --no-cache-dir jupyterlab notebook 2>/dev/null || true; fi",
             checkInstalledCommand = "which jupyter || [ -x /home/ubuntu/miniforge3/bin/jupyter ] || [ -x /root/miniconda3/bin/jupyter ]",
             launchUrl = "http://127.0.0.1:8888/lab"
         ),
@@ -879,7 +879,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "The fundamental package for high-performance scientific computing and N-dimensional arrays.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-numpy || pip3 install --break-system-packages --no-cache-dir numpy; if [ -x /home/ubuntu/miniforge3/bin/conda ]; then /home/ubuntu/miniforge3/bin/conda install -y numpy 2>/dev/null || true; fi",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-numpy || pip3 install --break-system-packages --no-cache-dir numpy; if [ -x /home/ubuntu/miniforge3/bin/pip ]; then /home/ubuntu/miniforge3/bin/pip install --no-cache-dir numpy 2>/dev/null || true; fi",
             checkInstalledCommand = "python3 -c 'import numpy' 2>/dev/null || /home/ubuntu/miniforge3/bin/python -c 'import numpy' 2>/dev/null",
             launchUrl = null
         ),
@@ -889,7 +889,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Powerful, flexible data analysis and manipulation library for structured datasets.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-pandas || pip3 install --break-system-packages --no-cache-dir pandas; if [ -x /home/ubuntu/miniforge3/bin/conda ]; then /home/ubuntu/miniforge3/bin/conda install -y pandas 2>/dev/null || true; fi",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-pandas || pip3 install --break-system-packages --no-cache-dir pandas; if [ -x /home/ubuntu/miniforge3/bin/pip ]; then /home/ubuntu/miniforge3/bin/pip install --no-cache-dir pandas 2>/dev/null || true; fi",
             checkInstalledCommand = "python3 -c 'import pandas' 2>/dev/null || /home/ubuntu/miniforge3/bin/python -c 'import pandas' 2>/dev/null",
             launchUrl = null
         ),
@@ -899,7 +899,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Fundamental algorithms for scientific computing including optimization, integration, and ODE solvers.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-scipy || pip3 install --break-system-packages --no-cache-dir scipy; if [ -x /home/ubuntu/miniforge3/bin/conda ]; then /home/ubuntu/miniforge3/bin/conda install -y scipy 2>/dev/null || true; fi",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-scipy || pip3 install --break-system-packages --no-cache-dir scipy; if [ -x /home/ubuntu/miniforge3/bin/pip ]; then /home/ubuntu/miniforge3/bin/pip install --no-cache-dir scipy 2>/dev/null || true; fi",
             checkInstalledCommand = "python3 -c 'import scipy' 2>/dev/null || /home/ubuntu/miniforge3/bin/python -c 'import scipy' 2>/dev/null",
             launchUrl = null
         ),
@@ -909,7 +909,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Simple and efficient tools for predictive data analysis, clustering, and machine learning.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-sklearn || pip3 install --break-system-packages --no-cache-dir scikit-learn; if [ -x /home/ubuntu/miniforge3/bin/conda ]; then /home/ubuntu/miniforge3/bin/conda install -y scikit-learn 2>/dev/null || true; fi",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-sklearn || pip3 install --break-system-packages --no-cache-dir scikit-learn; if [ -x /home/ubuntu/miniforge3/bin/pip ]; then /home/ubuntu/miniforge3/bin/pip install --no-cache-dir scikit-learn 2>/dev/null || true; fi",
             checkInstalledCommand = "python3 -c 'import sklearn' 2>/dev/null || /home/ubuntu/miniforge3/bin/python -c 'import sklearn' 2>/dev/null",
             launchUrl = null
         ),
@@ -969,7 +969,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Comprehensive library for creating static, animated, and interactive visualizations in Python.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-matplotlib || pip3 install --break-system-packages --no-cache-dir matplotlib; if [ -x /home/ubuntu/miniforge3/bin/conda ]; then /home/ubuntu/miniforge3/bin/conda install -y matplotlib 2>/dev/null || true; fi",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-matplotlib || pip3 install --break-system-packages --no-cache-dir matplotlib; if [ -x /home/ubuntu/miniforge3/bin/pip ]; then /home/ubuntu/miniforge3/bin/pip install --no-cache-dir matplotlib 2>/dev/null || true; fi",
             checkInstalledCommand = "python3 -c 'import matplotlib' 2>/dev/null || /home/ubuntu/miniforge3/bin/python -c 'import matplotlib' 2>/dev/null",
             launchUrl = null
         ),
@@ -979,7 +979,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Statistical data visualization based on matplotlib with informative, beautiful themes.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-seaborn || pip3 install --break-system-packages --no-cache-dir seaborn; if [ -x /home/ubuntu/miniforge3/bin/conda ]; then /home/ubuntu/miniforge3/bin/conda install -y seaborn 2>/dev/null || true; fi",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-seaborn || pip3 install --break-system-packages --no-cache-dir seaborn; if [ -x /home/ubuntu/miniforge3/bin/pip ]; then /home/ubuntu/miniforge3/bin/pip install --no-cache-dir seaborn 2>/dev/null || true; fi",
             checkInstalledCommand = "python3 -c 'import seaborn' 2>/dev/null || /home/ubuntu/miniforge3/bin/python -c 'import seaborn' 2>/dev/null",
             launchUrl = null
         ),

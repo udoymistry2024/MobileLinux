@@ -5,6 +5,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.mobilelinux.R
@@ -49,6 +50,8 @@ class PackagesAdapter(
         private val tvDesc: TextView = itemView.findViewById(R.id.tv_pkg_desc)
         private val tvStatus: TextView = itemView.findViewById(R.id.tv_pkg_status)
         private val layoutInstalling: LinearLayout = itemView.findViewById(R.id.layout_installing)
+        private val tvInstallingLabel: TextView = itemView.findViewById(R.id.tv_installing_label)
+        private val pbPkgHorizontal: ProgressBar = itemView.findViewById(R.id.pb_pkg_horizontal)
         private val layoutInstalled: LinearLayout = itemView.findViewById(R.id.layout_installed)
         private val btnInstall: Button = itemView.findViewById(R.id.btn_install)
         private val btnLaunch: Button = itemView.findViewById(R.id.btn_launch)
@@ -66,9 +69,21 @@ class PackagesAdapter(
                     layoutInstalled.visibility = View.GONE
                     btnLaunch.visibility = View.GONE
                     tvStatus.text = if (pkg.statusText.isNotEmpty()) pkg.statusText else "Installing in background..."
+
+                    if (pkg.progressPercent >= 0) {
+                        tvInstallingLabel.text = "Installing ${pkg.progressPercent}%"
+                        pbPkgHorizontal.visibility = View.VISIBLE
+                        pbPkgHorizontal.isIndeterminate = false
+                        pbPkgHorizontal.progress = pkg.progressPercent
+                    } else {
+                        tvInstallingLabel.text = "Installing..."
+                        pbPkgHorizontal.visibility = View.VISIBLE
+                        pbPkgHorizontal.isIndeterminate = true
+                    }
                 }
                 pkg.isInstalled -> {
                     layoutInstalling.visibility = View.GONE
+                    pbPkgHorizontal.visibility = View.GONE
                     btnInstall.visibility = View.GONE
                     layoutInstalled.visibility = View.VISIBLE
                     btnLaunch.visibility = if (pkg.launchUrl != null) View.VISIBLE else View.GONE
@@ -76,6 +91,7 @@ class PackagesAdapter(
                 }
                 else -> {
                     layoutInstalling.visibility = View.GONE
+                    pbPkgHorizontal.visibility = View.GONE
                     btnInstall.visibility = View.VISIBLE
                     layoutInstalled.visibility = View.GONE
                     btnLaunch.visibility = View.GONE

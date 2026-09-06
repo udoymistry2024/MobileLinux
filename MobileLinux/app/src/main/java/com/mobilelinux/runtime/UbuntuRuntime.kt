@@ -842,15 +842,42 @@ class UbuntuRuntime(private val context: Context) {
      * Runs a command inside the Ubuntu environment and returns output.
      * Used for setup tasks and one-off commands.
      */
-    suspend fun runCommand(command: String): Pair<Int, String> = withContext(Dispatchers.IO) {
+    suspend fun runCommand(
+        command: String,
+        onOutputLine: ((String) -> Unit)? = null
+    ): Pair<Int, String> = withContext(Dispatchers.IO) {
         try {
             val process = createSessionProcess(
                 sessionId = "cmd_${System.currentTimeMillis()}",
                 execCommand = command
             )
-            val output = process.inputStream.bufferedReader().readText()
+            val fullOutput = java.lang.StringBuilder()
+            val reader = process.inputStream.bufferedReader()
+            val sb = java.lang.StringBuilder()
+            var ch: Int
+            while (reader.read().also { ch = it } != -1) {
+                val c = ch.toChar()
+                fullOutput.append(c)
+                if (c == '\n' || c == '\r') {
+                    if (sb.isNotEmpty()) {
+                        val segment = sb.toString().trim()
+                        if (segment.isNotEmpty()) {
+                            onOutputLine?.invoke(segment)
+                        }
+                        sb.setLength(0)
+                    }
+                } else {
+                    sb.append(c)
+                }
+            }
+            if (sb.isNotEmpty()) {
+                val segment = sb.toString().trim()
+                if (segment.isNotEmpty()) {
+                    onOutputLine?.invoke(segment)
+                }
+            }
             val exitCode = process.waitFor()
-            Pair(exitCode, output)
+            Pair(exitCode, fullOutput.toString())
         } catch (e: Exception) {
             Log.e(TAG, "Command failed: $command", e)
             Pair(-1, e.message ?: "Unknown error")

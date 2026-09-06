@@ -28,6 +28,7 @@ import com.mobilelinux.model.LinuxPackage
 import com.mobilelinux.model.PackageCategory
 import com.mobilelinux.model.PackageRepository
 import com.mobilelinux.runtime.UbuntuRuntime
+import com.mobilelinux.util.PackageProgressParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -285,21 +286,42 @@ class LibrariesActivity : AppCompatActivity() {
         if (pkg.isInstalling) return
 
         pkg.isInstalling = true
-        pkg.statusText = "Installing package in background..."
+        pkg.progressPercent = 5
+        pkg.statusText = "Starting installation..."
         adapter.updateItem(pkg.id)
 
         Toast.makeText(this, "Starting installation of ${pkg.name}...", Toast.LENGTH_SHORT).show()
 
         lifecycleScope.launch(Dispatchers.IO) {
+            val parser = PackageProgressParser(pkg.name)
+            var lastUpdateMs = 0L
+
             try {
                 // Ensure pip.conf is present before running install
                 runtime.runCommand("mkdir -p /etc && printf '[global]\\nbreak-system-packages = true\\n' > /etc/pip.conf 2>/dev/null || true")
 
-                val result = runtime.runCommand(pkg.installCommand)
+                val result = runtime.runCommand(pkg.installCommand) { line ->
+                    val update = parser.parseLine(line)
+                    val now = System.currentTimeMillis()
+                    if (update.percent != pkg.progressPercent || now - lastUpdateMs > 200) {
+                        lastUpdateMs = now
+                        lifecycleScope.launch(Dispatchers.Main) {
+                            pkg.progressPercent = update.percent
+                            pkg.statusText = if (update.percent > 0) {
+                                "${update.stage} (${update.percent}%)"
+                            } else {
+                                update.stage
+                            }
+                            adapter.updateItem(pkg.id)
+                        }
+                    }
+                }
+
                 withContext(Dispatchers.Main) {
                     pkg.isInstalling = false
                     if (result.first == 0) {
                         pkg.isInstalled = true
+                        pkg.progressPercent = 100
                         pkg.statusText = "Installed and ready"
                         adapter.updateItem(pkg.id)
                         Toast.makeText(
@@ -310,6 +332,7 @@ class LibrariesActivity : AppCompatActivity() {
                     } else {
                         android.util.Log.e("LibrariesActivity", "Install error for ${pkg.id} (code ${result.first}): ${result.second}")
                         pkg.isInstalled = false
+                        pkg.progressPercent = -1
                         pkg.statusText = "Install failed (Exit code: ${result.first})"
                         adapter.updateItem(pkg.id)
                         Toast.makeText(
@@ -322,6 +345,7 @@ class LibrariesActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     pkg.isInstalling = false
+                    pkg.progressPercent = -1
                     pkg.statusText = "Error: ${e.message}"
                     adapter.updateItem(pkg.id)
                     Toast.makeText(

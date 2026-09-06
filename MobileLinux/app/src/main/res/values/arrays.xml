@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="color_scheme_entries">
+        <item>GitHub Dark (Default)</item>
+        <item>Dracula</item>
+        <item>Monokai</item>
+        <item>Solarized Dark</item>
+        <item>One Dark</item>
+    </string-array>
+    <string-array name="color_scheme_values">
+        <item>github_dark</item>
+        <item>dracula</item>
+        <item>monokai</item>
+        <item>solarized_dark</item>
+        <item>one_dark</item>
+    </string-array>
+</resources>

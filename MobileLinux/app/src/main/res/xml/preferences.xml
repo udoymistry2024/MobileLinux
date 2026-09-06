@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <!-- Terminal settings -->
+    <PreferenceCategory
+        android:title="Terminal"
+        android:key="category_terminal">
+
+        <SeekBarPreference
+            android:key="pref_font_size"
+            android:title="@string/pref_font_size_title"
+            android:summary="@string/pref_font_size_summary"
+            android:defaultValue="14"
+            app:min="8"
+            android:max="32" />
+
+        <ListPreference
+            android:key="pref_color_scheme"
+            android:title="@string/pref_color_scheme_title"
+            android:entries="@array/color_scheme_entries"
+            android:entryValues="@array/color_scheme_values"
+            android:defaultValue="github_dark" />
+
+        <SwitchPreferenceCompat
+            android:key="pref_bell"
+            android:title="@string/pref_bell_title"
+            android:summary="@string/pref_bell_summary"
+            android:defaultValue="false" />
+
+        <SwitchPreferenceCompat
+            android:key="pref_keep_screen_on"
+            android:title="@string/pref_keep_screen_on_title"
+            android:defaultValue="false" />
+
+    </PreferenceCategory>
+
+    <!-- System settings -->
+    <PreferenceCategory
+        android:title="System"
+        android:key="category_system">
+
+        <Preference
+            android:key="pref_shared_storage"
+            android:title="All Files Access (File Manager)"
+            android:summary="Manage storage permission for ~/MobileLinux" />
+
+        <SwitchPreferenceCompat
+            android:key="pref_root_mode"
+            android:title="@string/pref_root_mode_title"
+            android:summary="@string/pref_root_mode_summary"
+            android:defaultValue="false" />
+
+        <SwitchPreferenceCompat
+            android:key="pref_auto_start_on_boot"
+            android:title="@string/pref_auto_start_title"
+            android:summary="@string/pref_auto_start_summary"
+            android:defaultValue="false" />
+
+        <Preference
+            android:key="pref_battery_optimization"
+            android:title="Battery Optimization"
+            android:summary="Disable battery optimization for best performance" />
+
+        <Preference
+            android:key="pref_reinstall"
+            android:title="Reinstall Ubuntu"
+            android:summary="Delete and reinstall Ubuntu rootfs" />
+
+    </PreferenceCategory>
+
+    <!-- About -->
+    <PreferenceCategory
+        android:title="About"
+        android:key="category_about">
+
+        <Preference
+            android:key="pref_version"
+            android:title="Version"
+            android:summary="1.0.0" />
+
+        <Preference
+            android:key="pref_ubuntu_version"
+            android:title="Ubuntu Version"
+            android:summary="Ubuntu 24.04 LTS (Noble Numbat) ARM64" />
+
+    </PreferenceCategory>
+
+</PreferenceScreen>

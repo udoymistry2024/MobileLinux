@@ -1,0 +1,52 @@
+#!/bin/bash
+# =============================================================================
+# MobileLinux — sudo wrapper
+# Allows normal user 'ubuntu' to execute commands or open subshells as 'root'
+# =============================================================================
+
+if [ $# -eq 0 ]; then
+    echo "usage: sudo [-h] [-i | -s] [command]"
+    exit 1
+fi
+
+case "$1" in
+    su)
+        shift
+        export USER=root
+        export LOGNAME=root
+        export HOME=/root
+        if [ "$1" = "-" ] || [ "$1" = "-l" ] || [ "$1" = "--login" ]; then
+            cd /root
+        fi
+        exec /bin/bash --login -i
+        ;;
+    -i|--login|-s|--shell)
+        shift
+        cd /root
+        export USER=root
+        export LOGNAME=root
+        export HOME=/root
+        if [ $# -gt 0 ]; then
+            exec /bin/bash --login -c "$*"
+        else
+            exec /bin/bash --login -i
+        fi
+        ;;
+    bash|/bin/bash|/usr/bin/bash|sh|/bin/sh)
+        shift
+        export USER=root
+        export LOGNAME=root
+        export HOME=/root
+        if [ $# -gt 0 ]; then
+            exec /bin/bash "$@"
+        else
+            exec /bin/bash --login -i
+        fi
+        ;;
+    *)
+        export USER=root
+        export LOGNAME=root
+        export HOME=/root
+        exec "$@"
+        ;;
+esac

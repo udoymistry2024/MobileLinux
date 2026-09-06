@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Base dark theme -->
+    <style name="Theme.MobileLinux" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryVariant">@color/colorPrimaryVariant</item>
+        <item name="colorOnPrimary">@color/colorOnPrimary</item>
+        <item name="colorSecondary">@color/colorSecondary</item>
+        <item name="colorOnSecondary">@color/colorOnSecondary</item>
+        <item name="colorSurface">@color/colorSurface</item>
+        <item name="colorOnSurface">@color/colorOnSurface</item>
+        <item name="android:colorBackground">@color/colorBackground</item>
+        <item name="colorOnBackground">@color/colorOnBackground</item>
+        <item name="colorError">@color/colorError</item>
+
+        <!-- Status bar -->
+        <item name="android:statusBarColor">@color/status_bar_color</item>
+        <item name="android:navigationBarColor">@color/terminal_bg</item>
+        <item name="android:windowLightStatusBar">false</item>
+
+        <!-- Toolbar -->
+        <item name="toolbarStyle">@style/Widget.MobileLinux.Toolbar</item>
+
+        <!-- Text appearances -->
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="android:textColorHint">@color/text_hint</item>
+
+        <!-- Material components overrides -->
+        <item name="materialButtonStyle">@style/Widget.MobileLinux.Button</item>
+        <item name="materialButtonOutlinedStyle">@style/Widget.MobileLinux.Button.Outlined</item>
+        <item name="chipStyle">@style/Widget.MobileLinux.Chip</item>
+    </style>
+
+    <!-- Setup activity theme (same dark, but with system bars) -->
+    <style name="Theme.MobileLinux.Setup" parent="Theme.MobileLinux">
+        <item name="android:windowFullscreen">false</item>
+    </style>
+
+    <!-- Toolbar -->
+    <style name="Widget.MobileLinux.Toolbar" parent="Widget.MaterialComponents.Toolbar">
+        <item name="android:background">@color/toolbar_bg</item>
+        <item name="titleTextColor">@color/text_primary</item>
+        <item name="subtitleTextColor">@color/text_secondary</item>
+        <item name="navigationIconTint">@color/text_secondary</item>
+    </style>
+
+    <!-- Primary button -->
+    <style name="Widget.MobileLinux.Button" parent="Widget.MaterialComponents.Button">
+        <item name="backgroundTint">@color/accent_blue</item>
+        <item name="android:textColor">@color/colorOnPrimary</item>
+        <item name="cornerRadius">12dp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:letterSpacing">0.0</item>
+    </style>
+
+    <!-- Outlined button -->
+    <style name="Widget.MobileLinux.Button.Outlined" parent="Widget.MaterialComponents.Button.OutlinedButton">
+        <item name="strokeColor">@color/divider_color</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="cornerRadius">12dp</item>
+        <item name="android:textAllCaps">false</item>
+    </style>
+
+    <!-- Extra key button style -->
+    <style name="Widget.MobileLinux.ExtraKey" parent="Widget.MaterialComponents.Button.OutlinedButton">
+        <item name="strokeColor">@color/divider_color</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="android:textColor">@color/text_secondary</item>
+        <item name="android:backgroundTint">@color/extra_keys_bg</item>
+        <item name="cornerRadius">8dp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textSize">11sp</item>
+        <item name="android:minHeight">36dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:paddingStart">10dp</item>
+        <item name="android:paddingEnd">10dp</item>
+        <!-- Selected state (for Ctrl/Alt when active) -->
+        <item name="backgroundTintMode">src_over</item>
+    </style>
+
+    <style name="Widget.MobileLinux.ExtraKey.Active" parent="Widget.MobileLinux.ExtraKey">
+        <item name="android:backgroundTint">@color/accent_blue</item>
+        <item name="android:textColor">@color/colorOnPrimary</item>
+    </style>
+
+    <!-- Chip -->
+    <style name="Widget.MobileLinux.Chip" parent="Widget.MaterialComponents.Chip.Entry">
+        <item name="chipBackgroundColor">@color/card_bg</item>
+        <item name="android:textColor">@color/text_primary</item>
+    </style>
+
+    <!-- Dialog -->
+    <style name="Theme.MobileLinux.Dialog" parent="ThemeOverlay.MaterialComponents.Dialog.Alert">
+        <item name="android:background">@color/sidebar_bg</item>
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="colorPrimary">@color/accent_blue</item>
+    </style>
+
+    <!-- Preference theme -->
+    <style name="PreferenceThemeOverlay.MobileLinux" parent="PreferenceThemeOverlay.v14.Material">
+        <item name="android:background">@color/terminal_bg</item>
+    </style>
+
+</resources>

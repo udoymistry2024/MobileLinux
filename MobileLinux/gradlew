@@ -1,0 +1,8 @@
+#!/bin/sh
+GRADLE_BIN="/home/udoy-mistry/.gradle/wrapper/dists/gradle-8.7-bin/bhs2wmbdwecv87pi65oeuq5iu/gradle-8.7/bin/gradle"
+if [ ! -f "$GRADLE_BIN" ]; then
+    GRADLE_BIN=$(find ~/.gradle -name "gradle" -type f -perm /111 2>/dev/null | grep -E "bin/gradle$" | head -n 1)
+fi
+JAVA_HOME="/usr/lib/jvm/java-17-openjdk-amd64"
+export JAVA_HOME
+exec "$GRADLE_BIN" "$@"

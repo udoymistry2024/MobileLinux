@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Background colors -->
+    <color name="terminal_bg">#0D1117</color>
+    <color name="sidebar_bg">#161B22</color>
+    <color name="sidebar_header_bg">#0D1117</color>
+    <color name="toolbar_bg">#161B22</color>
+    <color name="extra_keys_bg">#1C2128</color>
+    <color name="card_bg">#21262D</color>
+
+    <!-- Text colors -->
+    <color name="text_primary">#E6EDF3</color>
+    <color name="text_secondary">#8B949E</color>
+    <color name="text_hint">#484F58</color>
+
+    <!-- Accent colors — GitHub-inspired dark palette -->
+    <color name="accent_blue">#58A6FF</color>
+    <color name="accent_green">#3FB950</color>
+    <color name="accent_red">#FF7B72</color>
+    <color name="accent_yellow">#D29922</color>
+    <color name="accent_purple">#BC8CFF</color>
+    <color name="accent_cyan">#39C5CF</color>
+    <color name="accent_orange">#F0883E</color>
+
+    <!-- UI elements -->
+    <color name="border_color">#30363D</color>
+    <color name="divider_color">#21262D</color>
+    <color name="ripple_color">#3058A6FF</color>
+    <color name="active_session_indicator">#58A6FF</color>
+    <color name="inactive_session_bg">#00000000</color>
+    <color name="active_session_bg">#1458A6FF</color>
+
+    <!-- Terminal cursor -->
+    <color name="cursor_color">#58A6FF</color>
+
+    <!-- Status bar -->
+    <color name="status_bar_color">#0D1117</color>
+
+    <!-- Material theme base -->
+    <color name="colorPrimary">#58A6FF</color>
+    <color name="colorPrimaryVariant">#388BFD</color>
+    <color name="colorOnPrimary">#0D1117</color>
+    <color name="colorSecondary">#3FB950</color>
+    <color name="colorOnSecondary">#0D1117</color>
+    <color name="colorSurface">#161B22</color>
+    <color name="colorOnSurface">#E6EDF3</color>
+    <color name="colorBackground">#0D1117</color>
+    <color name="colorOnBackground">#E6EDF3</color>
+    <color name="colorError">#FF7B72</color>
+</resources>

@@ -1,0 +1,37 @@
+# ==============================================================================
+# MobileLinux - Git Ignore Rules
+# ==============================================================================
+
+# Built application packages (distribute via GitHub Releases)
+*.apk
+*.aab
+
+# Gradle files & caches
+.gradle/
+build/
+**/build/
+
+# Android Studio & IDE
+.idea/
+*.iml
+.project
+.settings/
+.vscode/
+
+# Local configurations & secrets
+local.properties
+.DS_Store
+Thumbs.db
+*.log
+
+# Caches
+*.pyc
+__pycache__/
+.cache/
+.cxx/
+captures/
+
+# OS / temporary files
+*~
+*.swp
+*.bak

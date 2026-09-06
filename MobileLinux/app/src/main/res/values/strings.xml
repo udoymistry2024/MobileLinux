@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MobileLinux</string>
+    <string name="drawer_open">Open session sidebar</string>
+    <string name="drawer_close">Close session sidebar</string>
+    <string name="action_new_session">New Session</string>
+    <string name="action_settings">Settings</string>
+    <string name="setup_title">Setting Up Ubuntu</string>
+    <string name="setup_description">Ubuntu 24.04 ARM64 is being configured on your device.</string>
+    <string name="session_running">running</string>
+    <string name="session_stopped">stopped</string>
+    <string name="sessions_label">SESSIONS</string>
+    <string name="btn_new_session">+ New Session</string>
+    <string name="notification_title">MobileLinux</string>
+    <string name="notification_desc">Linux sessions running in background</string>
+    <string name="pref_font_size_title">Font Size</string>
+    <string name="pref_font_size_summary">Terminal font size in sp</string>
+    <string name="pref_color_scheme_title">Color Scheme</string>
+    <string name="pref_auto_start_title">Start on Boot</string>
+    <string name="pref_auto_start_summary">Restart sessions when device boots</string>
+    <string name="pref_keep_screen_on_title">Keep Screen On</string>
+    <string name="pref_bell_title">Terminal Bell</string>
+    <string name="pref_bell_summary">Play sound on terminal bell (\\a)</string>
+    <string name="pref_root_mode_title">Root Mode</string>
+    <string name="pref_root_mode_summary">Use chroot (requires rooted device) instead of proot</string>
+</resources>

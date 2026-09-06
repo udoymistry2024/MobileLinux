@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <files-path name="ubuntu_rootfs" path="ubuntu-rootfs/" />
+    <files-path name="scripts" path="scripts/" />
+    <files-path name="binaries" path="binaries/" />
+    <cache-path name="cache" path="." />
+</paths>

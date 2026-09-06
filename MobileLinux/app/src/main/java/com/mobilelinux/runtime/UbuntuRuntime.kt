@@ -939,21 +939,47 @@ class UbuntuRuntime(private val context: Context) {
             val ubuntuHome = File(rootfsDir, "home/ubuntu")
             ensureRealDirectory(ubuntuHome)
             val ubuntuBashrc = File(ubuntuHome, ".bashrc")
-            safeWriteFile(ubuntuBashrc, getUbuntuBashrc())
+            if (!ubuntuBashrc.exists()) {
+                safeWriteFile(ubuntuBashrc, getUbuntuBashrc())
+            } else {
+                val existing = ubuntuBashrc.readText()
+                if (!existing.contains("alias clear=")) {
+                    val sb = StringBuilder(existing)
+                    if (!existing.endsWith("\n") && existing.isNotEmpty()) sb.append("\n")
+                    sb.append("alias clear='printf \"\\033[H\\033[2J\\033[3J\"'\n")
+                    sb.append("alias cls='printf \"\\033[H\\033[2J\\033[3J\"'\n")
+                    safeWriteFile(ubuntuBashrc, sb.toString())
+                }
+            }
             ubuntuBashrc.setReadable(true, false)
 
             val ubuntuProfile = File(ubuntuHome, ".profile")
-            safeWriteFile(ubuntuProfile, getProfileContent())
+            if (!ubuntuProfile.exists()) {
+                safeWriteFile(ubuntuProfile, getProfileContent())
+            }
             ubuntuProfile.setReadable(true, false)
 
             val rootHome = File(rootfsDir, "root")
             ensureRealDirectory(rootHome)
             val rootBashrc = File(rootHome, ".bashrc")
-            safeWriteFile(rootBashrc, getRootBashrc())
+            if (!rootBashrc.exists()) {
+                safeWriteFile(rootBashrc, getRootBashrc())
+            } else {
+                val existing = rootBashrc.readText()
+                if (!existing.contains("alias clear=")) {
+                    val sb = StringBuilder(existing)
+                    if (!existing.endsWith("\n") && existing.isNotEmpty()) sb.append("\n")
+                    sb.append("alias clear='printf \"\\033[H\\033[2J\\033[3J\"'\n")
+                    sb.append("alias cls='printf \"\\033[H\\033[2J\\033[3J\"'\n")
+                    safeWriteFile(rootBashrc, sb.toString())
+                }
+            }
             rootBashrc.setReadable(true, false)
 
             val rootProfile = File(rootHome, ".profile")
-            safeWriteFile(rootProfile, getProfileContent())
+            if (!rootProfile.exists()) {
+                safeWriteFile(rootProfile, getProfileContent())
+            }
             rootProfile.setReadable(true, false)
 
             // CRITICAL: Clean up obsolete mobilelinux-shell.sh from user home directories

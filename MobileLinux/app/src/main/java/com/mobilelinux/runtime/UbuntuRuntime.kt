@@ -884,7 +884,7 @@ class UbuntuRuntime(private val context: Context) {
         }
     }
 
-    private fun installCommandWrappers() {
+    fun installCommandWrappers() {
         try {
             val usrLocalBin = File(rootfsDir, "usr/local/bin")
             ensureRealDirectory(usrLocalBin)

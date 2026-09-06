@@ -65,6 +65,13 @@ class LibrariesActivity : AppCompatActivity() {
 
         runtime = UbuntuRuntime.getInstance(this)
 
+        // Ensure container wrappers are fresh
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                runtime.installCommandWrappers()
+            } catch (ignored: Exception) {}
+        }
+
         initViews()
         initToolbar()
         initWindowInsets()
@@ -222,7 +229,27 @@ class LibrariesActivity : AppCompatActivity() {
 
     private fun loadPackages() {
         allPackages.clear()
-        allPackages.addAll(PackageRepository.getCuratedPackages())
+        val curated = PackageRepository.getCuratedPackages()
+
+        // Instant Cache from SharedPreferences: shows installed status in 0ms on startup
+        val prefs = getSharedPreferences("packages_state_cache", Context.MODE_PRIVATE)
+        val savedInstalled = prefs.getStringSet("installed_ids", emptySet()) ?: emptySet()
+        val isCondaActiveCached = prefs.getBoolean("conda_active", false)
+
+        curated.forEach { pkg ->
+            if (pkg.id == "miniconda") {
+                if (savedInstalled.contains("miniconda")) {
+                    pkg.isInstalled = true
+                    pkg.isActivated = isCondaActiveCached
+                    pkg.statusText = if (isCondaActiveCached) "Active & Ready (base)" else "Installed. Click Activate to enable."
+                }
+            } else if (savedInstalled.contains(pkg.id)) {
+                pkg.isInstalled = true
+                pkg.statusText = "Installed and ready"
+            }
+        }
+
+        allPackages.addAll(curated)
         applyFilters()
     }
 
@@ -282,6 +309,18 @@ class LibrariesActivity : AppCompatActivity() {
                     "grep -q 'conda initialize' /home/ubuntu/.bashrc 2>/dev/null && [ -f /home/ubuntu/.condarc ]"
                 ).first == 0
 
+                val finalInstalledIds = installedIds.toMutableSet()
+                if (realCondaInstalled) {
+                    finalInstalledIds.add("miniconda")
+                }
+
+                // Update persistent disk cache with verified scan results
+                val prefs = getSharedPreferences("packages_state_cache", Context.MODE_PRIVATE)
+                prefs.edit()
+                    .putStringSet("installed_ids", finalInstalledIds)
+                    .putBoolean("conda_active", isCondaActivated)
+                    .apply()
+
                 allPackages.forEach { pkg ->
                     // Preserve status for packages currently installing or in queue
                     if (pkg.isInstalling) return@forEach
@@ -294,9 +333,10 @@ class LibrariesActivity : AppCompatActivity() {
                             isCondaActivated -> "Active & Ready (base)"
                             else -> "Installed. Click Activate to enable."
                         }
-                    } else if (installedIds.contains(pkg.id)) {
-                        pkg.isInstalled = true
-                        pkg.statusText = "Installed and ready"
+                    } else {
+                        val isInst = finalInstalledIds.contains(pkg.id)
+                        pkg.isInstalled = isInst
+                        pkg.statusText = if (isInst) "Installed and ready" else "Ready to install"
                     }
                 }
             } catch (ignored: Exception) {
@@ -379,6 +419,12 @@ class LibrariesActivity : AppCompatActivity() {
                 withContext(Dispatchers.Main) {
                     pkg.isInstalling = false
                     if (result.first == 0) {
+                        // Persist installed state in disk cache immediately
+                        val prefs = getSharedPreferences("packages_state_cache", Context.MODE_PRIVATE)
+                        val currentSet = prefs.getStringSet("installed_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
+                        currentSet.add(pkg.id)
+                        prefs.edit().putStringSet("installed_ids", currentSet).apply()
+
                         if (pkg.id == "miniconda") {
                             val checkConda = withContext(Dispatchers.IO) {
                                 runtime.runCommand(
@@ -390,6 +436,7 @@ class LibrariesActivity : AppCompatActivity() {
                                 pkg.isActivated = true
                                 pkg.progressPercent = 100
                                 pkg.statusText = "Active & Ready (base)"
+                                prefs.edit().putBoolean("conda_active", true).apply()
                                 withContext(Dispatchers.IO) {
                                     runtime.configureCondaEnvironment()
                                 }
@@ -545,6 +592,15 @@ class LibrariesActivity : AppCompatActivity() {
                     pkg.isInstalled = true
                     pkg.isActivated = true
                     pkg.statusText = "Active & Ready (base)"
+
+                    val prefs = getSharedPreferences("packages_state_cache", Context.MODE_PRIVATE)
+                    val currentSet = prefs.getStringSet("installed_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
+                    currentSet.add("miniconda")
+                    prefs.edit()
+                        .putStringSet("installed_ids", currentSet)
+                        .putBoolean("conda_active", true)
+                        .apply()
+
                     adapter.updateItem(pkg.id)
                     Toast.makeText(
                         this@LibrariesActivity,

@@ -17,14 +17,44 @@ object PackageRepository {
     }
 
     /**
-     * Ultra-fast batch check script that executes inside Ubuntu in ~100ms
+     * Ultra-fast batch check script that executes inside Ubuntu in ~200ms
      * checking all packages and returning INSTALLED:<id> lines.
      */
     fun getFastBatchCheckScript(): String {
         val d = '$'
         val sb = java.lang.StringBuilder()
+        sb.append("ALL_PY=\"").append(d).append("(python3 -c \"import sys\n")
+        sb.append("for m in ['numpy','pandas','scipy','torch','torchvision','torchaudio','tflite_runtime','onnxruntime','matplotlib','seaborn','plotly','bokeh','altair','cv2','PIL','skimage','nltk','spacy','transformers','tokenizers','datasets','gensim','networkx','sympy','statsmodels','xgboost','lightgbm','catboost','polars','dask','pyarrow','fastapi','uvicorn','streamlit','gradio','tqdm','joblib','h5py','zarr','librosa','soundfile','bs4','scrapy','selenium','playwright','requests','httpx','aiohttp','flask','django','sqlalchemy','alembic','psycopg2','pymysql','redis','celery','pydantic','pytest','hypothesis','locust','impacket','scapy','sherlock']:\n")
+        sb.append("    try:\n")
+        sb.append("        __import__(m)\n")
+        sb.append("        print('PY:' + m)\n")
+        sb.append("    except Exception:\n")
+        sb.append("        pass\n")
+        sb.append("\" 2>/dev/null)\"\n")
+        sb.append("if [ -x /home/ubuntu/miniforge3/bin/python ]; then\n")
+        sb.append("    ALL_PY=\"").append(d).append("ALL_PY ").append(d).append("(/home/ubuntu/miniforge3/bin/python -c \"import sys\n")
+        sb.append("for m in ['numpy','pandas','scipy','torch','torchvision','torchaudio','tflite_runtime','onnxruntime','matplotlib','seaborn','plotly','bokeh','altair','cv2','PIL','skimage','nltk','spacy','transformers','tokenizers','datasets','gensim','networkx','sympy','statsmodels','xgboost','lightgbm','catboost','polars','dask','pyarrow','fastapi','uvicorn','streamlit','gradio','tqdm','joblib','h5py','zarr','librosa','soundfile','bs4','scrapy','selenium','playwright','requests','httpx','aiohttp','flask','django','sqlalchemy','alembic','psycopg2','pymysql','redis','celery','pydantic','pytest','hypothesis','locust','impacket','scapy','sherlock']:\n")
+        sb.append("    try:\n")
+        sb.append("        __import__(m)\n")
+        sb.append("        print('PY:' + m)\n")
+        sb.append("    except Exception:\n")
+        sb.append("        pass\n")
+        sb.append("\" 2>/dev/null)\"\n")
+        sb.append("fi\n")
+        sb.append("fast_check() {\n")
+        sb.append("    local cmd=\"").append(d).append("1\"\n")
+        sb.append("    if [[ \"").append(d).append("cmd\" == *\"import \"* ]]; then\n")
+        sb.append("        local mod\n")
+        sb.append("        mod=\"").append(d).append("(echo \"").append(d).append("cmd\" | sed -n 's/.*import \\([a-zA-Z0-9_]*\\).*/\\1/p')\"\n")
+        sb.append("        if [ -n \"").append(d).append("mod\" ] && [[ \"").append(d).append("ALL_PY\" == *\"PY:").append(d).append("mod\"* ]]; then\n")
+        sb.append("            return 0\n")
+        sb.append("        fi\n")
+        sb.append("    fi\n")
+        sb.append("    local fast_cmd=\"").append(d).append("{cmd//which /type -P }\"\n")
+        sb.append("    eval \"").append(d).append("fast_cmd\" >/dev/null 2>&1\n")
+        sb.append("}\n")
         sb.append("while IFS=: read -r id cmd; do\n")
-        sb.append("    if [ -n \"").append(d).append("id\" ] && eval \"").append(d).append("cmd\" >/dev/null 2>&1; then\n")
+        sb.append("    if [ -n \"").append(d).append("id\" ] && fast_check \"").append(d).append("cmd\"; then\n")
         sb.append("        echo \"INSTALLED:").append(d).append("id\"\n")
         sb.append("    fi\n")
         sb.append("done << 'BATCH_EOF'\n")

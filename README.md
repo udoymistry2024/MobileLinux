@@ -10,7 +10,7 @@
   [![Platform](https://img.shields.io/badge/Platform-Android%208.0%2B-3DDC84.svg?logo=android&logoColor=white)](https://github.com/udoymistry2024/MobileLinux/releases)
   [![OS: Ubuntu 24.04 LTS](https://img.shields.io/badge/Ubuntu-24.04%20LTS-E95420.svg?logo=ubuntu&logoColor=white)](https://ubuntu.com)
   [![Architecture](https://img.shields.io/badge/Arch-ARM64%20%7C%20ARMv7-007ACC.svg)](#architecture)
-  [![Version](https://img.shields.io/badge/Version-1.1.8-blueviolet.svg)](https://github.com/udoymistry2024/MobileLinux/releases)
+  [![Version](https://img.shields.io/badge/Version-1.2.0-blueviolet.svg)](https://github.com/udoymistry2024/MobileLinux/releases)
 
   <p align="center">
     <a href="#key-features">Key Features</a> •
@@ -29,7 +29,7 @@
 
 **MobileLinux** turns your Android smartphone or tablet into a full-fledged, authentic **Ubuntu Linux workstation**. Unlike lightweight Linux-like environments that rely on Android's Bionic libc, MobileLinux runs a **genuine GNU/Linux userland powered by glibc**, giving you 100% binary compatibility with standard Ubuntu Debian packages (`apt`), compilers, and machine-learning frameworks.
 
-Whether you are compiling C/C++ projects with `gcc`, running a **Miniconda / PyTorch** deep learning pipeline, running node web servers, or editing files in `nano` / `vim`, MobileLinux provides a seamless terminal experience directly on mobile.
+Whether you are compiling C/C++ projects with `gcc`, running a **Miniforge / Conda / PyTorch** deep learning pipeline, running **Node.js** web servers, or editing files in `nano` / `vim`, MobileLinux provides a seamless terminal experience directly on mobile.
 
 ---
 
@@ -41,8 +41,12 @@ Whether you are compiling C/C++ projects with `gcc`, running a **Miniconda / PyT
   Runs unprivileged in user-space via optimized PRoot virtualization with `--root-id` fake-root capabilities.
 - 🔓 **Root Mode (Chroot) Support:**
   For rooted devices, execute with true kernel-level `chroot` for maximum raw I/O performance.
+- 🛡️ **Intelligent Filesystem & Permission Engine (v1.2.0):**
+  Auto-heals read-only directory lockups and recursive permission problems with built-in `fix-permissions`, `force-rm`, and smart non-recursive `rm` wrapper.
+- 🔄 **Preserved User Configuration:**
+  User `.bashrc` profile modifications (Conda, Miniforge, NVM, Rust cargo, pyenv) are completely preserved across app restarts and session lifecycles.
 - 🧠 **Full POSIX Shared Memory (`/dev/shm`) & System V IPC:**
-  Full support for POSIX semaphores (`sem_open`), shared memory, and multi-process synchronization. Tools like **Miniconda, Anaconda, PyTorch DataLoader, and ProcessPoolExecutor** run without crashing!
+  Full support for POSIX semaphores (`sem_open`), shared memory, and multi-process synchronization. Tools like **Miniforge, Anaconda, PyTorch DataLoader, and ProcessPoolExecutor** run without crashing!
 - 🖥️ **Terminal Architecture:**
   - Full **xterm-256color** / VT100 emulation.
   - Complete **Scrolling Margins (`DECSTBM`)** & **Alternate Screen Buffer** support (GNU Nano, Vim, Less, Htop render cleanly).
@@ -64,7 +68,8 @@ Whether you are compiling C/C++ projects with `gcc`, running a **Miniconda / PyT
 | **Linux C Library** | **glibc (True GNU/Linux)** | Bionic libc (Android) | glibc (PRoot) | glibc (PRoot) |
 | **Ubuntu Rootfs** | **Ubuntu 24.04 LTS (Built-in)** | Termux custom repos | Various distros | Requires script |
 | **POSIX Semaphores (`/dev/shm`)** | **✅ Built-in & Emulated** | ❌ Broken / Missing | ⚠️ Incomplete | ⚠️ Requires root/hacks |
-| **Miniconda / PyTorch** | **✅ Out-of-the-box** | ❌ Requires patching | ⚠️ Prone to crashes | ⚠️ Prone to crashes |
+| **Miniforge / Conda / PyTorch** | **✅ Out-of-the-box** | ❌ Requires patching | ⚠️ Prone to crashes | ⚠️ Prone to crashes |
+| **Permission Auto-Healer (`fix-permissions`)** | **✅ Built-in (v1.2.0)** | ❌ None | ❌ None | ❌ None |
 | **Full Terminal Editor Support (Nano)** | **✅ Alternate Buffer + DECSTBM** | ✅ Good | ⚠️ VNC dependent | ⚠️ VNC dependent |
 | **Multiple Sessions Drawer** | **✅ Built-in (tmux-like)** | ⚠️ Basic drawer | ❌ External client | ❌ External client |
 | **True `clear` Scrollback Wipe** | **✅ Full E3 Support** | ✅ Good | ❌ Basic | ❌ Basic |
@@ -76,7 +81,7 @@ Whether you are compiling C/C++ projects with `gcc`, running a **Miniconda / PyT
 
 ### 1. Download & Install
 Download the latest signed release APK from [**GitHub Releases**](https://github.com/udoymistry2024/MobileLinux/releases):
-- **`MobileLinux-v1.1.8.apk`** (or `MobileLinux-latest.apk`)
+- **`MobileLinux-v1.2.0.apk`** (or `MobileLinux-latest.apk`)
 
 Install the APK on any device running **Android 8.0 (Oreo) or higher**.
 
@@ -102,14 +107,20 @@ ls -ld /dev/shm
 python3 -c "import multiprocessing.synchronize; s = multiprocessing.Semaphore(1); print('Semaphore works perfectly')"
 ```
 
-### 4. Install Miniconda & Python Data Science Tools
-```bash
-# Download Miniconda ARM64 installer
-wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh
+### 4. Install Node.js, npm, or Miniforge
 
-# Run installer
-chmod +x Miniconda3-latest-Linux-aarch64.sh
-./Miniconda3-latest-Linux-aarch64.sh
+#### Install Node.js & npm (Native APT):
+```bash
+sudo apt update
+sudo apt install -y nodejs npm
+node --version
+npm --version
+```
+
+#### Install Miniforge (Conda & Mamba):
+```bash
+curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh"
+bash Miniforge3-Linux-aarch64.sh
 ```
 
 ---

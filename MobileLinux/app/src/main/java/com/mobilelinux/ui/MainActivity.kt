@@ -260,6 +260,9 @@ class MainActivity : AppCompatActivity() {
                 closeDrawer()
                 true
             }
+            R.id.action_libraries -> {
+                openLibraries(); true
+            }
             R.id.action_settings -> {
                 openSettings(); true
             }
@@ -283,6 +286,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun closeDrawer() = drawerLayout.closeDrawer(GravityCompat.START)
+    fun openLibraries() = startActivity(Intent(this, LibrariesActivity::class.java))
     fun openSettings() = startActivity(Intent(this, SettingsActivity::class.java))
 
     override fun onDestroy() {

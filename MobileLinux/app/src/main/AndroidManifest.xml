@@ -78,6 +78,12 @@
             android:exported="false"
             android:parentActivityName=".ui.MainActivity" />
 
+        <!-- Libraries & Packages Hub Activity -->
+        <activity
+            android:name=".ui.LibrariesActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.MainActivity" />
+
         <!-- ================================================================
              BACKGROUND SERVICE — Android 14/15 Compatible
              ================================================================ -->

@@ -912,6 +912,32 @@ class UbuntuRuntime(private val context: Context) {
             pkgInstallFile.setExecutable(true, false)
             pkgInstallFile.setReadable(true, false)
 
+            // Safe recursive cleaner and smart rm / force-rm / fix-permissions wrappers
+            val rmPyFile = File(usrLocalBin, "mobilelinux-rm.py")
+            safeWriteFile(rmPyFile, getMobileLinuxRmPyScript())
+            rmPyFile.setExecutable(true, false)
+            rmPyFile.setReadable(true, false)
+
+            val rmFile = File(usrLocalBin, "rm")
+            safeWriteFile(rmFile, getSmartRmScript())
+            rmFile.setExecutable(true, false)
+            rmFile.setReadable(true, false)
+
+            val forceRmFile = File(usrLocalBin, "force-rm")
+            safeWriteFile(forceRmFile, getForceRmScript())
+            forceRmFile.setExecutable(true, false)
+            forceRmFile.setReadable(true, false)
+
+            val fixPermsFile = File(usrLocalBin, "fix-permissions")
+            safeWriteFile(fixPermsFile, getFixPermissionsScript())
+            fixPermsFile.setExecutable(true, false)
+            fixPermsFile.setReadable(true, false)
+
+            val fixPermsAlias = File(usrLocalBin, "fix-perms")
+            safeWriteFile(fixPermsAlias, getFixPermissionsScript())
+            fixPermsAlias.setExecutable(true, false)
+            fixPermsAlias.setReadable(true, false)
+
             // Smart on-demand wrappers for essential tools
             listOf(
                 "nano" to "nano",
@@ -938,6 +964,10 @@ class UbuntuRuntime(private val context: Context) {
         try {
             val ubuntuHome = File(rootfsDir, "home/ubuntu")
             ensureRealDirectory(ubuntuHome)
+            ubuntuHome.setWritable(true, false)
+            ubuntuHome.setReadable(true, false)
+            ubuntuHome.setExecutable(true, false)
+
             val ubuntuBashrc = File(ubuntuHome, ".bashrc")
             if (!ubuntuBashrc.exists()) {
                 safeWriteFile(ubuntuBashrc, getUbuntuBashrc())
@@ -961,6 +991,10 @@ class UbuntuRuntime(private val context: Context) {
 
             val rootHome = File(rootfsDir, "root")
             ensureRealDirectory(rootHome)
+            rootHome.setWritable(true, false)
+            rootHome.setReadable(true, false)
+            rootHome.setExecutable(true, false)
+
             val rootBashrc = File(rootHome, ".bashrc")
             if (!rootBashrc.exists()) {
                 safeWriteFile(rootBashrc, getRootBashrc())
@@ -1207,6 +1241,8 @@ class UbuntuRuntime(private val context: Context) {
         "alias cls='printf \"\\033[H\\033[2J\\033[3J\"'",
         "alias install-tools='/usr/local/bin/install-tools'",
         "alias pkg-install='/usr/local/bin/pkg-install'",
+        "alias fix-perms='/usr/local/bin/fix-permissions'",
+        "alias force-rm='/usr/local/bin/force-rm'",
         "",
         "# Standard Ubuntu green prompt for normal user with $ sign",
         "PS1='\\[\\033[1;32m\\]ubuntu@mobilelinux\\[\\033[0m\\]:\\[\\033[1;34m\\]\\w\\[\\033[0m\\]\$ '\n"
@@ -1236,6 +1272,8 @@ class UbuntuRuntime(private val context: Context) {
         "alias cls='printf \"\\033[H\\033[2J\\033[3J\"'",
         "alias install-tools='/usr/local/bin/install-tools'",
         "alias pkg-install='/usr/local/bin/pkg-install'",
+        "alias fix-perms='/usr/local/bin/fix-permissions'",
+        "alias force-rm='/usr/local/bin/force-rm'",
         "",
         "# Standard Ubuntu red prompt for root user with # sign",
         "PS1='\\[\\033[1;31m\\]root@mobilelinux\\[\\033[0m\\]:\\[\\033[1;34m\\]\\w\\[\\033[0m\\]# '\n"
@@ -1262,6 +1300,9 @@ class UbuntuRuntime(private val context: Context) {
         "",
         "# Ensure /dev/shm, /run/shm, and /tmp have correct sticky permissions for multiprocessing",
         "chmod 1777 /dev/shm /run/shm /tmp 2>/dev/null || true",
+        "",
+        "# Ensure user home directory is writable",
+        "chmod u+w /home/ubuntu 2>/dev/null || true",
         "",
         "# Clean up any obsolete internal shell script from user home directory",
         "rm -f /home/ubuntu/mobilelinux-shell.sh /root/mobilelinux-shell.sh 2>/dev/null || true",
@@ -1499,6 +1540,135 @@ class UbuntuRuntime(private val context: Context) {
         "fi",
         "export DEBIAN_FRONTEND=noninteractive",
         "sudo apt-get update -y && sudo apt-get install -y --no-install-recommends \"\$@\"\n"
+    ).joinToString("\n")
+
+    private fun getMobileLinuxRmPyScript(): String = listOf(
+        "#!/usr/bin/env python3",
+        "import sys",
+        "import os",
+        "import stat",
+        "",
+        "def force_remove_path(target):",
+        "    if not os.path.exists(target) and not os.path.islink(target):",
+        "        return",
+        "    if os.path.islink(target) or not os.path.isdir(target):",
+        "        try:",
+        "            os.chmod(target, stat.S_IWUSR | stat.S_IRUSR)",
+        "        except Exception:",
+        "            pass",
+        "        try:",
+        "            os.unlink(target)",
+        "        except Exception:",
+        "            pass",
+        "        return",
+        "    for root, dirs, files in os.walk(target, topdown=False, followlinks=False):",
+        "        for fname in files:",
+        "            fpath = os.path.join(root, fname)",
+        "            try:",
+        "                os.chmod(fpath, stat.S_IWUSR | stat.S_IRUSR)",
+        "            except Exception:",
+        "                pass",
+        "            try:",
+        "                os.unlink(fpath)",
+        "            except Exception:",
+        "                pass",
+        "        for dname in dirs:",
+        "            dpath = os.path.join(root, dname)",
+        "            try:",
+        "                os.chmod(dpath, stat.S_IWUSR | stat.S_IRUSR | stat.S_IXUSR)",
+        "            except Exception:",
+        "                pass",
+        "            try:",
+        "                os.rmdir(dpath)",
+        "            except Exception:",
+        "                pass",
+        "    try:",
+        "        os.chmod(target, stat.S_IWUSR | stat.S_IRUSR | stat.S_IXUSR)",
+        "    except Exception:",
+        "        pass",
+        "    try:",
+        "        os.rmdir(target)",
+        "    except Exception:",
+        "        pass",
+        "",
+        "if __name__ == '__main__':",
+        "    for arg in sys.argv[1:]:",
+        "        if not arg.startswith('-'):",
+        "            force_remove_path(os.path.expanduser(arg))\n"
+    ).joinToString("\n")
+
+    private fun getSmartRmScript(): String = listOf(
+        "#!/bin/bash",
+        "TMP_ERR=\"/tmp/.rm_err.\$\$\"",
+        "/bin/rm \"\$@\" 2>\"\$TMP_ERR\"",
+        "EXIT_CODE=\$?",
+        "if [ \$EXIT_CODE -eq 0 ]; then",
+        "    rm -f \"\$TMP_ERR\" 2>/dev/null",
+        "    exit 0",
+        "fi",
+        "IS_RECURSIVE=0",
+        "for arg in \"\$@\"; do",
+        "    case \"\$arg\" in",
+        "        -*r*|-*R*|--recursive)",
+        "            IS_RECURSIVE=1",
+        "            ;;",
+        "    esac",
+        "done",
+        "if [ \$IS_RECURSIVE -eq 1 ] && [ -x /usr/local/bin/mobilelinux-rm.py ]; then",
+        "    rm -f \"\$TMP_ERR\" 2>/dev/null",
+        "    exec /usr/bin/python3 /usr/local/bin/mobilelinux-rm.py \"\$@\"",
+        "fi",
+        "cat \"\$TMP_ERR\" >&2",
+        "rm -f \"\$TMP_ERR\" 2>/dev/null",
+        "exit \$EXIT_CODE\n"
+    ).joinToString("\n")
+
+    private fun getForceRmScript(): String = listOf(
+        "#!/bin/bash",
+        "if [ \$# -eq 0 ]; then",
+        "    echo \"Usage: force-rm <file_or_directory> [...]\"",
+        "    exit 1",
+        "fi",
+        "if [ -x /usr/local/bin/mobilelinux-rm.py ]; then",
+        "    exec /usr/bin/python3 /usr/local/bin/mobilelinux-rm.py \"\$@\"",
+        "else",
+        "    for item in \"\$@\"; do",
+        "        [ -e \"\$item\" ] || [ -L \"\$item\" ] || continue",
+        "        chmod -R u+w \"\$item\" 2>/dev/null || true",
+        "        /bin/rm -rf \"\$item\" 2>/dev/null || true",
+        "    done",
+        "fi\n"
+    ).joinToString("\n")
+
+    private fun getFixPermissionsScript(): String = listOf(
+        "#!/bin/bash",
+        "echo -e \"\\033[1;36m[MobileLinux]\\033[0m Repairing file and directory permissions...\"",
+        "chmod 1777 /dev/shm /run/shm /tmp 2>/dev/null || true",
+        "if [ -x /usr/bin/python3 ]; then",
+        "    python3 -c '",
+        "import os, stat",
+        "def fix_tree(root_dir):",
+        "    if not os.path.isdir(root_dir):",
+        "        return",
+        "    for root, dirs, files in os.walk(root_dir, topdown=True, followlinks=False):",
+        "        try:",
+        "            os.chmod(root, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)",
+        "        except Exception:",
+        "            pass",
+        "        for f in files:",
+        "            fp = os.path.join(root, f)",
+        "            if not os.path.islink(fp):",
+        "                try:",
+        "                    mode = os.stat(fp).st_mode",
+        "                    os.chmod(fp, mode | stat.S_IRUSR | stat.S_IWUSR)",
+        "                except Exception:",
+        "                    pass",
+        "fix_tree(\"/home/ubuntu\")",
+        "' 2>/dev/null",
+        "else",
+        "    chmod -R u+rwX /home/ubuntu 2>/dev/null || true",
+        "fi",
+        "echo -e \"\\033[1;32m[MobileLinux]\\033[0m Permissions restored successfully ✓\"\n"
     ).joinToString("\n")
 
     @Volatile

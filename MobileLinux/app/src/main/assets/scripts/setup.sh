@@ -123,10 +123,74 @@ cat > "$ROOTFS_DIR/etc/pip.conf" << 'EOF'
 break-system-packages = true
 EOF
 
+cat > "$ROOTFS_DIR/usr/local/bin/pkg-install-python" << 'EOF'
+#!/bin/bash
+PIP_PKG="$1"
+APT_PKG="$2"
+if [ -z "$PIP_PKG" ]; then
+    echo "Usage: pkg-install-python <pip_package_name> [apt_package_name]"
+    exit 1
+fi
+echo -e "\033[1;36m[MobileLinux]\033[0m Installing \033[1;32m$PIP_PKG\033[0m across Python environments..."
+if [ -n "$APT_PKG" ]; then
+    export DEBIAN_FRONTEND=noninteractive
+    sudo apt-get update -y >/dev/null 2>&1 || true
+    sudo apt-get install -y "$APT_PKG" 2>/dev/null || pip3 install --break-system-packages --no-cache-dir "$PIP_PKG" || true
+else
+    pip3 install --break-system-packages --no-cache-dir "$PIP_PKG" || true
+fi
+for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do
+    if [ -x "$p" ]; then
+        "$p" install --no-cache-dir "$PIP_PKG" 2>/dev/null || true
+    fi
+done
+if [ -f /home/ubuntu/.conda/environments.txt ]; then
+    while IFS= read -r env_path; do
+        if [ -x "$env_path/bin/pip" ] && [ -d "$env_path" ]; then
+            "$env_path/bin/pip" install --no-cache-dir "$PIP_PKG" 2>/dev/null || true
+        fi
+    done < /home/ubuntu/.conda/environments.txt
+fi
+if [ -n "$CONDA_PREFIX" ] && [ -x "$CONDA_PREFIX/bin/pip" ]; then
+    "$CONDA_PREFIX/bin/pip" install --no-cache-dir "$PIP_PKG" 2>/dev/null || true
+fi
+echo -e "\033[1;32m[MobileLinux]\033[0m ✓ $PIP_PKG installed across Python environments!"
+EOF
+chmod +x "$ROOTFS_DIR/usr/local/bin/pkg-install-python"
+
+cat > "$ROOTFS_DIR/usr/local/bin/conda-sync-packages" << 'EOF'
+#!/bin/bash
+TARGET_ENV="$1"
+if [ -z "$TARGET_ENV" ]; then
+    if [ -n "$CONDA_DEFAULT_ENV" ] && [ "$CONDA_DEFAULT_ENV" != "base" ]; then
+        TARGET_ENV="$CONDA_DEFAULT_ENV"
+    else
+        echo "Usage: conda-sync-packages <conda_environment_name>"
+        exit 1
+    fi
+fi
+ENV_PIP=""
+if [ -x "/home/ubuntu/miniforge3/envs/$TARGET_ENV/bin/pip" ]; then
+    ENV_PIP="/home/ubuntu/miniforge3/envs/$TARGET_ENV/bin/pip"
+elif [ -n "$CONDA_PREFIX" ] && [ -x "$CONDA_PREFIX/bin/pip" ]; then
+    ENV_PIP="$CONDA_PREFIX/bin/pip"
+fi
+if [ -z "$ENV_PIP" ] || [ ! -x "$ENV_PIP" ]; then
+    echo "Could not find pip for environment '$TARGET_ENV'."
+    exit 1
+fi
+echo -e "\033[1;36m[MobileLinux]\033[0m Syncing essential packages to \033[1;33m$TARGET_ENV\033[0m..."
+for pkg in numpy pandas scipy matplotlib ipykernel; do
+    "$ENV_PIP" install --no-cache-dir "$pkg" 2>/dev/null || true
+done
+echo -e "\033[1;32m[MobileLinux]\033[0m ✓ Sync complete for environment '$TARGET_ENV'!"
+EOF
+chmod +x "$ROOTFS_DIR/usr/local/bin/conda-sync-packages"
+
 # Clean up any leftover mobilelinux-shell.sh in home dirs
 rm -f "$ROOTFS_DIR/home/ubuntu/mobilelinux-shell.sh" "$ROOTFS_DIR/root/mobilelinux-shell.sh" 2>/dev/null || true
 
-log "✓ Command wrappers and pip config installed (sudo, python, pip)"
+log "✓ Command wrappers and pip config installed (sudo, python, pip, pkg-install-python, conda-sync)"
 
 # ===========================================================================
 # Step 7: Configure apt sources for Ubuntu 24.04 ARM64

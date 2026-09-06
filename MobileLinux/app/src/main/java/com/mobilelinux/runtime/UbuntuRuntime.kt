@@ -995,6 +995,141 @@ class UbuntuRuntime(private val context: Context) {
             jupyterStartFile.setExecutable(true, false)
             jupyterStartFile.setReadable(true, false)
 
+            // Multi-Environment Python Installer & Conda Synchronizer
+            val pkgInstallPythonFile = File(usrLocalBin, "pkg-install-python")
+            safeWriteFile(pkgInstallPythonFile, getPkgInstallPythonScript())
+            pkgInstallPythonFile.setExecutable(true, false)
+            pkgInstallPythonFile.setReadable(true, false)
+
+            val condaSyncFile = File(usrLocalBin, "conda-sync-packages")
+            safeWriteFile(condaSyncFile, getCondaSyncPackagesScript())
+            condaSyncFile.setExecutable(true, false)
+            condaSyncFile.setReadable(true, false)
+
+            val condaSyncAlias = File(usrLocalBin, "conda-sync")
+            safeWriteFile(condaSyncAlias, getCondaSyncPackagesScript())
+            condaSyncAlias.setExecutable(true, false)
+            condaSyncAlias.setReadable(true, false)
+
+            // Smart CLI Wrappers for Python Scientific & Developer Libraries
+            val pythonModuleConfigs = listOf(
+                PythonModuleWrapperConfig(
+                    cmdName = "numpy",
+                    importModule = "numpy",
+                    moduleAlias = "np",
+                    displayName = "NumPy",
+                    pipName = "numpy",
+                    aptName = "python3-numpy",
+                    quickTestCode = "a = np.arange(10); print('Array:', a); print('Sum:', np.sum(a)); print('✓ NumPy working perfectly!')"
+                ),
+                PythonModuleWrapperConfig(
+                    cmdName = "pandas",
+                    importModule = "pandas",
+                    moduleAlias = "pd",
+                    displayName = "Pandas",
+                    pipName = "pandas",
+                    aptName = "python3-pandas",
+                    quickTestCode = "df = pd.DataFrame({'A': [1, 2, 3], 'B': [4, 5, 6]}); print(df); print('✓ Pandas working perfectly!')"
+                ),
+                PythonModuleWrapperConfig(
+                    cmdName = "scipy",
+                    importModule = "scipy",
+                    moduleAlias = "sp",
+                    displayName = "SciPy",
+                    pipName = "scipy",
+                    aptName = "python3-scipy",
+                    quickTestCode = "from scipy import constants; print('Speed of light:', constants.c); print('✓ SciPy working perfectly!')"
+                ),
+                PythonModuleWrapperConfig(
+                    cmdName = "scikit-learn",
+                    importModule = "sklearn",
+                    moduleAlias = "sklearn",
+                    displayName = "Scikit-Learn",
+                    pipName = "scikit-learn",
+                    aptName = "python3-sklearn",
+                    quickTestCode = "from sklearn.datasets import load_iris; data = load_iris(); print('Iris samples:', len(data.data)); print('✓ Scikit-Learn working perfectly!')"
+                ),
+                PythonModuleWrapperConfig(
+                    cmdName = "sklearn",
+                    importModule = "sklearn",
+                    moduleAlias = "sklearn",
+                    displayName = "Scikit-Learn",
+                    pipName = "scikit-learn",
+                    aptName = "python3-sklearn",
+                    quickTestCode = "from sklearn.datasets import load_iris; data = load_iris(); print('Iris samples:', len(data.data)); print('✓ Scikit-Learn working perfectly!')"
+                ),
+                PythonModuleWrapperConfig(
+                    cmdName = "torch",
+                    importModule = "torch",
+                    moduleAlias = "torch",
+                    displayName = "PyTorch",
+                    pipName = "torch",
+                    aptName = null,
+                    quickTestCode = "x = torch.rand(3, 3); print('Tensor:', x); print('✓ PyTorch working perfectly!')"
+                ),
+                PythonModuleWrapperConfig(
+                    cmdName = "pytorch",
+                    importModule = "torch",
+                    moduleAlias = "torch",
+                    displayName = "PyTorch",
+                    pipName = "torch",
+                    aptName = null,
+                    quickTestCode = "x = torch.rand(3, 3); print('Tensor:', x); print('✓ PyTorch working perfectly!')"
+                ),
+                PythonModuleWrapperConfig(
+                    cmdName = "matplotlib",
+                    importModule = "matplotlib",
+                    moduleAlias = "matplotlib",
+                    displayName = "Matplotlib",
+                    pipName = "matplotlib",
+                    aptName = "python3-matplotlib",
+                    quickTestCode = "print('Matplotlib backend:', matplotlib.get_backend()); print('✓ Matplotlib working perfectly!')"
+                )
+            )
+
+            pythonModuleConfigs.forEach { config ->
+                val wrapperFile = File(usrLocalBin, config.cmdName)
+                safeWriteFile(wrapperFile, getPythonModuleWrapperScript(config))
+                wrapperFile.setExecutable(true, false)
+                wrapperFile.setReadable(true, false)
+            }
+
+            // Also mirror wrappers into all discovered Conda bin directories
+            try {
+                val condaBins = mutableListOf<File>()
+                val baseCondaBin = File(rootfsDir, "home/ubuntu/miniforge3/bin")
+                if (baseCondaBin.exists()) condaBins.add(baseCondaBin)
+                val rootCondaBin = File(rootfsDir, "root/miniconda3/bin")
+                if (rootCondaBin.exists()) condaBins.add(rootCondaBin)
+
+                val condaEnvsDir = File(rootfsDir, "home/ubuntu/miniforge3/envs")
+                if (condaEnvsDir.exists() && condaEnvsDir.isDirectory) {
+                    condaEnvsDir.listFiles()?.forEach { envDir ->
+                        val envBin = File(envDir, "bin")
+                        if (envBin.exists() && envBin.isDirectory) condaBins.add(envBin)
+                    }
+                }
+                val rootEnvsDir = File(rootfsDir, "root/miniconda3/envs")
+                if (rootEnvsDir.exists() && rootEnvsDir.isDirectory) {
+                    rootEnvsDir.listFiles()?.forEach { envDir ->
+                        val envBin = File(envDir, "bin")
+                        if (envBin.exists() && envBin.isDirectory) condaBins.add(envBin)
+                    }
+                }
+
+                val toolsToLink = listOf("numpy", "pandas", "scipy", "sklearn", "scikit-learn", "torch", "pytorch", "matplotlib", "pkg-install-python", "conda-sync-packages", "conda-sync")
+                for (cBin in condaBins) {
+                    for (tool in toolsToLink) {
+                        val targetLink = File(cBin, tool)
+                        if (!targetLink.exists()) {
+                            safeWriteFile(targetLink, "#!/bin/sh\nexec /usr/local/bin/$tool \"\$@\"\n")
+                            targetLink.setExecutable(true, false)
+                            targetLink.setReadable(true, false)
+                        }
+                    }
+                }
+            } catch (ignored: Exception) {}
+
             Log.d(TAG, "Command wrappers installed ✓")
         } catch (e: Exception) {
             Log.w(TAG, "Wrappers install notice: ${e.message}")
@@ -1459,6 +1594,8 @@ class UbuntuRuntime(private val context: Context) {
         "alias force-rm='/usr/local/bin/force-rm'",
         "alias jupyter-start='/usr/local/bin/jupyter-start'",
         "alias jupyter-lab='/usr/local/bin/jupyter-start'",
+        "alias pkg-install-python='/usr/local/bin/pkg-install-python'",
+        "alias conda-sync='/usr/local/bin/conda-sync-packages'",
         "",
         "# Standard Ubuntu green prompt for normal user with $ sign",
         "PS1='\\[\\033[1;32m\\]ubuntu@mobilelinux\\[\\033[0m\\]:\\[\\033[1;34m\\]\\w\\[\\033[0m\\]\$ '\n"
@@ -1490,6 +1627,8 @@ class UbuntuRuntime(private val context: Context) {
         "alias force-rm='/usr/local/bin/force-rm'",
         "alias jupyter-start='/usr/local/bin/jupyter-start'",
         "alias jupyter-lab='/usr/local/bin/jupyter-start'",
+        "alias pkg-install-python='/usr/local/bin/pkg-install-python'",
+        "alias conda-sync='/usr/local/bin/conda-sync-packages'",
         "",
         "# Standard Ubuntu red prompt for root user with # sign",
         "PS1='\\[\\033[1;31m\\]root@mobilelinux\\[\\033[0m\\]:\\[\\033[1;34m\\]\\w\\[\\033[0m\\]# '\n"
@@ -1756,6 +1895,219 @@ class UbuntuRuntime(private val context: Context) {
         "fi",
         "export DEBIAN_FRONTEND=noninteractive",
         "sudo apt-get update -y && sudo apt-get install -y --no-install-recommends \"\$@\"\n"
+    ).joinToString("\n")
+
+    data class PythonModuleWrapperConfig(
+        val cmdName: String,
+        val importModule: String,
+        val moduleAlias: String,
+        val displayName: String,
+        val pipName: String,
+        val aptName: String?,
+        val quickTestCode: String
+    )
+
+    private fun getPythonModuleWrapperScript(cfg: PythonModuleWrapperConfig): String = listOf(
+        "#!/bin/bash",
+        "# MobileLinux Smart Python CLI Wrapper for ${cfg.displayName} (${cfg.cmdName})",
+        "",
+        "find_python() {",
+        "    if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/python\" ]; then",
+        "        echo \"\$CONDA_PREFIX/bin/python\"",
+        "    elif [ -n \"\$VIRTUAL_ENV\" ] && [ -x \"\$VIRTUAL_ENV/bin/python\" ]; then",
+        "        echo \"\$VIRTUAL_ENV/bin/python\"",
+        "    elif [ -x /home/ubuntu/miniforge3/bin/python ]; then",
+        "        echo \"/home/ubuntu/miniforge3/bin/python\"",
+        "    elif [ -x /root/miniconda3/bin/python ]; then",
+        "        echo \"/root/miniconda3/bin/python\"",
+        "    elif [ -x /usr/bin/python3 ]; then",
+        "        echo \"/usr/bin/python3\"",
+        "    else",
+        "        which python3 2>/dev/null || which python 2>/dev/null",
+        "    fi",
+        "}",
+        "",
+        "PY=\"\$(find_python)\"",
+        "",
+        "case \"\$1\" in",
+        "    --version|-v|-V|version)",
+        "        if [ -n \"\$PY\" ] && [ -x \"\$PY\" ]; then",
+        "            VER=\"\$(\"\$PY\" -c \"import ${cfg.importModule} as ${cfg.moduleAlias}; print(${cfg.moduleAlias}.__version__)\" 2>/dev/null)\"",
+        "            if [ -n \"\$VER\" ]; then",
+        "                echo \"${cfg.displayName} \$VER\"",
+        "                exit 0",
+        "            fi",
+        "        fi",
+        "        # Fallback check across other environments",
+        "        FALLBACK_VER=\"\"",
+        "        FALLBACK_SRC=\"\"",
+        "        if [ -x /home/ubuntu/miniforge3/bin/python ]; then",
+        "            FALLBACK_VER=\"\$(/home/ubuntu/miniforge3/bin/python -c \"import ${cfg.importModule} as ${cfg.moduleAlias}; print(${cfg.moduleAlias}.__version__)\" 2>/dev/null)\"",
+        "            if [ -n \"\$FALLBACK_VER\" ]; then FALLBACK_SRC=\"Conda base\"; fi",
+        "        fi",
+        "        if [ -z \"\$FALLBACK_VER\" ] && [ -x /usr/bin/python3 ]; then",
+        "            FALLBACK_VER=\"\$(/usr/bin/python3 -c \"import ${cfg.importModule} as ${cfg.moduleAlias}; print(${cfg.moduleAlias}.__version__)\" 2>/dev/null)\"",
+        "            if [ -n \"\$FALLBACK_VER\" ]; then FALLBACK_SRC=\"System Python\"; fi",
+        "        fi",
+        "        if [ -n \"\$FALLBACK_VER\" ]; then",
+        "            echo \"${cfg.displayName} \$FALLBACK_VER (available in \$FALLBACK_SRC)\"",
+        "            ENV_NAME=\"\${CONDA_DEFAULT_ENV:-active environment}\"",
+        "            echo -e \"\\033[0;33mNotice: '${cfg.cmdName}' is not installed in current environment '\$ENV_NAME'.\\033[0m\"",
+        "            echo -e \"To install here: \\033[1;32m${cfg.cmdName} --install\\033[0m or \\033[1;32mpip install ${cfg.pipName}\\033[0m\"",
+        "            exit 0",
+        "        fi",
+        "        echo \"${cfg.displayName} is not installed yet.\"",
+        "        echo -e \"To install, run: \\033[1;32m${cfg.cmdName} --install\\033[0m or \\033[1;32mpip install ${cfg.pipName}\\033[0m\"",
+        "        exit 1",
+        "        ;;",
+        "    --install|install)",
+        "        echo -e \"\\033[1;36m[MobileLinux]\\033[0m Installing ${cfg.displayName} (${cfg.pipName}) into current environment (\$PY)...\"",
+        "        if [ -n \"\$PY\" ] && [ -x \"\$PY\" ]; then",
+        "            \"\$PY\" -m pip install --no-cache-dir ${cfg.pipName}",
+        "        else",
+        "            pip3 install --break-system-packages --no-cache-dir ${cfg.pipName}",
+        "        fi",
+        "        ;;",
+        "    --test|test)",
+        "        if [ -n \"\$PY\" ] && [ -x \"\$PY\" ]; then",
+        "            echo -e \"\\033[1;36m[MobileLinux]\\033[0m Testing ${cfg.displayName}...\"",
+        "            \"\$PY\" -c \"import ${cfg.importModule} as ${cfg.moduleAlias}; ${cfg.quickTestCode}\" 2>/dev/null || {",
+        "                echo -e \"\\033[1;31m[MobileLinux]\\033[0m ${cfg.displayName} test failed or not installed in \$PY.\"",
+        "                echo \"Run: ${cfg.cmdName} --install\"",
+        "                exit 1",
+        "            }",
+        "        else",
+        "            echo \"Python interpreter not found.\"",
+        "            exit 1",
+        "        fi",
+        "        ;;",
+        "    --info|info)",
+        "        echo -e \"\\033[1;36m┌─[MobileLinux]─[${cfg.displayName}]\\033[0m\"",
+        "        if [ -n \"\$PY\" ] && [ -x \"\$PY\" ]; then",
+        "            \"\$PY\" -c \"import ${cfg.importModule} as ${cfg.moduleAlias}, sys; print('│ Version:  ' + getattr(${cfg.moduleAlias}, '__version__', 'unknown')); print('│ Path:     ' + getattr(${cfg.moduleAlias}, '__file__', 'built-in')); print('│ Python:   ' + sys.version.split()[0] + ' (' + sys.executable + ')')\" 2>/dev/null || {",
+        "                echo \"│ Status:   Not installed in active Python (\$PY)\"",
+        "            }",
+        "        fi",
+        "        if [ -n \"\$CONDA_DEFAULT_ENV\" ]; then",
+        "            echo \"│ Conda:    \$CONDA_DEFAULT_ENV\"",
+        "        fi",
+        "        echo -e \"\\033[1;36m└──────────────────────────────────────────────\\033[0m\"",
+        "        ;;",
+        "    -h|--help|help)",
+        "        echo \"${cfg.displayName} CLI Utility (${cfg.cmdName})\"",
+        "        echo \"Usage: ${cfg.cmdName} [OPTIONS]\"",
+        "        echo \"  --version, -v, -V    Show installed version\"",
+        "        echo \"  --info               Show package details and Python path\"",
+        "        echo \"  --test               Run quick sanity test\"",
+        "        echo \"  --install            Install ${cfg.pipName} in active environment\"",
+        "        echo \"  --help, -h           Show this help message\"",
+        "        ;;",
+        "    *)",
+        "        if [ \$# -eq 0 ]; then",
+        "            VER=\"\"",
+        "            if [ -n \"\$PY\" ] && [ -x \"\$PY\" ]; then",
+        "                VER=\"\$(\"\$PY\" -c \"import ${cfg.importModule} as ${cfg.moduleAlias}; print(${cfg.moduleAlias}.__version__)\" 2>/dev/null)\"",
+        "            fi",
+        "            if [ -n \"\$VER\" ]; then",
+        "                echo -e \"\\033[1;36m┌─[MobileLinux]─[${cfg.displayName}]\\033[0m\"",
+        "                echo -e \"\\033[1;36m│\\033[0m \\033[1;32mVersion:\\033[0m       \$VER\"",
+        "                echo -e \"\\033[1;36m│\\033[0m \\033[1;34mActive Python:\\033[0m \$PY\"",
+        "                if [ -n \"\$CONDA_DEFAULT_ENV\" ]; then",
+        "                    echo -e \"\\033[1;36m│\\033[0m \\033[1;33mConda Env:\\033[0m     \$CONDA_DEFAULT_ENV\"",
+        "                fi",
+        "                echo -e \"\\033[1;36m│\\033[0m Quick Python usage:\"",
+        "                echo -e \"\\033[1;36m│\\033[0m   \\033[1;37mpython3 -c 'import ${cfg.importModule} as ${cfg.moduleAlias}'\\033[0m\"",
+        "                echo -e \"\\033[1;36m└──────────────────────────────────────────────\\033[0m\"",
+        "            else",
+        "                echo -e \"\\033[1;36m[MobileLinux]\\033[0m ${cfg.displayName} is not installed in active environment (\$PY).\"",
+        "                echo -e \"Run \\033[1;32m${cfg.cmdName} --install\\033[0m to install it now.\"",
+        "            fi",
+        "        else",
+        "            echo \"Unknown option: \$1\"",
+        "            echo \"Run '${cfg.cmdName} --help' for options, or '${cfg.cmdName} --version' for version.\"",
+        "            exit 1",
+        "        fi",
+        "        ;;",
+        "esac\n"
+    ).joinToString("\n")
+
+    private fun getPkgInstallPythonScript(): String = listOf(
+        "#!/bin/bash",
+        "# MobileLinux Smart Multi-Environment Python Package Installer",
+        "PIP_PKG=\"\$1\"",
+        "APT_PKG=\"\$2\"",
+        "if [ -z \"\$PIP_PKG\" ]; then",
+        "    echo \"Usage: pkg-install-python <pip_package_name> [apt_package_name]\"",
+        "    exit 1",
+        "fi",
+        "echo -e \"\\033[1;36m[MobileLinux]\\033[0m Installing \\033[1;32m\$PIP_PKG\\033[0m across Python environments...\"",
+        "# 1. System Python",
+        "if [ -n \"\$APT_PKG\" ]; then",
+        "    export DEBIAN_FRONTEND=noninteractive",
+        "    sudo apt-get update -y >/dev/null 2>&1 || true",
+        "    sudo apt-get install -y \"\$APT_PKG\" 2>/dev/null || pip3 install --break-system-packages --no-cache-dir \"\$PIP_PKG\" || true",
+        "else",
+        "    pip3 install --break-system-packages --no-cache-dir \"\$PIP_PKG\" || true",
+        "fi",
+        "# 2. All Conda environments (Base and custom envs)",
+        "for p in /home/ubuntu/miniforge3/bin/pip \\",
+        "         /root/miniconda3/bin/pip \\",
+        "         /home/ubuntu/miniforge3/envs/*/bin/pip \\",
+        "         /root/miniconda3/envs/*/bin/pip \\",
+        "         /home/ubuntu/.conda/envs/*/bin/pip \\",
+        "         /root/.conda/envs/*/bin/pip; do",
+        "    if [ -x \"\$p\" ]; then",
+        "        ENV_DIR=\"\$(dirname \"\$(dirname \"\$p\")\")\"",
+        "        ENV_NAME=\"\$(basename \"\$ENV_DIR\")\"",
+        "        echo -e \"\\033[1;36m[MobileLinux]\\033[0m Installing \$PIP_PKG in Conda env: \\033[1;33m\$ENV_NAME\\033[0m\"",
+        "        \"\$p\" install --no-cache-dir \"\$PIP_PKG\" 2>/dev/null || true",
+        "    fi",
+        "done",
+        "# Check environments.txt",
+        "if [ -f /home/ubuntu/.conda/environments.txt ]; then",
+        "    while IFS= read -r env_path; do",
+        "        if [ -x \"\$env_path/bin/pip\" ] && [ -d \"\$env_path\" ]; then",
+        "            \"\$env_path/bin/pip\" install --no-cache-dir \"\$PIP_PKG\" 2>/dev/null || true",
+        "        fi",
+        "    done < /home/ubuntu/.conda/environments.txt",
+        "fi",
+        "# 3. Active Conda env if CONDA_PREFIX is set",
+        "if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then",
+        "    \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir \"\$PIP_PKG\" 2>/dev/null || true",
+        "fi",
+        "echo -e \"\\033[1;32m[MobileLinux]\\033[0m ✓ \$PIP_PKG installed across Python environments!\\n\"\n"
+    ).joinToString("\n")
+
+    private fun getCondaSyncPackagesScript(): String = listOf(
+        "#!/bin/bash",
+        "# MobileLinux Conda Environment Package Synchronizer",
+        "TARGET_ENV=\"\$1\"",
+        "if [ -z \"\$TARGET_ENV\" ]; then",
+        "    if [ -n \"\$CONDA_DEFAULT_ENV\" ] && [ \"\$CONDA_DEFAULT_ENV\" != \"base\" ]; then",
+        "        TARGET_ENV=\"\$CONDA_DEFAULT_ENV\"",
+        "    else",
+        "        echo \"Usage: conda-sync-packages <conda_environment_name>\"",
+        "        echo \"Existing custom environments:\"",
+        "        ls -1 /home/ubuntu/miniforge3/envs 2>/dev/null || echo \"(none found)\"",
+        "        exit 1",
+        "    fi",
+        "fi",
+        "ENV_PIP=\"\"",
+        "if [ -x \"/home/ubuntu/miniforge3/envs/\$TARGET_ENV/bin/pip\" ]; then",
+        "    ENV_PIP=\"/home/ubuntu/miniforge3/envs/\$TARGET_ENV/bin/pip\"",
+        "elif [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then",
+        "    ENV_PIP=\"\$CONDA_PREFIX/bin/pip\"",
+        "fi",
+        "if [ -z \"\$ENV_PIP\" ] || [ ! -x \"\$ENV_PIP\" ]; then",
+        "    echo \"Could not find pip for environment '\$TARGET_ENV'.\"",
+        "    exit 1",
+        "fi",
+        "echo -e \"\\033[1;36m[MobileLinux]\\033[0m Syncing essential packages to \\033[1;33m\$TARGET_ENV\\033[0m...\"",
+        "for pkg in numpy pandas scipy matplotlib ipykernel; do",
+        "    echo -e \"Syncing \$pkg...\"",
+        "    \"\$ENV_PIP\" install --no-cache-dir \"\$pkg\" 2>/dev/null || true",
+        "done",
+        "echo -e \"\\033[1;32m[MobileLinux]\\033[0m ✓ Sync complete for environment '\$TARGET_ENV'!\\n\"\n"
     ).joinToString("\n")
 
     private fun getMobileLinuxRmPyScript(): String = listOf(

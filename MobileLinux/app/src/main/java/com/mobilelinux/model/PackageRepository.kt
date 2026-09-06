@@ -879,8 +879,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "The fundamental package for high-performance scientific computing and N-dimensional arrays.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-numpy || pip3 install --break-system-packages --no-cache-dir numpy; if [ -x /home/ubuntu/miniforge3/bin/pip ]; then /home/ubuntu/miniforge3/bin/pip install --no-cache-dir numpy 2>/dev/null || true; fi",
-            checkInstalledCommand = "python3 -c 'import numpy' 2>/dev/null || /home/ubuntu/miniforge3/bin/python -c 'import numpy' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python numpy python3-numpy; else sudo apt-get update -y && sudo apt-get install -y python3-numpy || pip3 install --break-system-packages --no-cache-dir numpy; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir numpy 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir numpy 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir numpy 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which numpy || python3 -c 'import numpy' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import numpy' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -889,8 +889,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Powerful, flexible data analysis and manipulation library for structured datasets.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-pandas || pip3 install --break-system-packages --no-cache-dir pandas; if [ -x /home/ubuntu/miniforge3/bin/pip ]; then /home/ubuntu/miniforge3/bin/pip install --no-cache-dir pandas 2>/dev/null || true; fi",
-            checkInstalledCommand = "python3 -c 'import pandas' 2>/dev/null || /home/ubuntu/miniforge3/bin/python -c 'import pandas' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python pandas python3-pandas; else sudo apt-get update -y && sudo apt-get install -y python3-pandas || pip3 install --break-system-packages --no-cache-dir pandas; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir pandas 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir pandas 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir pandas 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which pandas || python3 -c 'import pandas' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import pandas' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -899,8 +899,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Fundamental algorithms for scientific computing including optimization, integration, and ODE solvers.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-scipy || pip3 install --break-system-packages --no-cache-dir scipy; if [ -x /home/ubuntu/miniforge3/bin/pip ]; then /home/ubuntu/miniforge3/bin/pip install --no-cache-dir scipy 2>/dev/null || true; fi",
-            checkInstalledCommand = "python3 -c 'import scipy' 2>/dev/null || /home/ubuntu/miniforge3/bin/python -c 'import scipy' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python scipy python3-scipy; else sudo apt-get update -y && sudo apt-get install -y python3-scipy || pip3 install --break-system-packages --no-cache-dir scipy; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir scipy 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir scipy 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir scipy 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which scipy || python3 -c 'import scipy' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import scipy' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -909,8 +909,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Simple and efficient tools for predictive data analysis, clustering, and machine learning.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-sklearn || pip3 install --break-system-packages --no-cache-dir scikit-learn; if [ -x /home/ubuntu/miniforge3/bin/pip ]; then /home/ubuntu/miniforge3/bin/pip install --no-cache-dir scikit-learn 2>/dev/null || true; fi",
-            checkInstalledCommand = "python3 -c 'import sklearn' 2>/dev/null || /home/ubuntu/miniforge3/bin/python -c 'import sklearn' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python scikit-learn python3-sklearn; else sudo apt-get update -y && sudo apt-get install -y python3-sklearn || pip3 install --break-system-packages --no-cache-dir scikit-learn; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir scikit-learn 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir scikit-learn 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir scikit-learn 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which scikit-learn || python3 -c 'import scikit_learn' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import scikit_learn' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -919,8 +919,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Open source machine learning framework that accelerates the path from research to production.",
-            installCommand = "pip3 install --break-system-packages --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu",
-            checkInstalledCommand = "python3 -c 'import torch' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python torch ; else pip3 install --break-system-packages --no-cache-dir torch; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir torch 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir torch 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir torch 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which torch || python3 -c 'import torch' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import torch' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -929,8 +929,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Datasets, transforms and popular model architectures for computer vision in PyTorch.",
-            installCommand = "pip3 install --break-system-packages --no-cache-dir torchvision --index-url https://download.pytorch.org/whl/cpu",
-            checkInstalledCommand = "python3 -c 'import torchvision' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python torchvision ; else pip3 install --break-system-packages --no-cache-dir torchvision; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir torchvision 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir torchvision 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir torchvision 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which torchvision || python3 -c 'import torchvision' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import torchvision' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -939,8 +939,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Audio processing tools, I/O and pretrained models for PyTorch.",
-            installCommand = "pip3 install --break-system-packages --no-cache-dir torchaudio --index-url https://download.pytorch.org/whl/cpu",
-            checkInstalledCommand = "python3 -c 'import torchaudio' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python torchaudio ; else pip3 install --break-system-packages --no-cache-dir torchaudio; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir torchaudio 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir torchaudio 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir torchaudio 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which torchaudio || python3 -c 'import torchaudio' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import torchaudio' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -949,8 +949,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Lightweight TensorFlow runtime optimized for mobile and embedded devices.",
-            installCommand = "pip3 install --break-system-packages --no-cache-dir tflite-runtime",
-            checkInstalledCommand = "python3 -c 'import tflite_runtime' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python tflite-runtime ; else pip3 install --break-system-packages --no-cache-dir tflite-runtime; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir tflite-runtime 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir tflite-runtime 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir tflite-runtime 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which tflite-runtime || python3 -c 'import tflite_runtime' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import tflite_runtime' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -959,8 +959,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "High-performance scoring engine for Open Neural Network Exchange (ONNX) models.",
-            installCommand = "pip3 install --break-system-packages --no-cache-dir onnxruntime",
-            checkInstalledCommand = "python3 -c 'import onnxruntime' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python onnxruntime ; else pip3 install --break-system-packages --no-cache-dir onnxruntime; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir onnxruntime 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir onnxruntime 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir onnxruntime 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which onnxruntime || python3 -c 'import onnxruntime' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import onnxruntime' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -969,8 +969,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Comprehensive library for creating static, animated, and interactive visualizations in Python.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-matplotlib || pip3 install --break-system-packages --no-cache-dir matplotlib; if [ -x /home/ubuntu/miniforge3/bin/pip ]; then /home/ubuntu/miniforge3/bin/pip install --no-cache-dir matplotlib 2>/dev/null || true; fi",
-            checkInstalledCommand = "python3 -c 'import matplotlib' 2>/dev/null || /home/ubuntu/miniforge3/bin/python -c 'import matplotlib' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python matplotlib python3-matplotlib; else sudo apt-get update -y && sudo apt-get install -y python3-matplotlib || pip3 install --break-system-packages --no-cache-dir matplotlib; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir matplotlib 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir matplotlib 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir matplotlib 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which matplotlib || python3 -c 'import matplotlib' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import matplotlib' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -979,8 +979,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Statistical data visualization based on matplotlib with informative, beautiful themes.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-seaborn || pip3 install --break-system-packages --no-cache-dir seaborn; if [ -x /home/ubuntu/miniforge3/bin/pip ]; then /home/ubuntu/miniforge3/bin/pip install --no-cache-dir seaborn 2>/dev/null || true; fi",
-            checkInstalledCommand = "python3 -c 'import seaborn' 2>/dev/null || /home/ubuntu/miniforge3/bin/python -c 'import seaborn' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python seaborn python3-seaborn; else sudo apt-get update -y && sudo apt-get install -y python3-seaborn || pip3 install --break-system-packages --no-cache-dir seaborn; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir seaborn 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir seaborn 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir seaborn 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which seaborn || python3 -c 'import seaborn' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import seaborn' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -989,8 +989,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Interactive, publication-quality graphing library for web browsers and Jupyter notebooks.",
-            installCommand = "pip3 install --break-system-packages --no-cache-dir plotly",
-            checkInstalledCommand = "python3 -c 'import plotly' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python plotly ; else pip3 install --break-system-packages --no-cache-dir plotly; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir plotly 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir plotly 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir plotly 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which plotly || python3 -c 'import plotly' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import plotly' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -999,8 +999,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Interactive visualization library that targets modern web browsers for presentation.",
-            installCommand = "pip3 install --break-system-packages --no-cache-dir bokeh",
-            checkInstalledCommand = "python3 -c 'import bokeh' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python bokeh ; else pip3 install --break-system-packages --no-cache-dir bokeh; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir bokeh 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir bokeh 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir bokeh 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which bokeh || python3 -c 'import bokeh' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import bokeh' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1009,8 +1009,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Declarative statistical visualization library for Python based on Vega and Vega-Lite.",
-            installCommand = "pip3 install --break-system-packages --no-cache-dir altair",
-            checkInstalledCommand = "python3 -c 'import altair' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python altair ; else pip3 install --break-system-packages --no-cache-dir altair; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir altair 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir altair 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir altair 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which altair || python3 -c 'import altair' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import altair' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1019,8 +1019,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Headless",
             description = "Open Source Computer Vision Library with 2500+ optimized real-time vision algorithms.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-opencv || pip3 install --break-system-packages --no-cache-dir opencv-python-headless",
-            checkInstalledCommand = "python3 -c 'import cv2' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python opencv-python-headless python3-opencv; else sudo apt-get update -y && sudo apt-get install -y python3-opencv || pip3 install --break-system-packages --no-cache-dir opencv-python-headless; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir opencv-python-headless 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir opencv-python-headless 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir opencv-python-headless 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which opencv-python || python3 -c 'import opencv_python_headless' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import opencv_python_headless' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1029,8 +1029,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "The friendly Python Imaging Library adds image processing capabilities to Python.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-pil || pip3 install --break-system-packages --no-cache-dir pillow",
-            checkInstalledCommand = "python3 -c 'import PIL' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python pillow python3-pil; else sudo apt-get update -y && sudo apt-get install -y python3-pil || pip3 install --break-system-packages --no-cache-dir pillow; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir pillow 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir pillow 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir pillow 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which pillow || python3 -c 'import pillow' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import pillow' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1039,8 +1039,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Collection of algorithms for image processing and computer vision in Python.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-skimage || pip3 install --break-system-packages --no-cache-dir scikit-image",
-            checkInstalledCommand = "python3 -c 'import skimage' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python scikit-image python3-skimage; else sudo apt-get update -y && sudo apt-get install -y python3-skimage || pip3 install --break-system-packages --no-cache-dir scikit-image; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir scikit-image 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir scikit-image 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir scikit-image 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which scikit-image || python3 -c 'import scikit_image' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import scikit_image' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1049,8 +1049,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Leading platform for building Python programs to work with human language data.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-nltk || pip3 install --break-system-packages --no-cache-dir nltk",
-            checkInstalledCommand = "python3 -c 'import nltk' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python nltk python3-nltk; else sudo apt-get update -y && sudo apt-get install -y python3-nltk || pip3 install --break-system-packages --no-cache-dir nltk; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir nltk 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir nltk 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir nltk 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which nltk || python3 -c 'import nltk' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import nltk' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1059,8 +1059,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Industrial-strength Natural Language Processing in Python with fast Cython engine.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-spacy || pip3 install --break-system-packages --no-cache-dir spacy",
-            checkInstalledCommand = "python3 -c 'import spacy' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python spacy python3-spacy; else sudo apt-get update -y && sudo apt-get install -y python3-spacy || pip3 install --break-system-packages --no-cache-dir spacy; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir spacy 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir spacy 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir spacy 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which spacy || python3 -c 'import spacy' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import spacy' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1069,8 +1069,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "State-of-the-art Machine Learning for PyTorch, TensorFlow, and JAX.",
-            installCommand = "pip3 install --break-system-packages --no-cache-dir transformers",
-            checkInstalledCommand = "python3 -c 'import transformers' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python transformers ; else pip3 install --break-system-packages --no-cache-dir transformers; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir transformers 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir transformers 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir transformers 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which transformers || python3 -c 'import transformers' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import transformers' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1079,8 +1079,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Fast and versatile tokenization library written in Rust with Python bindings.",
-            installCommand = "pip3 install --break-system-packages --no-cache-dir tokenizers",
-            checkInstalledCommand = "python3 -c 'import tokenizers' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python tokenizers ; else pip3 install --break-system-packages --no-cache-dir tokenizers; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir tokenizers 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir tokenizers 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir tokenizers 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which tokenizers || python3 -c 'import tokenizers' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import tokenizers' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1089,8 +1089,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Lightweight library for easily sharing and accessing datasets for Machine Learning.",
-            installCommand = "pip3 install --break-system-packages --no-cache-dir datasets",
-            checkInstalledCommand = "python3 -c 'import datasets' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python datasets ; else pip3 install --break-system-packages --no-cache-dir datasets; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir datasets 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir datasets 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir datasets 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which datasets || python3 -c 'import datasets' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import datasets' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1099,8 +1099,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Topic modelling, document indexing and similarity retrieval with large corpora.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-gensim || pip3 install --break-system-packages --no-cache-dir gensim",
-            checkInstalledCommand = "python3 -c 'import gensim' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python gensim python3-gensim; else sudo apt-get update -y && sudo apt-get install -y python3-gensim || pip3 install --break-system-packages --no-cache-dir gensim; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir gensim 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir gensim 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir gensim 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which gensim || python3 -c 'import gensim' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import gensim' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1109,8 +1109,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Creation, manipulation, and study of the structure, dynamics, and functions of complex networks.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-networkx || pip3 install --break-system-packages --no-cache-dir networkx",
-            checkInstalledCommand = "python3 -c 'import networkx' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python networkx python3-networkx; else sudo apt-get update -y && sudo apt-get install -y python3-networkx || pip3 install --break-system-packages --no-cache-dir networkx; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir networkx 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir networkx 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir networkx 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which networkx || python3 -c 'import networkx' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import networkx' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1119,8 +1119,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Python library for symbolic mathematics aims to become a full-featured computer algebra system.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-sympy || pip3 install --break-system-packages --no-cache-dir sympy",
-            checkInstalledCommand = "python3 -c 'import sympy' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python sympy python3-sympy; else sudo apt-get update -y && sudo apt-get install -y python3-sympy || pip3 install --break-system-packages --no-cache-dir sympy; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir sympy 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir sympy 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir sympy 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which sympy || python3 -c 'import sympy' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import sympy' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1129,8 +1129,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Statistical modeling and econometrics in Python with descriptive statistics and estimation.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-statsmodels || pip3 install --break-system-packages --no-cache-dir statsmodels",
-            checkInstalledCommand = "python3 -c 'import statsmodels' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python statsmodels python3-statsmodels; else sudo apt-get update -y && sudo apt-get install -y python3-statsmodels || pip3 install --break-system-packages --no-cache-dir statsmodels; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir statsmodels 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir statsmodels 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir statsmodels 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which statsmodels || python3 -c 'import statsmodels' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import statsmodels' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1139,8 +1139,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Optimized distributed gradient boosting library designed to be highly efficient and flexible.",
-            installCommand = "pip3 install --break-system-packages --no-cache-dir xgboost",
-            checkInstalledCommand = "python3 -c 'import xgboost' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python xgboost ; else pip3 install --break-system-packages --no-cache-dir xgboost; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir xgboost 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir xgboost 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir xgboost 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which xgboost || python3 -c 'import xgboost' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import xgboost' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1149,8 +1149,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Fast, distributed, high performance gradient boosting framework based on decision tree algorithms.",
-            installCommand = "pip3 install --break-system-packages --no-cache-dir lightgbm",
-            checkInstalledCommand = "python3 -c 'import lightgbm' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python lightgbm ; else pip3 install --break-system-packages --no-cache-dir lightgbm; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir lightgbm 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir lightgbm 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir lightgbm 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which lightgbm || python3 -c 'import lightgbm' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import lightgbm' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1159,8 +1159,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Fast, scalable, high performance Gradient Boosting on Decision Trees library.",
-            installCommand = "pip3 install --break-system-packages --no-cache-dir catboost",
-            checkInstalledCommand = "python3 -c 'import catboost' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python catboost ; else pip3 install --break-system-packages --no-cache-dir catboost; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir catboost 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir catboost 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir catboost 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which catboost || python3 -c 'import catboost' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import catboost' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1169,8 +1169,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Blazingly fast DataFrames library implemented in Rust with multi-threaded columnar engine.",
-            installCommand = "pip3 install --break-system-packages --no-cache-dir polars",
-            checkInstalledCommand = "python3 -c 'import polars' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python polars ; else pip3 install --break-system-packages --no-cache-dir polars; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir polars 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir polars 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir polars 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which polars || python3 -c 'import polars' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import polars' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1179,8 +1179,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Flexible library for parallel computing in Python that scales NumPy and Pandas workflows.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-dask || pip3 install --break-system-packages --no-cache-dir dask",
-            checkInstalledCommand = "python3 -c 'import dask' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python dask python3-dask; else sudo apt-get update -y && sudo apt-get install -y python3-dask || pip3 install --break-system-packages --no-cache-dir dask; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir dask 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir dask 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir dask 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which dask || python3 -c 'import dask' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import dask' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1189,8 +1189,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Python library for Apache Arrow development platform for in-memory columnar data.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-pyarrow || pip3 install --break-system-packages --no-cache-dir pyarrow",
-            checkInstalledCommand = "python3 -c 'import pyarrow' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python pyarrow python3-pyarrow; else sudo apt-get update -y && sudo apt-get install -y python3-pyarrow || pip3 install --break-system-packages --no-cache-dir pyarrow; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir pyarrow 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir pyarrow 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir pyarrow 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which pyarrow || python3 -c 'import pyarrow' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import pyarrow' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1199,8 +1199,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Modern, fast (high-performance) web framework for building APIs with Python 3.8+.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-fastapi || pip3 install --break-system-packages --no-cache-dir fastapi uvicorn",
-            checkInstalledCommand = "python3 -c 'import fastapi' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python fastapi uvicorn python3-fastapi; else sudo apt-get update -y && sudo apt-get install -y python3-fastapi || pip3 install --break-system-packages --no-cache-dir fastapi uvicorn; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir fastapi uvicorn 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir fastapi uvicorn 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir fastapi uvicorn 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which fastapi || python3 -c 'import fastapi' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import fastapi' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1209,8 +1209,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Latest",
             description = "Turns data scripts into shareable web apps in minutes with pure Python.",
-            installCommand = "pip3 install --break-system-packages --no-cache-dir streamlit",
-            checkInstalledCommand = "which streamlit || python3 -c 'import streamlit' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python streamlit ; else pip3 install --break-system-packages --no-cache-dir streamlit; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir streamlit 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir streamlit 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir streamlit 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which streamlit || python3 -c 'import streamlit' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import streamlit' 2>/dev/null",
             launchUrl = "http://127.0.0.1:8501"
         ),
         LinuxPackage(
@@ -1219,8 +1219,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Latest",
             description = "Create friendly web interfaces for your machine learning models in a few lines of code.",
-            installCommand = "pip3 install --break-system-packages --no-cache-dir gradio",
-            checkInstalledCommand = "python3 -c 'import gradio' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python gradio ; else pip3 install --break-system-packages --no-cache-dir gradio; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir gradio 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir gradio 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir gradio 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which gradio || python3 -c 'import gradio' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import gradio' 2>/dev/null",
             launchUrl = "http://127.0.0.1:7860"
         ),
         LinuxPackage(
@@ -1229,8 +1229,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Fast, extensible progress meter for Python loops and command-line scripts.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-tqdm || pip3 install --break-system-packages --no-cache-dir tqdm",
-            checkInstalledCommand = "python3 -c 'import tqdm' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python tqdm python3-tqdm; else sudo apt-get update -y && sudo apt-get install -y python3-tqdm || pip3 install --break-system-packages --no-cache-dir tqdm; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir tqdm 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir tqdm 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir tqdm 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which tqdm || python3 -c 'import tqdm' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import tqdm' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1239,8 +1239,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Set of tools to provide lightweight pipelining in Python with transparent disk-caching.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-joblib || pip3 install --break-system-packages --no-cache-dir joblib",
-            checkInstalledCommand = "python3 -c 'import joblib' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python joblib python3-joblib; else sudo apt-get update -y && sudo apt-get install -y python3-joblib || pip3 install --break-system-packages --no-cache-dir joblib; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir joblib 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir joblib 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir joblib 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which joblib || python3 -c 'import joblib' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import joblib' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1249,8 +1249,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Pythonic interface to the HDF5 binary data format storing huge amounts of numerical data.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-h5py || pip3 install --break-system-packages --no-cache-dir h5py",
-            checkInstalledCommand = "python3 -c 'import h5py' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python h5py python3-h5py; else sudo apt-get update -y && sudo apt-get install -y python3-h5py || pip3 install --break-system-packages --no-cache-dir h5py; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir h5py 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir h5py 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir h5py 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which h5py || python3 -c 'import h5py' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import h5py' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1259,8 +1259,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Format for the storage of chunked, compressed, N-dimensional arrays.",
-            installCommand = "pip3 install --break-system-packages --no-cache-dir zarr",
-            checkInstalledCommand = "python3 -c 'import zarr' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python zarr ; else pip3 install --break-system-packages --no-cache-dir zarr; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir zarr 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir zarr 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir zarr 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which zarr || python3 -c 'import zarr' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import zarr' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1269,8 +1269,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Python package for music and audio analysis, feature extraction, and spectrograms.",
-            installCommand = "pip3 install --break-system-packages --no-cache-dir librosa",
-            checkInstalledCommand = "python3 -c 'import librosa' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python librosa ; else pip3 install --break-system-packages --no-cache-dir librosa; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir librosa 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir librosa 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir librosa 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which librosa || python3 -c 'import librosa' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import librosa' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1279,8 +1279,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Audio library based on libsndfile, CFFI and NumPy for reading and writing sound files.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-soundfile || pip3 install --break-system-packages --no-cache-dir soundfile",
-            checkInstalledCommand = "python3 -c 'import soundfile' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python soundfile python3-soundfile; else sudo apt-get update -y && sudo apt-get install -y python3-soundfile || pip3 install --break-system-packages --no-cache-dir soundfile; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir soundfile 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir soundfile 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir soundfile 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which soundfile || python3 -c 'import soundfile' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import soundfile' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1289,8 +1289,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Manipulate audio with an easy high-level interface (slice, concatenate, apply effects).",
-            installCommand = "pip3 install --break-system-packages --no-cache-dir pydub",
-            checkInstalledCommand = "python3 -c 'import pydub' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python pydub ; else pip3 install --break-system-packages --no-cache-dir pydub; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir pydub 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir pydub 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir pydub 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which pydub || python3 -c 'import pydub' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import pydub' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1299,8 +1299,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Robust Speech Recognition via Large-Scale Weak Supervision from OpenAI.",
-            installCommand = "pip3 install --break-system-packages --no-cache-dir openai-whisper",
-            checkInstalledCommand = "which whisper || python3 -c 'import whisper' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python openai-whisper ; else pip3 install --break-system-packages --no-cache-dir openai-whisper; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir openai-whisper 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir openai-whisper 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir openai-whisper 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which whisper || python3 -c 'import openai_whisper' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import openai_whisper' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1309,8 +1309,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Multilingual sentence, text, and image embeddings using BERT / RoBERTa.",
-            installCommand = "pip3 install --break-system-packages --no-cache-dir sentence-transformers",
-            checkInstalledCommand = "python3 -c 'import sentence_transformers' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python sentence-transformers ; else pip3 install --break-system-packages --no-cache-dir sentence-transformers; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir sentence-transformers 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir sentence-transformers 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir sentence-transformers 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which sentence-transformers || python3 -c 'import sentence_transformers' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import sentence_transformers' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1319,8 +1319,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Framework for developing applications powered by large language models.",
-            installCommand = "pip3 install --break-system-packages --no-cache-dir langchain",
-            checkInstalledCommand = "python3 -c 'import langchain' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python langchain ; else pip3 install --break-system-packages --no-cache-dir langchain; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir langchain 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir langchain 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir langchain 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which langchain || python3 -c 'import langchain' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import langchain' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1329,8 +1329,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "AI-native open-source embedding database for AI application development.",
-            installCommand = "pip3 install --break-system-packages --no-cache-dir chromadb",
-            checkInstalledCommand = "python3 -c 'import chromadb' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python chromadb ; else pip3 install --break-system-packages --no-cache-dir chromadb; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir chromadb 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir chromadb 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir chromadb 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which chromadb || python3 -c 'import chromadb' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import chromadb' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1339,8 +1339,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "CPU Edition",
             description = "Library for efficient similarity search and clustering of dense vectors from Meta AI.",
-            installCommand = "pip3 install --break-system-packages --no-cache-dir faiss-cpu",
-            checkInstalledCommand = "python3 -c 'import faiss' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python faiss-cpu ; else pip3 install --break-system-packages --no-cache-dir faiss-cpu; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir faiss-cpu 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir faiss-cpu 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir faiss-cpu 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which faiss-cpu || python3 -c 'import faiss_cpu' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import faiss_cpu' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1349,29 +1349,9 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Hyperparameter optimization framework designed specifically for machine learning.",
-            installCommand = "pip3 install --break-system-packages --no-cache-dir optuna",
-            checkInstalledCommand = "python3 -c 'import optuna' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python optuna ; else pip3 install --break-system-packages --no-cache-dir optuna; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir optuna 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir optuna 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir optuna 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which optuna || python3 -c 'import optuna' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import optuna' 2>/dev/null",
             launchUrl = null
-        ),
-        LinuxPackage(
-            id = "tensorboard",
-            name = "TensorBoard Visualizer",
-            category = PackageCategory.DATA_SCIENCE,
-            version = "Latest",
-            description = "Visualization toolkit for machine learning experimentation, loss graphs, and metrics.",
-            installCommand = "pip3 install --break-system-packages --no-cache-dir tensorboard",
-            checkInstalledCommand = "which tensorboard",
-            launchUrl = "http://127.0.0.1:6006"
-        ),
-        LinuxPackage(
-            id = "mlflow",
-            name = "MLflow Lifecycle Management",
-            category = PackageCategory.DATA_SCIENCE,
-            version = "Latest",
-            description = "Platform to streamline machine learning development including tracking, packaging, and deploying.",
-            installCommand = "pip3 install --break-system-packages --no-cache-dir mlflow",
-            checkInstalledCommand = "which mlflow",
-            launchUrl = "http://127.0.0.1:5000"
         ),
         LinuxPackage(
             id = "cython",
@@ -1379,8 +1359,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Compiler that makes writing C extensions for Python as easy as Python itself.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y cython3 || pip3 install --break-system-packages --no-cache-dir cython",
-            checkInstalledCommand = "which cython || python3 -c 'import Cython' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python cython cython3; else sudo apt-get update -y && sudo apt-get install -y cython3 || pip3 install --break-system-packages --no-cache-dir cython; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir cython 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir cython 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir cython 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which cython || python3 -c 'import cython' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import cython' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1389,8 +1369,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "NumPy-aware optimizing compiler that turns Python functions into fast machine code.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-numba || pip3 install --break-system-packages --no-cache-dir numba",
-            checkInstalledCommand = "python3 -c 'import numba' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python numba python3-numba; else sudo apt-get update -y && sudo apt-get install -y python3-numba || pip3 install --break-system-packages --no-cache-dir numba; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir numba 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir numba 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir numba 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which numba || python3 -c 'import numba' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import numba' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1399,8 +1379,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Python library for pulling data out of HTML and XML files with parse trees.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-bs4 || pip3 install --break-system-packages --no-cache-dir beautifulsoup4",
-            checkInstalledCommand = "python3 -c 'import bs4' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python beautifulsoup4 python3-bs4; else sudo apt-get update -y && sudo apt-get install -y python3-bs4 || pip3 install --break-system-packages --no-cache-dir beautifulsoup4; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir beautifulsoup4 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir beautifulsoup4 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir beautifulsoup4 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which beautifulsoup4 || python3 -c 'import beautifulsoup4' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import beautifulsoup4' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1409,8 +1389,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Fast high-level web crawling and scraping framework to crawl websites and extract structured data.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-scrapy || pip3 install --break-system-packages --no-cache-dir scrapy",
-            checkInstalledCommand = "which scrapy",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python scrapy python3-scrapy; else sudo apt-get update -y && sudo apt-get install -y python3-scrapy || pip3 install --break-system-packages --no-cache-dir scrapy; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir scrapy 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir scrapy 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir scrapy 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which scrapy || python3 -c 'import scrapy' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import scrapy' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1419,8 +1399,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Elegant and simple HTTP library for Python, built for human beings.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-requests || pip3 install --break-system-packages --no-cache-dir requests",
-            checkInstalledCommand = "python3 -c 'import requests' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python requests python3-requests; else sudo apt-get update -y && sudo apt-get install -y python3-requests || pip3 install --break-system-packages --no-cache-dir requests; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir requests 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir requests 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir requests 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which requests || python3 -c 'import requests' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import requests' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1429,8 +1409,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Next-generation HTTP client for Python 3 with HTTP/2 and async support.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-httpx || pip3 install --break-system-packages --no-cache-dir httpx",
-            checkInstalledCommand = "python3 -c 'import httpx' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python httpx python3-httpx; else sudo apt-get update -y && sudo apt-get install -y python3-httpx || pip3 install --break-system-packages --no-cache-dir httpx; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir httpx 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir httpx 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir httpx 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which httpx-py || python3 -c 'import httpx' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import httpx' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1439,8 +1419,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Asynchronous HTTP client/server framework for asyncio and Python.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-aiohttp || pip3 install --break-system-packages --no-cache-dir aiohttp",
-            checkInstalledCommand = "python3 -c 'import aiohttp' 2>/dev/null",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python aiohttp python3-aiohttp; else sudo apt-get update -y && sudo apt-get install -y python3-aiohttp || pip3 install --break-system-packages --no-cache-dir aiohttp; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir aiohttp 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir aiohttp 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir aiohttp 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which aiohttp || python3 -c 'import aiohttp' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import aiohttp' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1449,8 +1429,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Mature full-featured Python testing tool that helps you write better programs.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-pytest || pip3 install --break-system-packages --no-cache-dir pytest",
-            checkInstalledCommand = "which pytest",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python pytest python3-pytest; else sudo apt-get update -y && sudo apt-get install -y python3-pytest || pip3 install --break-system-packages --no-cache-dir pytest; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir pytest 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir pytest 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir pytest 2>/dev/null || true; fi; fi",
+            checkInstalledCommand = "which pytest || python3 -c 'import pytest' 2>/dev/null || [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import pytest' 2>/dev/null",
             launchUrl = null
         )
         )

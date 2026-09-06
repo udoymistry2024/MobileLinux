@@ -751,7 +751,7 @@ class UbuntuRuntime(private val context: Context) {
             "LANG=C.UTF-8",
             "LC_ALL=C.UTF-8",
             "TMPDIR=/tmp",
-            "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "PATH=/home/ubuntu/miniforge3/bin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
             "SHELL=/usr/bin/bash",
             "USER=ubuntu",
             "LOGNAME=ubuntu",
@@ -787,7 +787,7 @@ class UbuntuRuntime(private val context: Context) {
                 append("HOME=/home/ubuntu ")
                 append("TERM=xterm-256color ")
                 append("LANG=C.UTF-8 ")
-                append("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ")
+                append("PATH=/home/ubuntu/miniforge3/bin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ")
                 append("USER=ubuntu SHELL=/usr/bin/bash ANDROID_HOST=true MOBILELINUX_MODE=chroot TMPDIR=/tmp ")
                 if (execCmd != null) {
                     append("/usr/bin/bash -c '$execCmd'")

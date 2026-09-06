@@ -116,10 +116,17 @@ fi
 EOF
 chmod +x "$ROOTFS_DIR/usr/local/bin/pip"
 
+# Configure pip to allow package installation on Ubuntu 24.04 (PEP 668 override)
+mkdir -p "$ROOTFS_DIR/etc"
+cat > "$ROOTFS_DIR/etc/pip.conf" << 'EOF'
+[global]
+break-system-packages = true
+EOF
+
 # Clean up any leftover mobilelinux-shell.sh in home dirs
 rm -f "$ROOTFS_DIR/home/ubuntu/mobilelinux-shell.sh" "$ROOTFS_DIR/root/mobilelinux-shell.sh" 2>/dev/null || true
 
-log "✓ Command wrappers installed (sudo, python, pip)"
+log "✓ Command wrappers and pip config installed (sudo, python, pip)"
 
 # ===========================================================================
 # Step 7: Configure apt sources for Ubuntu 24.04 ARM64

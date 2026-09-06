@@ -103,7 +103,7 @@
             android:layout_width="16dp"
             android:layout_height="16dp"
             android:indeterminate="true"
-            android:indeterminateTint="@color/accent_blue"
+            android:indeterminateTint="@color/accent_green"
             android:visibility="gone"
             tools:visibility="visible" />
 

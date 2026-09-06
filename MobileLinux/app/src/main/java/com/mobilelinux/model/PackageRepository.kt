@@ -214,7 +214,7 @@ object PackageRepository {
             category = PackageCategory.CYBER_SECURITY,
             version = "Python 3",
             description = "Hunt down social media accounts by username across 300+ social networks.",
-            installCommand = "pip3 install --no-cache-dir sherlock-project",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y sherlock || pip3 install --break-system-packages --no-cache-dir sherlock-project",
             checkInstalledCommand = "which sherlock || python3 -c 'import sherlock' 2>/dev/null",
             launchUrl = null
         ),
@@ -454,7 +454,7 @@ object PackageRepository {
             category = PackageCategory.CYBER_SECURITY,
             version = "Python 3",
             description = "Powerful interactive packet manipulation library and tool to forge or decode network packets.",
-            installCommand = "pip3 install --no-cache-dir scapy",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-scapy || pip3 install --break-system-packages --no-cache-dir scapy",
             checkInstalledCommand = "which scapy || python3 -c 'import scapy' 2>/dev/null",
             launchUrl = null
         ),
@@ -464,7 +464,7 @@ object PackageRepository {
             category = PackageCategory.CYBER_SECURITY,
             version = "Python 3",
             description = "Collection of Python classes for working with network protocols (SMB, MSRPC, Kerberos, etc.).",
-            installCommand = "pip3 install --no-cache-dir impacket",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-impacket || pip3 install --break-system-packages --no-cache-dir impacket",
             checkInstalledCommand = "python3 -c 'import impacket' 2>/dev/null",
             launchUrl = null
         ),
@@ -484,7 +484,7 @@ object PackageRepository {
             category = PackageCategory.CYBER_SECURITY,
             version = "Latest",
             description = "Swiss army knife for pentesting networks and Active Directory environments.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y crackmapexec || pip3 install --no-cache-dir crackmapexec",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y crackmapexec || pip3 install --break-system-packages --no-cache-dir crackmapexec",
             checkInstalledCommand = "which crackmapexec || which cme",
             launchUrl = null
         ),
@@ -544,7 +544,7 @@ object PackageRepository {
             category = PackageCategory.CYBER_SECURITY,
             version = "Latest",
             description = "DNS reconnaissance tool for locating non-contiguous IP space and hostnames across domains.",
-            installCommand = "pip3 install --no-cache-dir fierce",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y fierce || pip3 install --break-system-packages --no-cache-dir fierce",
             checkInstalledCommand = "which fierce",
             launchUrl = null
         ),
@@ -604,7 +604,7 @@ object PackageRepository {
             category = PackageCategory.CYBER_SECURITY,
             version = "Latest",
             description = "Interactive, SSL/TLS-capable intercepting HTTP proxy for mobile and web app reverse engineering.",
-            installCommand = "pip3 install --no-cache-dir mitmproxy",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y mitmproxy || pip3 install --break-system-packages --no-cache-dir mitmproxy",
             checkInstalledCommand = "which mitmproxy || which mitmdump",
             launchUrl = null
         ),
@@ -654,7 +654,7 @@ object PackageRepository {
             category = PackageCategory.CYBER_SECURITY,
             version = "Latest",
             description = "Gather emails, subdomains, hosts, employee names, open ports and banners from public sources.",
-            installCommand = "sudo apt-get update -y && sudo apt-get install -y theharvester || pip3 install --no-cache-dir theHarvester",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y theharvester || pip3 install --break-system-packages --no-cache-dir theHarvester",
             checkInstalledCommand = "which theHarvester || which theharvester",
             launchUrl = null
         ),
@@ -684,7 +684,7 @@ object PackageRepository {
             category = PackageCategory.CYBER_SECURITY,
             version = "Latest",
             description = "Identify the different types of cryptographic hashes used to encrypt data and passwords.",
-            installCommand = "pip3 install --no-cache-dir hashID",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y hashid || pip3 install --break-system-packages --no-cache-dir hashID",
             checkInstalledCommand = "which hashid",
             launchUrl = null
         ),
@@ -859,8 +859,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Latest / Web IDE",
             description = "Interactive web-based notebooks, code cells, terminal, and visualization dashboard.",
-            installCommand = "if which conda >/dev/null 2>&1; then conda install -y jupyterlab notebook; else pip3 install --no-cache-dir jupyterlab notebook; fi",
-            checkInstalledCommand = "which jupyter || [ -x /home/ubuntu/miniforge3/bin/jupyter ]",
+            installCommand = "if [ -x /home/ubuntu/miniforge3/bin/conda ]; then /home/ubuntu/miniforge3/bin/conda install -y jupyterlab notebook 2>/dev/null || true; fi; sudo apt-get update -y && sudo apt-get install -y jupyter jupyter-core python3-pip && pip3 install --break-system-packages --no-cache-dir jupyterlab notebook",
+            checkInstalledCommand = "which jupyter || [ -x /home/ubuntu/miniforge3/bin/jupyter ] || [ -x /root/miniconda3/bin/jupyter ]",
             launchUrl = "http://127.0.0.1:8888/lab"
         ),
         LinuxPackage(
@@ -870,7 +870,7 @@ object PackageRepository {
             version = "ARM64",
             description = "Lightweight installer for Conda, Python package and virtual environment manager.",
             installCommand = "curl -fsSL https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh -o /tmp/miniconda.sh && bash /tmp/miniconda.sh -b -p /home/ubuntu/miniforge3 && rm -f /tmp/miniconda.sh",
-            checkInstalledCommand = "which conda || [ -x /home/ubuntu/miniforge3/bin/conda ]",
+            checkInstalledCommand = "which conda || [ -x /home/ubuntu/miniforge3/bin/conda ] || [ -x /root/miniconda3/bin/conda ]",
             launchUrl = null
         ),
         LinuxPackage(
@@ -879,8 +879,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "The fundamental package for high-performance scientific computing and N-dimensional arrays.",
-            installCommand = "pip3 install --no-cache-dir numpy",
-            checkInstalledCommand = "python3 -c 'import numpy' 2>/dev/null",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-numpy || pip3 install --break-system-packages --no-cache-dir numpy; if [ -x /home/ubuntu/miniforge3/bin/conda ]; then /home/ubuntu/miniforge3/bin/conda install -y numpy 2>/dev/null || true; fi",
+            checkInstalledCommand = "python3 -c 'import numpy' 2>/dev/null || /home/ubuntu/miniforge3/bin/python -c 'import numpy' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -889,8 +889,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Powerful, flexible data analysis and manipulation library for structured datasets.",
-            installCommand = "pip3 install --no-cache-dir pandas",
-            checkInstalledCommand = "python3 -c 'import pandas' 2>/dev/null",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-pandas || pip3 install --break-system-packages --no-cache-dir pandas; if [ -x /home/ubuntu/miniforge3/bin/conda ]; then /home/ubuntu/miniforge3/bin/conda install -y pandas 2>/dev/null || true; fi",
+            checkInstalledCommand = "python3 -c 'import pandas' 2>/dev/null || /home/ubuntu/miniforge3/bin/python -c 'import pandas' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -899,8 +899,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Fundamental algorithms for scientific computing including optimization, integration, and ODE solvers.",
-            installCommand = "pip3 install --no-cache-dir scipy",
-            checkInstalledCommand = "python3 -c 'import scipy' 2>/dev/null",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-scipy || pip3 install --break-system-packages --no-cache-dir scipy; if [ -x /home/ubuntu/miniforge3/bin/conda ]; then /home/ubuntu/miniforge3/bin/conda install -y scipy 2>/dev/null || true; fi",
+            checkInstalledCommand = "python3 -c 'import scipy' 2>/dev/null || /home/ubuntu/miniforge3/bin/python -c 'import scipy' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -909,8 +909,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Simple and efficient tools for predictive data analysis, clustering, and machine learning.",
-            installCommand = "pip3 install --no-cache-dir scikit-learn",
-            checkInstalledCommand = "python3 -c 'import sklearn' 2>/dev/null",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-sklearn || pip3 install --break-system-packages --no-cache-dir scikit-learn; if [ -x /home/ubuntu/miniforge3/bin/conda ]; then /home/ubuntu/miniforge3/bin/conda install -y scikit-learn 2>/dev/null || true; fi",
+            checkInstalledCommand = "python3 -c 'import sklearn' 2>/dev/null || /home/ubuntu/miniforge3/bin/python -c 'import sklearn' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -919,7 +919,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Open source machine learning framework that accelerates the path from research to production.",
-            installCommand = "pip3 install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu",
+            installCommand = "pip3 install --break-system-packages --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu",
             checkInstalledCommand = "python3 -c 'import torch' 2>/dev/null",
             launchUrl = null
         ),
@@ -929,7 +929,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Datasets, transforms and popular model architectures for computer vision in PyTorch.",
-            installCommand = "pip3 install --no-cache-dir torchvision --index-url https://download.pytorch.org/whl/cpu",
+            installCommand = "pip3 install --break-system-packages --no-cache-dir torchvision --index-url https://download.pytorch.org/whl/cpu",
             checkInstalledCommand = "python3 -c 'import torchvision' 2>/dev/null",
             launchUrl = null
         ),
@@ -939,7 +939,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Audio processing tools, I/O and pretrained models for PyTorch.",
-            installCommand = "pip3 install --no-cache-dir torchaudio --index-url https://download.pytorch.org/whl/cpu",
+            installCommand = "pip3 install --break-system-packages --no-cache-dir torchaudio --index-url https://download.pytorch.org/whl/cpu",
             checkInstalledCommand = "python3 -c 'import torchaudio' 2>/dev/null",
             launchUrl = null
         ),
@@ -949,7 +949,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Lightweight TensorFlow runtime optimized for mobile and embedded devices.",
-            installCommand = "pip3 install --no-cache-dir tflite-runtime",
+            installCommand = "pip3 install --break-system-packages --no-cache-dir tflite-runtime",
             checkInstalledCommand = "python3 -c 'import tflite_runtime' 2>/dev/null",
             launchUrl = null
         ),
@@ -959,7 +959,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "High-performance scoring engine for Open Neural Network Exchange (ONNX) models.",
-            installCommand = "pip3 install --no-cache-dir onnxruntime",
+            installCommand = "pip3 install --break-system-packages --no-cache-dir onnxruntime",
             checkInstalledCommand = "python3 -c 'import onnxruntime' 2>/dev/null",
             launchUrl = null
         ),
@@ -969,8 +969,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Comprehensive library for creating static, animated, and interactive visualizations in Python.",
-            installCommand = "pip3 install --no-cache-dir matplotlib",
-            checkInstalledCommand = "python3 -c 'import matplotlib' 2>/dev/null",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-matplotlib || pip3 install --break-system-packages --no-cache-dir matplotlib; if [ -x /home/ubuntu/miniforge3/bin/conda ]; then /home/ubuntu/miniforge3/bin/conda install -y matplotlib 2>/dev/null || true; fi",
+            checkInstalledCommand = "python3 -c 'import matplotlib' 2>/dev/null || /home/ubuntu/miniforge3/bin/python -c 'import matplotlib' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -979,8 +979,8 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Statistical data visualization based on matplotlib with informative, beautiful themes.",
-            installCommand = "pip3 install --no-cache-dir seaborn",
-            checkInstalledCommand = "python3 -c 'import seaborn' 2>/dev/null",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-seaborn || pip3 install --break-system-packages --no-cache-dir seaborn; if [ -x /home/ubuntu/miniforge3/bin/conda ]; then /home/ubuntu/miniforge3/bin/conda install -y seaborn 2>/dev/null || true; fi",
+            checkInstalledCommand = "python3 -c 'import seaborn' 2>/dev/null || /home/ubuntu/miniforge3/bin/python -c 'import seaborn' 2>/dev/null",
             launchUrl = null
         ),
         LinuxPackage(
@@ -989,7 +989,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Interactive, publication-quality graphing library for web browsers and Jupyter notebooks.",
-            installCommand = "pip3 install --no-cache-dir plotly",
+            installCommand = "pip3 install --break-system-packages --no-cache-dir plotly",
             checkInstalledCommand = "python3 -c 'import plotly' 2>/dev/null",
             launchUrl = null
         ),
@@ -999,7 +999,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Interactive visualization library that targets modern web browsers for presentation.",
-            installCommand = "pip3 install --no-cache-dir bokeh",
+            installCommand = "pip3 install --break-system-packages --no-cache-dir bokeh",
             checkInstalledCommand = "python3 -c 'import bokeh' 2>/dev/null",
             launchUrl = null
         ),
@@ -1009,7 +1009,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Declarative statistical visualization library for Python based on Vega and Vega-Lite.",
-            installCommand = "pip3 install --no-cache-dir altair",
+            installCommand = "pip3 install --break-system-packages --no-cache-dir altair",
             checkInstalledCommand = "python3 -c 'import altair' 2>/dev/null",
             launchUrl = null
         ),
@@ -1019,7 +1019,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Headless",
             description = "Open Source Computer Vision Library with 2500+ optimized real-time vision algorithms.",
-            installCommand = "pip3 install --no-cache-dir opencv-python-headless",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-opencv || pip3 install --break-system-packages --no-cache-dir opencv-python-headless",
             checkInstalledCommand = "python3 -c 'import cv2' 2>/dev/null",
             launchUrl = null
         ),
@@ -1029,7 +1029,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "The friendly Python Imaging Library adds image processing capabilities to Python.",
-            installCommand = "pip3 install --no-cache-dir pillow",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-pil || pip3 install --break-system-packages --no-cache-dir pillow",
             checkInstalledCommand = "python3 -c 'import PIL' 2>/dev/null",
             launchUrl = null
         ),
@@ -1039,7 +1039,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Collection of algorithms for image processing and computer vision in Python.",
-            installCommand = "pip3 install --no-cache-dir scikit-image",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-skimage || pip3 install --break-system-packages --no-cache-dir scikit-image",
             checkInstalledCommand = "python3 -c 'import skimage' 2>/dev/null",
             launchUrl = null
         ),
@@ -1049,7 +1049,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Leading platform for building Python programs to work with human language data.",
-            installCommand = "pip3 install --no-cache-dir nltk",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-nltk || pip3 install --break-system-packages --no-cache-dir nltk",
             checkInstalledCommand = "python3 -c 'import nltk' 2>/dev/null",
             launchUrl = null
         ),
@@ -1059,7 +1059,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Industrial-strength Natural Language Processing in Python with fast Cython engine.",
-            installCommand = "pip3 install --no-cache-dir spacy",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-spacy || pip3 install --break-system-packages --no-cache-dir spacy",
             checkInstalledCommand = "python3 -c 'import spacy' 2>/dev/null",
             launchUrl = null
         ),
@@ -1069,7 +1069,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "State-of-the-art Machine Learning for PyTorch, TensorFlow, and JAX.",
-            installCommand = "pip3 install --no-cache-dir transformers",
+            installCommand = "pip3 install --break-system-packages --no-cache-dir transformers",
             checkInstalledCommand = "python3 -c 'import transformers' 2>/dev/null",
             launchUrl = null
         ),
@@ -1079,7 +1079,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Fast and versatile tokenization library written in Rust with Python bindings.",
-            installCommand = "pip3 install --no-cache-dir tokenizers",
+            installCommand = "pip3 install --break-system-packages --no-cache-dir tokenizers",
             checkInstalledCommand = "python3 -c 'import tokenizers' 2>/dev/null",
             launchUrl = null
         ),
@@ -1089,7 +1089,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Lightweight library for easily sharing and accessing datasets for Machine Learning.",
-            installCommand = "pip3 install --no-cache-dir datasets",
+            installCommand = "pip3 install --break-system-packages --no-cache-dir datasets",
             checkInstalledCommand = "python3 -c 'import datasets' 2>/dev/null",
             launchUrl = null
         ),
@@ -1099,7 +1099,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Topic modelling, document indexing and similarity retrieval with large corpora.",
-            installCommand = "pip3 install --no-cache-dir gensim",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-gensim || pip3 install --break-system-packages --no-cache-dir gensim",
             checkInstalledCommand = "python3 -c 'import gensim' 2>/dev/null",
             launchUrl = null
         ),
@@ -1109,7 +1109,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Creation, manipulation, and study of the structure, dynamics, and functions of complex networks.",
-            installCommand = "pip3 install --no-cache-dir networkx",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-networkx || pip3 install --break-system-packages --no-cache-dir networkx",
             checkInstalledCommand = "python3 -c 'import networkx' 2>/dev/null",
             launchUrl = null
         ),
@@ -1119,7 +1119,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Python library for symbolic mathematics aims to become a full-featured computer algebra system.",
-            installCommand = "pip3 install --no-cache-dir sympy",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-sympy || pip3 install --break-system-packages --no-cache-dir sympy",
             checkInstalledCommand = "python3 -c 'import sympy' 2>/dev/null",
             launchUrl = null
         ),
@@ -1129,7 +1129,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Statistical modeling and econometrics in Python with descriptive statistics and estimation.",
-            installCommand = "pip3 install --no-cache-dir statsmodels",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-statsmodels || pip3 install --break-system-packages --no-cache-dir statsmodels",
             checkInstalledCommand = "python3 -c 'import statsmodels' 2>/dev/null",
             launchUrl = null
         ),
@@ -1139,7 +1139,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Optimized distributed gradient boosting library designed to be highly efficient and flexible.",
-            installCommand = "pip3 install --no-cache-dir xgboost",
+            installCommand = "pip3 install --break-system-packages --no-cache-dir xgboost",
             checkInstalledCommand = "python3 -c 'import xgboost' 2>/dev/null",
             launchUrl = null
         ),
@@ -1149,7 +1149,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Fast, distributed, high performance gradient boosting framework based on decision tree algorithms.",
-            installCommand = "pip3 install --no-cache-dir lightgbm",
+            installCommand = "pip3 install --break-system-packages --no-cache-dir lightgbm",
             checkInstalledCommand = "python3 -c 'import lightgbm' 2>/dev/null",
             launchUrl = null
         ),
@@ -1159,7 +1159,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Fast, scalable, high performance Gradient Boosting on Decision Trees library.",
-            installCommand = "pip3 install --no-cache-dir catboost",
+            installCommand = "pip3 install --break-system-packages --no-cache-dir catboost",
             checkInstalledCommand = "python3 -c 'import catboost' 2>/dev/null",
             launchUrl = null
         ),
@@ -1169,7 +1169,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Blazingly fast DataFrames library implemented in Rust with multi-threaded columnar engine.",
-            installCommand = "pip3 install --no-cache-dir polars",
+            installCommand = "pip3 install --break-system-packages --no-cache-dir polars",
             checkInstalledCommand = "python3 -c 'import polars' 2>/dev/null",
             launchUrl = null
         ),
@@ -1179,7 +1179,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Flexible library for parallel computing in Python that scales NumPy and Pandas workflows.",
-            installCommand = "pip3 install --no-cache-dir dask",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-dask || pip3 install --break-system-packages --no-cache-dir dask",
             checkInstalledCommand = "python3 -c 'import dask' 2>/dev/null",
             launchUrl = null
         ),
@@ -1189,7 +1189,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Python library for Apache Arrow development platform for in-memory columnar data.",
-            installCommand = "pip3 install --no-cache-dir pyarrow",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-pyarrow || pip3 install --break-system-packages --no-cache-dir pyarrow",
             checkInstalledCommand = "python3 -c 'import pyarrow' 2>/dev/null",
             launchUrl = null
         ),
@@ -1199,7 +1199,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Modern, fast (high-performance) web framework for building APIs with Python 3.8+.",
-            installCommand = "pip3 install --no-cache-dir fastapi uvicorn",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-fastapi || pip3 install --break-system-packages --no-cache-dir fastapi uvicorn",
             checkInstalledCommand = "python3 -c 'import fastapi' 2>/dev/null",
             launchUrl = null
         ),
@@ -1209,7 +1209,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Latest",
             description = "Turns data scripts into shareable web apps in minutes with pure Python.",
-            installCommand = "pip3 install --no-cache-dir streamlit",
+            installCommand = "pip3 install --break-system-packages --no-cache-dir streamlit",
             checkInstalledCommand = "which streamlit || python3 -c 'import streamlit' 2>/dev/null",
             launchUrl = "http://127.0.0.1:8501"
         ),
@@ -1219,7 +1219,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Latest",
             description = "Create friendly web interfaces for your machine learning models in a few lines of code.",
-            installCommand = "pip3 install --no-cache-dir gradio",
+            installCommand = "pip3 install --break-system-packages --no-cache-dir gradio",
             checkInstalledCommand = "python3 -c 'import gradio' 2>/dev/null",
             launchUrl = "http://127.0.0.1:7860"
         ),
@@ -1229,7 +1229,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Fast, extensible progress meter for Python loops and command-line scripts.",
-            installCommand = "pip3 install --no-cache-dir tqdm",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-tqdm || pip3 install --break-system-packages --no-cache-dir tqdm",
             checkInstalledCommand = "python3 -c 'import tqdm' 2>/dev/null",
             launchUrl = null
         ),
@@ -1239,7 +1239,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Set of tools to provide lightweight pipelining in Python with transparent disk-caching.",
-            installCommand = "pip3 install --no-cache-dir joblib",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-joblib || pip3 install --break-system-packages --no-cache-dir joblib",
             checkInstalledCommand = "python3 -c 'import joblib' 2>/dev/null",
             launchUrl = null
         ),
@@ -1249,7 +1249,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Pythonic interface to the HDF5 binary data format storing huge amounts of numerical data.",
-            installCommand = "pip3 install --no-cache-dir h5py",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-h5py || pip3 install --break-system-packages --no-cache-dir h5py",
             checkInstalledCommand = "python3 -c 'import h5py' 2>/dev/null",
             launchUrl = null
         ),
@@ -1259,7 +1259,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Format for the storage of chunked, compressed, N-dimensional arrays.",
-            installCommand = "pip3 install --no-cache-dir zarr",
+            installCommand = "pip3 install --break-system-packages --no-cache-dir zarr",
             checkInstalledCommand = "python3 -c 'import zarr' 2>/dev/null",
             launchUrl = null
         ),
@@ -1269,7 +1269,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Python package for music and audio analysis, feature extraction, and spectrograms.",
-            installCommand = "pip3 install --no-cache-dir librosa",
+            installCommand = "pip3 install --break-system-packages --no-cache-dir librosa",
             checkInstalledCommand = "python3 -c 'import librosa' 2>/dev/null",
             launchUrl = null
         ),
@@ -1279,7 +1279,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Audio library based on libsndfile, CFFI and NumPy for reading and writing sound files.",
-            installCommand = "pip3 install --no-cache-dir soundfile",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-soundfile || pip3 install --break-system-packages --no-cache-dir soundfile",
             checkInstalledCommand = "python3 -c 'import soundfile' 2>/dev/null",
             launchUrl = null
         ),
@@ -1289,7 +1289,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Manipulate audio with an easy high-level interface (slice, concatenate, apply effects).",
-            installCommand = "pip3 install --no-cache-dir pydub",
+            installCommand = "pip3 install --break-system-packages --no-cache-dir pydub",
             checkInstalledCommand = "python3 -c 'import pydub' 2>/dev/null",
             launchUrl = null
         ),
@@ -1299,7 +1299,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Robust Speech Recognition via Large-Scale Weak Supervision from OpenAI.",
-            installCommand = "pip3 install --no-cache-dir openai-whisper",
+            installCommand = "pip3 install --break-system-packages --no-cache-dir openai-whisper",
             checkInstalledCommand = "which whisper || python3 -c 'import whisper' 2>/dev/null",
             launchUrl = null
         ),
@@ -1309,7 +1309,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Multilingual sentence, text, and image embeddings using BERT / RoBERTa.",
-            installCommand = "pip3 install --no-cache-dir sentence-transformers",
+            installCommand = "pip3 install --break-system-packages --no-cache-dir sentence-transformers",
             checkInstalledCommand = "python3 -c 'import sentence_transformers' 2>/dev/null",
             launchUrl = null
         ),
@@ -1319,7 +1319,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Framework for developing applications powered by large language models.",
-            installCommand = "pip3 install --no-cache-dir langchain",
+            installCommand = "pip3 install --break-system-packages --no-cache-dir langchain",
             checkInstalledCommand = "python3 -c 'import langchain' 2>/dev/null",
             launchUrl = null
         ),
@@ -1329,7 +1329,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "AI-native open-source embedding database for AI application development.",
-            installCommand = "pip3 install --no-cache-dir chromadb",
+            installCommand = "pip3 install --break-system-packages --no-cache-dir chromadb",
             checkInstalledCommand = "python3 -c 'import chromadb' 2>/dev/null",
             launchUrl = null
         ),
@@ -1339,7 +1339,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "CPU Edition",
             description = "Library for efficient similarity search and clustering of dense vectors from Meta AI.",
-            installCommand = "pip3 install --no-cache-dir faiss-cpu",
+            installCommand = "pip3 install --break-system-packages --no-cache-dir faiss-cpu",
             checkInstalledCommand = "python3 -c 'import faiss' 2>/dev/null",
             launchUrl = null
         ),
@@ -1349,7 +1349,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Hyperparameter optimization framework designed specifically for machine learning.",
-            installCommand = "pip3 install --no-cache-dir optuna",
+            installCommand = "pip3 install --break-system-packages --no-cache-dir optuna",
             checkInstalledCommand = "python3 -c 'import optuna' 2>/dev/null",
             launchUrl = null
         ),
@@ -1359,7 +1359,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Latest",
             description = "Visualization toolkit for machine learning experimentation, loss graphs, and metrics.",
-            installCommand = "pip3 install --no-cache-dir tensorboard",
+            installCommand = "pip3 install --break-system-packages --no-cache-dir tensorboard",
             checkInstalledCommand = "which tensorboard",
             launchUrl = "http://127.0.0.1:6006"
         ),
@@ -1369,7 +1369,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Latest",
             description = "Platform to streamline machine learning development including tracking, packaging, and deploying.",
-            installCommand = "pip3 install --no-cache-dir mlflow",
+            installCommand = "pip3 install --break-system-packages --no-cache-dir mlflow",
             checkInstalledCommand = "which mlflow",
             launchUrl = "http://127.0.0.1:5000"
         ),
@@ -1379,7 +1379,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Compiler that makes writing C extensions for Python as easy as Python itself.",
-            installCommand = "pip3 install --no-cache-dir cython",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y cython3 || pip3 install --break-system-packages --no-cache-dir cython",
             checkInstalledCommand = "which cython || python3 -c 'import Cython' 2>/dev/null",
             launchUrl = null
         ),
@@ -1389,7 +1389,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "NumPy-aware optimizing compiler that turns Python functions into fast machine code.",
-            installCommand = "pip3 install --no-cache-dir numba",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-numba || pip3 install --break-system-packages --no-cache-dir numba",
             checkInstalledCommand = "python3 -c 'import numba' 2>/dev/null",
             launchUrl = null
         ),
@@ -1399,7 +1399,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Python library for pulling data out of HTML and XML files with parse trees.",
-            installCommand = "pip3 install --no-cache-dir beautifulsoup4",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-bs4 || pip3 install --break-system-packages --no-cache-dir beautifulsoup4",
             checkInstalledCommand = "python3 -c 'import bs4' 2>/dev/null",
             launchUrl = null
         ),
@@ -1409,7 +1409,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Fast high-level web crawling and scraping framework to crawl websites and extract structured data.",
-            installCommand = "pip3 install --no-cache-dir scrapy",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-scrapy || pip3 install --break-system-packages --no-cache-dir scrapy",
             checkInstalledCommand = "which scrapy",
             launchUrl = null
         ),
@@ -1419,7 +1419,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Elegant and simple HTTP library for Python, built for human beings.",
-            installCommand = "pip3 install --no-cache-dir requests",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-requests || pip3 install --break-system-packages --no-cache-dir requests",
             checkInstalledCommand = "python3 -c 'import requests' 2>/dev/null",
             launchUrl = null
         ),
@@ -1429,7 +1429,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Next-generation HTTP client for Python 3 with HTTP/2 and async support.",
-            installCommand = "pip3 install --no-cache-dir httpx",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-httpx || pip3 install --break-system-packages --no-cache-dir httpx",
             checkInstalledCommand = "python3 -c 'import httpx' 2>/dev/null",
             launchUrl = null
         ),
@@ -1439,7 +1439,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Asynchronous HTTP client/server framework for asyncio and Python.",
-            installCommand = "pip3 install --no-cache-dir aiohttp",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-aiohttp || pip3 install --break-system-packages --no-cache-dir aiohttp",
             checkInstalledCommand = "python3 -c 'import aiohttp' 2>/dev/null",
             launchUrl = null
         ),
@@ -1449,7 +1449,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Mature full-featured Python testing tool that helps you write better programs.",
-            installCommand = "pip3 install --no-cache-dir pytest",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y python3-pytest || pip3 install --break-system-packages --no-cache-dir pytest",
             checkInstalledCommand = "which pytest",
             launchUrl = null
         )
@@ -2864,7 +2864,7 @@ object PackageRepository {
             category = PackageCategory.DATABASES,
             version = "Latest",
             description = "Postgres CLI with autocompletion and syntax highlighting for productive SQL writing.",
-            installCommand = "pip3 install --no-cache-dir pgcli",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y pgcli || pip3 install --break-system-packages --no-cache-dir pgcli",
             checkInstalledCommand = "which pgcli",
             launchUrl = null
         ),
@@ -2874,7 +2874,7 @@ object PackageRepository {
             category = PackageCategory.DATABASES,
             version = "Latest",
             description = "MySQL and MariaDB CLI with autocompletion and syntax highlighting.",
-            installCommand = "pip3 install --no-cache-dir mycli",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y mycli || pip3 install --break-system-packages --no-cache-dir mycli",
             checkInstalledCommand = "which mycli",
             launchUrl = null
         ),
@@ -2884,7 +2884,7 @@ object PackageRepository {
             category = PackageCategory.DATABASES,
             version = "Latest",
             description = "CLI for SQLite Databases with Auto-completion and Syntax Highlighting.",
-            installCommand = "pip3 install --no-cache-dir litecli",
+            installCommand = "pip3 install --break-system-packages --no-cache-dir litecli",
             checkInstalledCommand = "which litecli",
             launchUrl = null
         ),
@@ -2894,7 +2894,7 @@ object PackageRepository {
             category = PackageCategory.DATABASES,
             version = "Latest",
             description = "A Terminal Client for Redis with AutoCompletion and Syntax Highlighting.",
-            installCommand = "pip3 install --no-cache-dir iredis",
+            installCommand = "pip3 install --break-system-packages --no-cache-dir iredis",
             checkInstalledCommand = "which iredis",
             launchUrl = null
         ),
@@ -3079,7 +3079,7 @@ object PackageRepository {
             category = PackageCategory.UTILITIES,
             version = "Latest",
             description = "Command line interface for testing internet bandwidth using speedtest.net servers.",
-            installCommand = "pip3 install --no-cache-dir speedtest-cli",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y speedtest-cli || pip3 install --break-system-packages --no-cache-dir speedtest-cli",
             checkInstalledCommand = "which speedtest-cli || which speedtest",
             launchUrl = null
         ),
@@ -3139,7 +3139,7 @@ object PackageRepository {
             category = PackageCategory.UTILITIES,
             version = "Latest",
             description = "Cross-platform curses-based system monitoring tool with web interface and JSON API.",
-            installCommand = "pip3 install --no-cache-dir glances",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y glances || pip3 install --break-system-packages --no-cache-dir glances",
             checkInstalledCommand = "which glances",
             launchUrl = null
         ),
@@ -3469,7 +3469,7 @@ object PackageRepository {
             category = PackageCategory.UTILITIES,
             version = "Latest",
             description = "Feature-rich command-line audio/video downloader from YouTube and thousands of video sites.",
-            installCommand = "pip3 install --no-cache-dir yt-dlp",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y yt-dlp || pip3 install --break-system-packages --no-cache-dir yt-dlp",
             checkInstalledCommand = "which yt-dlp",
             launchUrl = null
         ),

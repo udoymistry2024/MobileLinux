@@ -251,6 +251,9 @@ class LibrariesActivity : AppCompatActivity() {
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
+                // Ensure pip.conf disables PEP 668 externally-managed errors globally
+                runtime.runCommand("mkdir -p /etc && printf '[global]\\nbreak-system-packages = true\\n' > /etc/pip.conf 2>/dev/null || true")
+
                 val batchScript = PackageRepository.getFastBatchCheckScript()
                 val result = runtime.runCommand(batchScript)
                 val installedIds = result.second
@@ -289,12 +292,15 @@ class LibrariesActivity : AppCompatActivity() {
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
+                // Ensure pip.conf is present before running install
+                runtime.runCommand("mkdir -p /etc && printf '[global]\\nbreak-system-packages = true\\n' > /etc/pip.conf 2>/dev/null || true")
+
                 val result = runtime.runCommand(pkg.installCommand)
                 withContext(Dispatchers.Main) {
                     pkg.isInstalling = false
                     if (result.first == 0) {
                         pkg.isInstalled = true
-                        pkg.statusText = "Installation complete"
+                        pkg.statusText = "Installed and ready"
                         adapter.updateItem(pkg.id)
                         Toast.makeText(
                             this@LibrariesActivity,
@@ -302,6 +308,7 @@ class LibrariesActivity : AppCompatActivity() {
                             Toast.LENGTH_LONG
                         ).show()
                     } else {
+                        android.util.Log.e("LibrariesActivity", "Install error for ${pkg.id} (code ${result.first}): ${result.second}")
                         pkg.isInstalled = false
                         pkg.statusText = "Install failed (Exit code: ${result.first})"
                         adapter.updateItem(pkg.id)

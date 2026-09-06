@@ -40,7 +40,7 @@
             android:paddingTop="3dp"
             android:paddingEnd="8dp"
             android:paddingBottom="3dp"
-            android:textColor="@color/accent_blue"
+            android:textColor="@color/accent_green"
             android:textSize="11sp"
             android:textStyle="bold"
             tools:text="Latest / Web IDE" />
@@ -53,7 +53,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
-        android:textColor="@color/accent_purple"
+        android:textColor="@color/text_secondary"
         android:textSize="12sp"
         tools:text="AI &amp; Data Science" />
 
@@ -102,7 +102,7 @@
                 android:layout_width="18dp"
                 android:layout_height="18dp"
                 android:indeterminate="true"
-                android:indeterminateTint="@color/accent_blue" />
+                android:indeterminateTint="@color/accent_green" />
 
             <TextView
                 android:id="@+id/tv_installing_label"
@@ -110,7 +110,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="6dp"
                 android:text="Installing..."
-                android:textColor="@color/accent_blue"
+                android:textColor="@color/accent_green"
                 android:textSize="12sp"
                 android:textStyle="bold" />
 
@@ -154,7 +154,7 @@
             android:layout_width="wrap_content"
             android:layout_height="36dp"
             android:layout_marginStart="8dp"
-            android:backgroundTint="@color/accent_purple"
+            android:backgroundTint="@color/accent_green"
             android:paddingStart="12dp"
             android:paddingEnd="12dp"
             android:text="Open Web"
@@ -172,7 +172,7 @@
             android:layout_width="wrap_content"
             android:layout_height="36dp"
             android:layout_marginStart="8dp"
-            android:backgroundTint="@color/accent_blue"
+            android:backgroundTint="@color/accent_green"
             android:paddingStart="14dp"
             android:paddingEnd="14dp"
             android:text="Install"

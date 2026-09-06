@@ -56,7 +56,7 @@ class PackagesAdapter(
         fun bind(pkg: LinuxPackage) {
             tvName.text = pkg.name
             tvVersion.text = pkg.version
-            tvCategory.text = "${pkg.category.emoji} ${pkg.category.displayName}"
+            tvCategory.text = pkg.category.displayName
             tvDesc.text = pkg.description
 
             when {
@@ -72,7 +72,7 @@ class PackagesAdapter(
                     btnInstall.visibility = View.GONE
                     layoutInstalled.visibility = View.VISIBLE
                     btnLaunch.visibility = if (pkg.launchUrl != null) View.VISIBLE else View.GONE
-                    tvStatus.text = "Installed and ready to use ✓"
+                    tvStatus.text = "Installed and ready"
                 }
                 else -> {
                     layoutInstalling.visibility = View.GONE

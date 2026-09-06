@@ -13,9 +13,13 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -47,6 +51,7 @@ class LibrariesActivity : AppCompatActivity() {
     private lateinit var layoutEmpty: LinearLayout
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_libraries)
 
@@ -54,6 +59,7 @@ class LibrariesActivity : AppCompatActivity() {
 
         initViews()
         initToolbar()
+        initWindowInsets()
         initCategories()
         initSearch()
         initRecyclerView()
@@ -76,23 +82,63 @@ class LibrariesActivity : AppCompatActivity() {
     private fun initToolbar() {
         val toolbar: Toolbar = findViewById(R.id.libraries_toolbar)
         setSupportActionBar(toolbar)
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
-        supportActionBar?.setDisplayShowHomeEnabled(true)
+        supportActionBar?.apply {
+            setDisplayHomeAsUpEnabled(true)
+            title = "Libraries & Packages"
+        }
+    }
+
+    private fun initWindowInsets() {
+        val toolbar: Toolbar = findViewById(R.id.libraries_toolbar)
+
+        // Top insets for status bar & display cutout / camera notch
+        ViewCompat.setOnApplyWindowInsetsListener(toolbar) { v, insets ->
+            val sysInsets = insets.getInsets(
+                WindowInsetsCompat.Type.statusBars() or
+                WindowInsetsCompat.Type.displayCutout()
+            )
+            v.updatePadding(
+                top = sysInsets.top,
+                left = sysInsets.left,
+                right = sysInsets.right
+            )
+            insets
+        }
+
+        // Bottom insets for system navigation bar (Back, Home, Recents buttons or gesture bar)
+        ViewCompat.setOnApplyWindowInsetsListener(rvPackages) { v, insets ->
+            val navInsets = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
+            v.updatePadding(
+                left = navInsets.left,
+                right = navInsets.right,
+                bottom = navInsets.bottom + dpToPx(16)
+            )
+            insets
+        }
+
+        ViewCompat.setOnApplyWindowInsetsListener(layoutEmpty) { v, insets ->
+            val navInsets = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
+            v.updatePadding(
+                left = navInsets.left,
+                right = navInsets.right,
+                bottom = navInsets.bottom + dpToPx(24)
+            )
+            insets
+        }
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == android.R.id.home) {
-            finish()
-            return true
-        }
-        return super.onOptionsItemSelected(item)
+        return if (item.itemId == android.R.id.home) {
+            onBackPressedDispatcher.onBackPressed()
+            true
+        } else super.onOptionsItemSelected(item)
     }
 
     private fun initCategories() {
         layoutCategories.removeAllViews()
         PackageCategory.values().forEach { category ->
             val chip = TextView(this).apply {
-                text = "${category.emoji} ${category.displayName}"
+                text = category.displayName
                 textSize = 13f
                 setPadding(dpToPx(14), dpToPx(7), dpToPx(14), dpToPx(7))
                 val params = LinearLayout.LayoutParams(
@@ -248,11 +294,11 @@ class LibrariesActivity : AppCompatActivity() {
                     pkg.isInstalling = false
                     if (result.first == 0) {
                         pkg.isInstalled = true
-                        pkg.statusText = "Installation complete ✓"
+                        pkg.statusText = "Installation complete"
                         adapter.updateItem(pkg.id)
                         Toast.makeText(
                             this@LibrariesActivity,
-                            "✓ ${pkg.name} installed successfully!",
+                            "${pkg.name} installed successfully.",
                             Toast.LENGTH_LONG
                         ).show()
                     } else {

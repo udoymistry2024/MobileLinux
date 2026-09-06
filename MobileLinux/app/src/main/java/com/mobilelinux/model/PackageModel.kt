@@ -1,13 +1,13 @@
 package com.mobilelinux.model
 
-enum class PackageCategory(val displayName: String, val emoji: String) {
-    ALL("All", "⚡"),
-    CYBER_SECURITY("Cyber Security & Pentest", "🛡️"),
-    DATA_SCIENCE("AI & Data Science", "🧠"),
-    RUNTIMES("Languages & Runtimes", "💻"),
-    DEV_TOOLS("Developer & CLI Tools", "🛠️"),
-    DATABASES("Databases & Web", "🌐"),
-    UTILITIES("System & Networking", "📦")
+enum class PackageCategory(val displayName: String) {
+    ALL("All"),
+    CYBER_SECURITY("Cyber Security"),
+    DATA_SCIENCE("AI & Data Science"),
+    RUNTIMES("Languages & Runtimes"),
+    DEV_TOOLS("Developer Tools"),
+    DATABASES("Databases & Web"),
+    UTILITIES("System & Networking")
 }
 
 data class LinuxPackage(

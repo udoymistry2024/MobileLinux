@@ -7,18 +7,14 @@
     android:background="@color/terminal_bg"
     android:orientation="vertical">
 
-    <!-- Toolbar -->
+    <!-- Toolbar matching SettingsActivity -->
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/libraries_toolbar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@color/toolbar_bg"
         android:elevation="4dp"
-        android:minHeight="?attr/actionBarSize"
-        app:subtitle="One-Click Developer &amp; AI Hub"
-        app:subtitleTextColor="@color/text_secondary"
-        app:title="Libraries &amp; Packages"
-        app:titleTextColor="@color/text_primary" />
+        android:minHeight="?attr/actionBarSize" />
 
     <!-- Search Input Bar -->
     <LinearLayout
@@ -136,11 +132,11 @@
         android:visibility="gone"
         tools:visibility="gone">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="🔍"
-            android:textSize="40sp" />
+        <ImageView
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/ic_search"
+            app:tint="@color/text_hint" />
 
         <TextView
             android:layout_width="wrap_content"

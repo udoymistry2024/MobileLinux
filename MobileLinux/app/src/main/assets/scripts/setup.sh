@@ -193,6 +193,69 @@ EOF
 log "✓ .condarc configured (always_copy: true)"
 
 # ===========================================================================
+# Step 8b: Install ZeroMQ / IPykernel Netlink Fix (libfixgetifaddrs.so)
+# ===========================================================================
+mkdir -p "$ROOTFS_DIR/usr/local/lib"
+if [ -f "$SCRIPTS_DIR/libfixgetifaddrs.so" ]; then
+    cp "$SCRIPTS_DIR/libfixgetifaddrs.so" "$ROOTFS_DIR/usr/local/lib/libfixgetifaddrs.so"
+    chmod 755 "$ROOTFS_DIR/usr/local/lib/libfixgetifaddrs.so"
+    if ! grep -q "/usr/local/lib/libfixgetifaddrs.so" "$ROOTFS_DIR/etc/ld.so.preload" 2>/dev/null; then
+        echo "/usr/local/lib/libfixgetifaddrs.so" >> "$ROOTFS_DIR/etc/ld.so.preload"
+    fi
+    log "✓ ZeroMQ netlink fix installed (/usr/local/lib/libfixgetifaddrs.so)"
+fi
+
+# ===========================================================================
+# Step 8c: Pre-configure Jupyter Server, Notebook & IPykernel
+# ===========================================================================
+mkdir -p "$ROOTFS_DIR/etc/jupyter" "$ROOTFS_DIR/etc/ipython" \
+         "$ROOTFS_DIR/home/ubuntu/.jupyter/custom" "$ROOTFS_DIR/root/.jupyter"
+
+cat > "$ROOTFS_DIR/etc/jupyter/jupyter_server_config.py" << 'EOF'
+# MobileLinux - Built-in Jupyter Configuration
+c = get_config()
+c.ServerApp.allow_root = True
+c.NotebookApp.allow_root = True
+c.ServerApp.ip = '127.0.0.1'
+c.NotebookApp.ip = '127.0.0.1'
+c.ServerApp.port = 8888
+c.NotebookApp.port = 8888
+c.ServerApp.open_browser = False
+c.NotebookApp.open_browser = False
+c.ServerApp.token = ''
+c.NotebookApp.token = ''
+c.ServerApp.password = ''
+c.NotebookApp.password = ''
+c.ServerApp.disable_check_xsrf = True
+c.NotebookApp.disable_check_xsrf = True
+c.ServerApp.root_dir = '/home/ubuntu'
+c.NotebookApp.root_dir = '/home/ubuntu'
+c.IPKernelApp.ip = '127.0.0.1'
+EOF
+
+cp "$ROOTFS_DIR/etc/jupyter/jupyter_server_config.py" "$ROOTFS_DIR/etc/jupyter/jupyter_notebook_config.py"
+cp "$ROOTFS_DIR/etc/jupyter/jupyter_server_config.py" "$ROOTFS_DIR/home/ubuntu/.jupyter/jupyter_server_config.py"
+cp "$ROOTFS_DIR/etc/jupyter/jupyter_server_config.py" "$ROOTFS_DIR/home/ubuntu/.jupyter/jupyter_notebook_config.py"
+cp "$ROOTFS_DIR/etc/jupyter/jupyter_server_config.py" "$ROOTFS_DIR/root/.jupyter/jupyter_server_config.py"
+cp "$ROOTFS_DIR/etc/jupyter/jupyter_server_config.py" "$ROOTFS_DIR/root/.jupyter/jupyter_notebook_config.py"
+
+cat > "$ROOTFS_DIR/etc/ipython/ipython_kernel_config.py" << 'EOF'
+c = get_config()
+c.IPKernelApp.ip = '127.0.0.1'
+EOF
+
+cat > "$ROOTFS_DIR/home/ubuntu/.jupyter/custom/custom.js" << 'EOF'
+define(['base/js/namespace'], function(Jupyter) {
+    if (Jupyter) {
+        Jupyter._target = '_self';
+    }
+});
+EOF
+
+log "✓ Built-in Jupyter & IPython configurations installed"
+
+
+# ===========================================================================
 # Step 9: Create /etc/profile.d/mobilelinux.sh
 # ===========================================================================
 mkdir -p "$ROOTFS_DIR/etc/profile.d"

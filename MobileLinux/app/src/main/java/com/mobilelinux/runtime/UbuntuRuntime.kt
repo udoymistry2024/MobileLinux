@@ -436,6 +436,7 @@ class UbuntuRuntime(private val context: Context) {
                 // 10. /home/ubuntu & /root bash environments
                 onProgress(0.80f, "Setting up bash environment...")
                 installBashEnvironments()
+                installJupyterAndNetlinkFixes()
 
                 // 11. Ensure essential mount points and directories exist
                 onProgress(0.90f, "Creating mount points & shared memory...")
@@ -616,6 +617,9 @@ class UbuntuRuntime(private val context: Context) {
             } catch (e: Exception) {
                 Log.w(TAG, "Locale config notice: ${e.message}")
             }
+
+            // 7. Install ZeroMQ netlink fix and built-in Jupyter / IPython configurations
+            installJupyterAndNetlinkFixes()
         } catch (e: Exception) {
             Log.w(TAG, "Notice: ensureBashConfigured: ${e.message}")
         }
@@ -736,7 +740,7 @@ class UbuntuRuntime(private val context: Context) {
         } catch (ignored: Exception) {}
 
         // Container environment: default to normal user 'ubuntu'
-        cmd.addAll(listOf(
+        val containerEnv = mutableListOf(
             "/usr/bin/env",
             "-i",
             "HOME=/home/ubuntu",
@@ -754,7 +758,12 @@ class UbuntuRuntime(private val context: Context) {
             "ANDROID_HOST=true",
             "MOBILELINUX_MODE=proot",
             "MOBILELINUX_SESSION=$sessionId"
-        ))
+        )
+        val netlinkShim = File(rootfsDir, "usr/local/lib/libfixgetifaddrs.so")
+        if (netlinkShim.exists()) {
+            containerEnv.add("LD_PRELOAD=/usr/local/lib/libfixgetifaddrs.so")
+        }
+        cmd.addAll(containerEnv)
 
         if (execCmd != null) {
             cmd.addAll(listOf("/usr/bin/bash", "-c", execCmd))
@@ -954,6 +963,11 @@ class UbuntuRuntime(private val context: Context) {
                 toolFile.setReadable(true, false)
             }
 
+            val jupyterStartFile = File(usrLocalBin, "jupyter-start")
+            safeWriteFile(jupyterStartFile, getJupyterStartScript())
+            jupyterStartFile.setExecutable(true, false)
+            jupyterStartFile.setReadable(true, false)
+
             Log.d(TAG, "Command wrappers installed ✓")
         } catch (e: Exception) {
             Log.w(TAG, "Wrappers install notice: ${e.message}")
@@ -1082,6 +1096,141 @@ class UbuntuRuntime(private val context: Context) {
             Log.w(TAG, "Bash environment install notice: ${e.message}")
         }
     }
+
+    /**
+     * Installs ZeroMQ netlink fix (libfixgetifaddrs.so) to prevent ipykernel/ZeroMQ crashes
+     * on Android 11-16, and pre-configures Jupyter Server, Notebook, and IPython kernel.
+     */
+    private fun installJupyterAndNetlinkFixes() {
+        try {
+            val etcDir = File(rootfsDir, "etc")
+            ensureRealDirectory(etcDir)
+
+            // 1. ZeroMQ Netlink Fix for Android (libfixgetifaddrs.so)
+            val usrLocalLib = File(rootfsDir, "usr/local/lib")
+            ensureRealDirectory(usrLocalLib)
+            val shimTarget = File(usrLocalLib, "libfixgetifaddrs.so")
+            if (!shimTarget.exists() || shimTarget.length() == 0L) {
+                val nativeShim = File(context.applicationInfo.nativeLibraryDir, "libfixgetifaddrs.so")
+                val scriptShim = File(scriptsDir, "libfixgetifaddrs.so")
+                if (nativeShim.exists() && nativeShim.length() > 0) {
+                    nativeShim.copyTo(shimTarget, overwrite = true)
+                } else if (scriptShim.exists() && scriptShim.length() > 0) {
+                    scriptShim.copyTo(shimTarget, overwrite = true)
+                } else {
+                    try {
+                        context.assets.open("scripts/libfixgetifaddrs.so").use { input ->
+                            shimTarget.outputStream().use { output -> input.copyTo(output) }
+                        }
+                    } catch (ignored: Exception) {}
+                }
+                shimTarget.setReadable(true, false)
+                shimTarget.setExecutable(true, false)
+            }
+
+            if (shimTarget.exists() && shimTarget.length() > 0) {
+                val preloadFile = File(etcDir, "ld.so.preload")
+                val shimPath = "/usr/local/lib/libfixgetifaddrs.so"
+                val existingPreload = if (preloadFile.exists()) preloadFile.readText() else ""
+                if (!existingPreload.contains(shimPath)) {
+                    val newPreload = if (existingPreload.isEmpty()) "$shimPath\n" else "$existingPreload\n$shimPath\n"
+                    safeWriteFile(preloadFile, newPreload)
+                    preloadFile.setReadable(true, false)
+                }
+                val profileDir = File(etcDir, "profile.d")
+                ensureRealDirectory(profileDir)
+                safeWriteFile(File(profileDir, "01-netlink-fix.sh"), "export LD_PRELOAD=/usr/local/lib/libfixgetifaddrs.so\n")
+            }
+
+            // 2. Pre-configure Jupyter Server & Notebook system-wide & per-user
+            val jupyterDir = File(etcDir, "jupyter")
+            ensureRealDirectory(jupyterDir)
+            val ipythonDir = File(etcDir, "ipython")
+            ensureRealDirectory(ipythonDir)
+
+            val jupyterConfigContent = listOf(
+                "# MobileLinux Built-in Configuration for Jupyter Server & Notebook",
+                "c = get_config()",
+                "c.ServerApp.allow_root = True",
+                "c.NotebookApp.allow_root = True",
+                "c.ServerApp.ip = '127.0.0.1'",
+                "c.NotebookApp.ip = '127.0.0.1'",
+                "c.ServerApp.port = 8888",
+                "c.NotebookApp.port = 8888",
+                "c.ServerApp.open_browser = False",
+                "c.NotebookApp.open_browser = False",
+                "c.ServerApp.token = ''",
+                "c.NotebookApp.token = ''",
+                "c.ServerApp.password = ''",
+                "c.NotebookApp.password = ''",
+                "c.ServerApp.disable_check_xsrf = True",
+                "c.NotebookApp.disable_check_xsrf = True",
+                "c.ServerApp.root_dir = '/home/ubuntu'",
+                "c.NotebookApp.root_dir = '/home/ubuntu'",
+                "c.IPKernelApp.ip = '127.0.0.1'\n"
+            ).joinToString("\n")
+
+            safeWriteFile(File(jupyterDir, "jupyter_server_config.py"), jupyterConfigContent)
+            safeWriteFile(File(jupyterDir, "jupyter_notebook_config.py"), jupyterConfigContent)
+            safeWriteFile(File(ipythonDir, "ipython_kernel_config.py"), "c = get_config()\nc.IPKernelApp.ip = '127.0.0.1'\n")
+
+            val ubuntuHome = File(rootfsDir, "home/ubuntu")
+            val rootHome = File(rootfsDir, "root")
+            ensureRealDirectory(ubuntuHome)
+            ensureRealDirectory(rootHome)
+
+            val ubuntuJupyterDir = File(ubuntuHome, ".jupyter")
+            val rootJupyterDir = File(rootHome, ".jupyter")
+            ensureRealDirectory(ubuntuJupyterDir)
+            ensureRealDirectory(rootJupyterDir)
+
+            safeWriteFile(File(ubuntuJupyterDir, "jupyter_server_config.py"), jupyterConfigContent)
+            safeWriteFile(File(ubuntuJupyterDir, "jupyter_notebook_config.py"), jupyterConfigContent)
+            safeWriteFile(File(rootJupyterDir, "jupyter_server_config.py"), jupyterConfigContent)
+            safeWriteFile(File(rootJupyterDir, "jupyter_notebook_config.py"), jupyterConfigContent)
+
+            // Custom.js to open notebooks in same tab on mobile
+            val customDir = File(ubuntuJupyterDir, "custom")
+            ensureRealDirectory(customDir)
+            safeWriteFile(
+                File(customDir, "custom.js"),
+                "define(['base/js/namespace'], function(Jupyter) { if (Jupyter) { Jupyter._target = '_self'; } });\n"
+            )
+
+            // Conda always_copy mode
+            safeWriteFile(File(ubuntuHome, ".condarc"), "always_copy: true\n")
+            safeWriteFile(File(rootHome, ".condarc"), "always_copy: true\n")
+        } catch (e: Exception) {
+            Log.w(TAG, "Notice: installJupyterAndNetlinkFixes: ${e.message}")
+        }
+    }
+
+    private fun getJupyterStartScript(): String = listOf(
+        "#!/bin/bash",
+        "# MobileLinux - Smart Jupyter Launcher",
+        "echo -e \"\\033[1;36m┌─[MobileLinux]─[Jupyter Server]\\033[0m\"",
+        "echo -e \"\\033[1;36m│\\033[0m Starting Jupyter on \\033[1;33m127.0.0.1:8888\\033[0m (No password needed)\"",
+        "echo -e \"\\033[1;36m│\\033[0m \\033[1;32mJupyterLab URL:\\033[0m http://127.0.0.1:8888/lab\"",
+        "echo -e \"\\033[1;36m│\\033[0m \\033[1;32mNotebook URL:\\033[0m   http://127.0.0.1:8888/tree\"",
+        "echo -e \"\\033[1;36m└──────────────────────────────────────────────\\033[0m\"",
+        "",
+        "JUPYTER_BIN=\"\"",
+        "if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/jupyter\" ]; then",
+        "    JUPYTER_BIN=\"\$CONDA_PREFIX/bin/jupyter\"",
+        "elif [ -x /home/ubuntu/miniforge3/bin/jupyter ]; then",
+        "    JUPYTER_BIN=\"/home/ubuntu/miniforge3/bin/jupyter\"",
+        "elif which jupyter >/dev/null 2>&1; then",
+        "    JUPYTER_BIN=\"\$(which jupyter)\"",
+        "fi",
+        "",
+        "if [ -z \"\$JUPYTER_BIN\" ]; then",
+        "    echo -e \"\\033[1;31m[MobileLinux]\\033[0m jupyter is not installed yet.\"",
+        "    echo -e \"Run: \\033[1;33mconda install notebook -y\\033[0m OR \\033[1;33mpip install notebook jupyterlab\\033[0m\"",
+        "    exit 1",
+        "fi",
+        "",
+        "exec \"\$JUPYTER_BIN\" notebook --allow-root --no-browser --ip=127.0.0.1 \"\$@\"\n"
+    ).joinToString("\n")
 
     private fun getSudoScript(): String = listOf(
         "#!/bin/bash",
@@ -1281,6 +1430,8 @@ class UbuntuRuntime(private val context: Context) {
         "alias pkg-install='/usr/local/bin/pkg-install'",
         "alias fix-perms='/usr/local/bin/fix-permissions'",
         "alias force-rm='/usr/local/bin/force-rm'",
+        "alias jupyter-start='/usr/local/bin/jupyter-start'",
+        "alias jupyter-lab='/usr/local/bin/jupyter-start'",
         "",
         "# Standard Ubuntu green prompt for normal user with $ sign",
         "PS1='\\[\\033[1;32m\\]ubuntu@mobilelinux\\[\\033[0m\\]:\\[\\033[1;34m\\]\\w\\[\\033[0m\\]\$ '\n"
@@ -1310,6 +1461,8 @@ class UbuntuRuntime(private val context: Context) {
         "alias pkg-install='/usr/local/bin/pkg-install'",
         "alias fix-perms='/usr/local/bin/fix-permissions'",
         "alias force-rm='/usr/local/bin/force-rm'",
+        "alias jupyter-start='/usr/local/bin/jupyter-start'",
+        "alias jupyter-lab='/usr/local/bin/jupyter-start'",
         "",
         "# Standard Ubuntu red prompt for root user with # sign",
         "PS1='\\[\\033[1;31m\\]root@mobilelinux\\[\\033[0m\\]:\\[\\033[1;34m\\]\\w\\[\\033[0m\\]# '\n"

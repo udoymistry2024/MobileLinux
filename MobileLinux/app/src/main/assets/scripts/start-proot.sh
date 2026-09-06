@@ -117,6 +117,11 @@ ENV_VARS=(
     MOBILELINUX_VERSION=1.0.0
 )
 
+# Netlink / getifaddrs fix for ZeroMQ & Python ipykernel on Android
+if [ -f "$ROOTFS_DIR/usr/local/lib/libfixgetifaddrs.so" ]; then
+    ENV_VARS+=(LD_PRELOAD=/usr/local/lib/libfixgetifaddrs.so)
+fi
+
 # Execute
 if [ -n "$EXEC_CMD" ]; then
     exec "${CMD[@]}" /usr/bin/env -i "${ENV_VARS[@]}" /bin/bash -c "$EXEC_CMD"

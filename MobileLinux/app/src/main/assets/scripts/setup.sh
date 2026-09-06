@@ -367,6 +367,15 @@ PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games"
 EOF
 log "✓ Locale configured"
 
+# ===========================================================================
+# Step 12: Conda Environment Setup (if present)
+# ===========================================================================
+if [ -x "$ROOTFS_DIR/home/ubuntu/miniforge3/bin/conda" ]; then
+    "$ROOTFS_DIR/home/ubuntu/miniforge3/bin/conda" init bash 2>/dev/null || true
+    "$ROOTFS_DIR/home/ubuntu/miniforge3/bin/conda" config --set always_copy true 2>/dev/null || true
+    "$ROOTFS_DIR/home/ubuntu/miniforge3/bin/conda" config --set auto_activate_base true 2>/dev/null || true
+fi
+
 log ""
 log "✅ Setup complete! Ubuntu 24.04 ARM64 environment ready."
 log "Run 'start-proot.sh' to enter the environment."

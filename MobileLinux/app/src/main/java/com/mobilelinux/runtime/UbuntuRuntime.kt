@@ -751,7 +751,7 @@ class UbuntuRuntime(private val context: Context) {
             "LANG=C.UTF-8",
             "LC_ALL=C.UTF-8",
             "TMPDIR=/tmp",
-            "PATH=/home/ubuntu/miniforge3/bin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "PATH=/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/home/ubuntu/miniconda3/bin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
             "SHELL=/usr/bin/bash",
             "USER=ubuntu",
             "LOGNAME=ubuntu",
@@ -787,7 +787,7 @@ class UbuntuRuntime(private val context: Context) {
                 append("HOME=/home/ubuntu ")
                 append("TERM=xterm-256color ")
                 append("LANG=C.UTF-8 ")
-                append("PATH=/home/ubuntu/miniforge3/bin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ")
+                append("PATH=/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/home/ubuntu/miniconda3/bin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ")
                 append("USER=ubuntu SHELL=/usr/bin/bash ANDROID_HOST=true MOBILELINUX_MODE=chroot TMPDIR=/tmp ")
                 if (execCmd != null) {
                     append("/usr/bin/bash -c '$execCmd'")
@@ -1011,6 +1011,17 @@ class UbuntuRuntime(private val context: Context) {
             condaSyncAlias.setExecutable(true, false)
             condaSyncAlias.setReadable(true, false)
 
+            val condaManagerFile = File(usrLocalBin, "conda-manager")
+            try {
+                context.assets.open("scripts/conda-manager.sh").use { input ->
+                    condaManagerFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                condaManagerFile.setExecutable(true, false)
+                condaManagerFile.setReadable(true, false)
+            } catch (ignored: Exception) {}
+
             // Smart CLI Wrappers for Python Scientific & Developer Libraries
             val pythonModuleConfigs = listOf(
                 PythonModuleWrapperConfig(
@@ -1117,7 +1128,7 @@ class UbuntuRuntime(private val context: Context) {
                     }
                 }
 
-                val toolsToLink = listOf("numpy", "pandas", "scipy", "sklearn", "scikit-learn", "torch", "pytorch", "matplotlib", "pkg-install-python", "conda-sync-packages", "conda-sync")
+                val toolsToLink = listOf("numpy", "pandas", "scipy", "sklearn", "scikit-learn", "torch", "pytorch", "matplotlib", "pkg-install-python", "conda-sync-packages", "conda-sync", "conda-manager")
                 for (cBin in condaBins) {
                     for (tool in toolsToLink) {
                         val targetLink = File(cBin, tool)
@@ -1177,11 +1188,25 @@ class UbuntuRuntime(private val context: Context) {
                 safeWriteFile(ubuntuProfile, getProfileContent())
             }
             ubuntuProfile.setReadable(true, false)
+            ubuntuProfile.setWritable(true, false)
 
-            // Ensure PRoot compatibility: enforce always_copy so Conda does not use hardlinks (.l2s)
+            val ubuntuBashProfile = File(ubuntuHome, ".bash_profile")
+            if (ubuntuBashProfile.exists()) {
+                val profileText = ubuntuBashProfile.readText()
+                if (!profileText.contains(".bashrc")) {
+                    safeWriteFile(ubuntuBashProfile, "$profileText\nif [ -f \"\$HOME/.bashrc\" ]; then\n    . \"\$HOME/.bashrc\"\nfi\n")
+                }
+            } else {
+                safeWriteFile(ubuntuBashProfile, "if [ -f \"\$HOME/.bashrc\" ]; then\n    . \"\$HOME/.bashrc\"\nfi\n")
+            }
+            ubuntuBashProfile.setReadable(true, false)
+            ubuntuBashProfile.setWritable(true, false)
+
+            // Ensure PRoot compatibility: enforce always_copy and auto_activate_base so Conda does not use hardlinks (.l2s)
+            val condarcContent = "always_copy: true\nauto_activate_base: true\nnotify_outdated_conda: false\n"
             val ubuntuCondarc = File(ubuntuHome, ".condarc")
-            if (!ubuntuCondarc.exists() || !ubuntuCondarc.readText().contains("always_copy")) {
-                safeWriteFile(ubuntuCondarc, "always_copy: true\n")
+            if (!ubuntuCondarc.exists() || !ubuntuCondarc.readText().contains("auto_activate_base")) {
+                safeWriteFile(ubuntuCondarc, condarcContent)
             }
             ubuntuCondarc.setReadable(true, false)
             ubuntuCondarc.setWritable(true, false)
@@ -1218,16 +1243,30 @@ class UbuntuRuntime(private val context: Context) {
                 }
             }
             rootBashrc.setReadable(true, false)
+            rootBashrc.setWritable(true, false)
 
             val rootProfile = File(rootHome, ".profile")
             if (!rootProfile.exists()) {
                 safeWriteFile(rootProfile, getProfileContent())
             }
             rootProfile.setReadable(true, false)
+            rootProfile.setWritable(true, false)
+
+            val rootBashProfile = File(rootHome, ".bash_profile")
+            if (rootBashProfile.exists()) {
+                val profileText = rootBashProfile.readText()
+                if (!profileText.contains(".bashrc")) {
+                    safeWriteFile(rootBashProfile, "$profileText\nif [ -f \"\$HOME/.bashrc\" ]; then\n    . \"\$HOME/.bashrc\"\nfi\n")
+                }
+            } else {
+                safeWriteFile(rootBashProfile, "if [ -f \"\$HOME/.bashrc\" ]; then\n    . \"\$HOME/.bashrc\"\nfi\n")
+            }
+            rootBashProfile.setReadable(true, false)
+            rootBashProfile.setWritable(true, false)
 
             val rootCondarc = File(rootHome, ".condarc")
-            if (!rootCondarc.exists() || !rootCondarc.readText().contains("always_copy")) {
-                safeWriteFile(rootCondarc, "always_copy: true\n")
+            if (!rootCondarc.exists() || !rootCondarc.readText().contains("auto_activate_base")) {
+                safeWriteFile(rootCondarc, condarcContent)
             }
             rootCondarc.setReadable(true, false)
             rootCondarc.setWritable(true, false)
@@ -1253,9 +1292,159 @@ class UbuntuRuntime(private val context: Context) {
             ptyBridge.setReadable(true, false)
             ptyBridge.setExecutable(true, false)
 
+            // Auto-detect and configure Conda initialization & auto-activation in .bashrc & .condarc
+            configureCondaEnvironment()
+
             Log.d(TAG, "Bash environments configured ✓")
         } catch (e: Exception) {
             Log.w(TAG, "Bash environment install notice: ${e.message}")
+        }
+    }
+
+    /**
+     * Automatically configures Conda initialization and default auto-activation in .bashrc and .condarc.
+     * Guarantees that the Conda 'base' environment (or user's selected default env) is automatically
+     * activated when any terminal session starts, without requiring manual activation commands.
+     */
+    fun configureCondaEnvironment() {
+        try {
+            val candidatePaths = listOf(
+                "/home/ubuntu/miniforge3",
+                "/home/ubuntu/miniconda3",
+                "/root/miniconda3",
+                "/root/miniforge3",
+                "/opt/conda"
+            )
+
+            var detectedContainerDir: String? = null
+            for (candidate in candidatePaths) {
+                val condaBin = File(rootfsDir, "${candidate.removePrefix("/")}/bin/conda")
+                if (condaBin.exists()) {
+                    condaBin.setExecutable(true, false)
+                    condaBin.setReadable(true, false)
+                    detectedContainerDir = candidate
+                    break
+                }
+            }
+
+            if (detectedContainerDir == null) {
+                return
+            }
+
+            val condaBinPath = "$detectedContainerDir/bin/conda"
+            val ubuntuHome = File(rootfsDir, "home/ubuntu")
+            val rootHome = File(rootfsDir, "root")
+
+            // 1. Ensure .condarc has always_copy and auto_activate_base
+            val condarcContent = "always_copy: true\nauto_activate_base: true\nnotify_outdated_conda: false\n"
+            val ubuntuCondarc = File(ubuntuHome, ".condarc")
+            safeWriteFile(ubuntuCondarc, condarcContent)
+            ubuntuCondarc.setReadable(true, false)
+            ubuntuCondarc.setWritable(true, false)
+
+            val rootCondarc = File(rootHome, ".condarc")
+            safeWriteFile(rootCondarc, condarcContent)
+            rootCondarc.setReadable(true, false)
+            rootCondarc.setWritable(true, false)
+
+            // 2. Configure .bashrc for ubuntu user
+            val ubuntuBashrc = File(ubuntuHome, ".bashrc")
+            if (ubuntuBashrc.exists()) {
+                configureBashrcForConda(ubuntuBashrc, detectedContainerDir, condaBinPath)
+            }
+
+            // 3. Configure .bashrc for root user
+            val rootCondaDir = if (File(rootfsDir, "root/miniconda3/bin/conda").exists()) {
+                "/root/miniconda3"
+            } else {
+                detectedContainerDir
+            }
+            val rootBashrc = File(rootHome, ".bashrc")
+            if (rootBashrc.exists()) {
+                configureBashrcForConda(rootBashrc, rootCondaDir, "$rootCondaDir/bin/conda")
+            }
+
+            // 4. Mirror wrappers into discovered Conda bin directories
+            installCommandWrappers()
+
+            Log.d(TAG, "Conda environment configured & auto-activated for: $detectedContainerDir")
+        } catch (e: Exception) {
+            Log.w(TAG, "configureCondaEnvironment notice: ${e.message}")
+        }
+    }
+
+    private fun configureBashrcForConda(bashrcFile: File, condaDir: String, condaBin: String) {
+        try {
+            var content = bashrcFile.readText()
+            var modified = false
+
+            val condaInitMarkerStart = "# >>> conda initialize >>>"
+            val condaInitMarkerEnd = "# <<< conda initialize <<<"
+            val autoActivateMarker = "# MobileLinux: Auto-activate Conda environment"
+
+            val condaSetupBlock = buildString {
+                append("\n$condaInitMarkerStart\n")
+                append("# !! Contents within this block are managed by 'conda init' !!\n")
+                append("__conda_setup=\"\$('$condaBin' 'shell.bash' 'hook' 2> /dev/null)\"\n")
+                append("if [ $? -eq 0 ]; then\n")
+                append("    eval \"\$__conda_setup\"\n")
+                append("else\n")
+                append("    if [ -f \"$condaDir/etc/profile.d/conda.sh\" ]; then\n")
+                append("        . \"$condaDir/etc/profile.d/conda.sh\"\n")
+                append("    else\n")
+                append("        export PATH=\"$condaDir/bin:\$PATH\"\n")
+                append("    fi\n")
+                append("fi\n")
+                append("unset __conda_setup\n")
+                append("$condaInitMarkerEnd\n")
+            }
+
+            val autoActivateBlock = buildString {
+                append("\n$autoActivateMarker\n")
+                append("if [ -z \"\$CONDA_DEFAULT_ENV\" ] && type conda >/dev/null 2>&1; then\n")
+                append("    if ! grep -q \"conda-manager default-env\" \"\$HOME/.bashrc\" 2>/dev/null; then\n")
+                append("        conda activate base 2>/dev/null || true\n")
+                append("    fi\n")
+                append("fi\n")
+            }
+
+            if (!content.contains(condaInitMarkerStart)) {
+                content = content.trimEnd() + "\n" + condaSetupBlock + autoActivateBlock
+                modified = true
+            } else {
+                if (!content.contains(autoActivateMarker)) {
+                    content = content.trimEnd() + "\n" + autoActivateBlock
+                    modified = true
+                }
+            }
+
+            // Ensure Conda block is placed AFTER PS1 definition so (base) is not overwritten
+            if (content.contains(condaInitMarkerStart) && content.contains("PS1=")) {
+                val lastPs1Index = content.lastIndexOf("PS1=")
+                val condaStartIndex = content.indexOf(condaInitMarkerStart)
+                if (lastPs1Index > condaStartIndex) {
+                    val startIdx = content.indexOf(condaInitMarkerStart)
+                    val endMarkerIdx = content.indexOf(condaInitMarkerEnd)
+                    if (startIdx != -1 && endMarkerIdx != -1) {
+                        val endIdx = content.indexOf("\n", endMarkerIdx)
+                        val actualEnd = if (endIdx != -1) endIdx + 1 else content.length
+                        val extractedConda = content.substring(startIdx, actualEnd)
+                        content = (content.substring(0, startIdx) + content.substring(actualEnd)).trimEnd() + "\n\n" + extractedConda
+                        if (!content.contains(autoActivateMarker)) {
+                            content += "\n" + autoActivateBlock
+                        }
+                        modified = true
+                    }
+                }
+            }
+
+            if (modified) {
+                safeWriteFile(bashrcFile, content)
+                bashrcFile.setReadable(true, false)
+                bashrcFile.setWritable(true, false)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "configureBashrcForConda notice: ${e.message}")
         }
     }
 
@@ -1596,6 +1785,7 @@ class UbuntuRuntime(private val context: Context) {
         "alias jupyter-lab='/usr/local/bin/jupyter-start'",
         "alias pkg-install-python='/usr/local/bin/pkg-install-python'",
         "alias conda-sync='/usr/local/bin/conda-sync-packages'",
+        "alias conda-manager='/usr/local/bin/conda-manager'",
         "",
         "# Standard Ubuntu green prompt for normal user with $ sign",
         "PS1='\\[\\033[1;32m\\]ubuntu@mobilelinux\\[\\033[0m\\]:\\[\\033[1;34m\\]\\w\\[\\033[0m\\]\$ '\n"
@@ -1629,6 +1819,7 @@ class UbuntuRuntime(private val context: Context) {
         "alias jupyter-lab='/usr/local/bin/jupyter-start'",
         "alias pkg-install-python='/usr/local/bin/pkg-install-python'",
         "alias conda-sync='/usr/local/bin/conda-sync-packages'",
+        "alias conda-manager='/usr/local/bin/conda-manager'",
         "",
         "# Standard Ubuntu red prompt for root user with # sign",
         "PS1='\\[\\033[1;31m\\]root@mobilelinux\\[\\033[0m\\]:\\[\\033[1;34m\\]\\w\\[\\033[0m\\]# '\n"
@@ -1647,7 +1838,7 @@ class UbuntuRuntime(private val context: Context) {
         "export HOME=/home/ubuntu",
         "export USER=ubuntu",
         "export LOGNAME=ubuntu",
-        "export PATH=\"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\"",
+        "export PATH=\"/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\"",
         "export LANG=C.UTF-8",
         "export LC_ALL=C.UTF-8",
         "export TMPDIR=/tmp",

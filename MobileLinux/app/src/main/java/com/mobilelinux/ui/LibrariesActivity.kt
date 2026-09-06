@@ -329,6 +329,11 @@ class LibrariesActivity : AppCompatActivity() {
                             "${pkg.name} installed successfully.",
                             Toast.LENGTH_LONG
                         ).show()
+                        if (pkg.id == "miniconda") {
+                            withContext(Dispatchers.IO) {
+                                runtime.configureCondaEnvironment()
+                            }
+                        }
                     } else {
                         android.util.Log.e("LibrariesActivity", "Install error for ${pkg.id} (code ${result.first}): ${result.second}")
                         pkg.isInstalled = false

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -147,6 +148,19 @@
 
         </LinearLayout>
 
+        <!-- Copy Command Button (Small copy icon to the immediate left of action buttons) -->
+        <ImageButton
+            android:id="@+id/btn_copy_cmd"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/bg_copy_button"
+            android:contentDescription="Copy Install Command"
+            android:padding="8dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_copy"
+            app:tint="@color/text_secondary" />
+
         <!-- Optional Launch Button (e.g. for Jupyter) -->
         <Button
             android:id="@+id/btn_launch"
@@ -160,6 +174,24 @@
             android:text="Open Web"
             android:textAllCaps="false"
             android:textColor="@color/colorOnPrimary"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:visibility="gone"
+            tools:visibility="visible" />
+
+        <!-- Conda Red Activate Button (Shown once Conda is installed until activated) -->
+        <Button
+            android:id="@+id/btn_activate"
+            style="@style/Widget.MaterialComponents.Button"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:layout_marginStart="8dp"
+            android:backgroundTint="#D32F2F"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:text="Activate"
+            android:textAllCaps="false"
+            android:textColor="@android:color/white"
             android:textSize="12sp"
             android:textStyle="bold"
             android:visibility="gone"

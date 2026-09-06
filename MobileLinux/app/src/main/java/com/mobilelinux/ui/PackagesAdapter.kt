@@ -4,6 +4,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
@@ -13,7 +14,9 @@ import com.mobilelinux.model.LinuxPackage
 
 class PackagesAdapter(
     private val onInstallClick: (LinuxPackage) -> Unit,
-    private val onLaunchClick: (LinuxPackage) -> Unit
+    private val onLaunchClick: (LinuxPackage) -> Unit,
+    private val onActivateClick: (LinuxPackage) -> Unit,
+    private val onCopyClick: (LinuxPackage) -> Unit
 ) : RecyclerView.Adapter<PackagesAdapter.PackageViewHolder>() {
 
     private val items = mutableListOf<LinuxPackage>()
@@ -53,8 +56,10 @@ class PackagesAdapter(
         private val tvInstallingLabel: TextView = itemView.findViewById(R.id.tv_installing_label)
         private val pbPkgHorizontal: ProgressBar = itemView.findViewById(R.id.pb_pkg_horizontal)
         private val layoutInstalled: LinearLayout = itemView.findViewById(R.id.layout_installed)
-        private val btnInstall: Button = itemView.findViewById(R.id.btn_install)
+        private val btnCopyCmd: ImageButton = itemView.findViewById(R.id.btn_copy_cmd)
         private val btnLaunch: Button = itemView.findViewById(R.id.btn_launch)
+        private val btnActivate: Button = itemView.findViewById(R.id.btn_activate)
+        private val btnInstall: Button = itemView.findViewById(R.id.btn_install)
 
         fun bind(pkg: LinuxPackage) {
             tvName.text = pkg.name
@@ -62,45 +67,121 @@ class PackagesAdapter(
             tvCategory.text = pkg.category.displayName
             tvDesc.text = pkg.description
 
-            when {
-                pkg.isInstalling -> {
-                    layoutInstalling.visibility = View.VISIBLE
-                    btnInstall.visibility = View.GONE
-                    layoutInstalled.visibility = View.GONE
-                    btnLaunch.visibility = View.GONE
-                    tvStatus.text = if (pkg.statusText.isNotEmpty()) pkg.statusText else "Installing in background..."
+            // Universal Copy Command Icon for all packages
+            btnCopyCmd.visibility = View.VISIBLE
+            btnCopyCmd.setOnClickListener {
+                onCopyClick(pkg)
+            }
 
-                    if (pkg.progressPercent >= 0) {
-                        tvInstallingLabel.text = "Installing ${pkg.progressPercent}%"
-                        pbPkgHorizontal.visibility = View.VISIBLE
-                        pbPkgHorizontal.isIndeterminate = false
-                        pbPkgHorizontal.progress = pkg.progressPercent
-                    } else {
-                        tvInstallingLabel.text = "Installing..."
+            if (pkg.id == "miniconda") {
+                when {
+                    pkg.isInstalling -> {
+                        layoutInstalling.visibility = View.VISIBLE
+                        btnInstall.visibility = View.GONE
+                        btnActivate.visibility = View.GONE
+                        layoutInstalled.visibility = View.GONE
+                        btnLaunch.visibility = View.GONE
+                        tvStatus.text = if (pkg.statusText.isNotEmpty()) pkg.statusText else "Installing Conda in background..."
+
+                        if (pkg.progressPercent >= 0) {
+                            tvInstallingLabel.text = "Installing ${pkg.progressPercent}%"
+                            pbPkgHorizontal.visibility = View.VISIBLE
+                            pbPkgHorizontal.isIndeterminate = false
+                            pbPkgHorizontal.progress = pkg.progressPercent
+                        } else {
+                            tvInstallingLabel.text = "Installing..."
+                            pbPkgHorizontal.visibility = View.VISIBLE
+                            pbPkgHorizontal.isIndeterminate = true
+                        }
+                    }
+                    pkg.isActivating -> {
+                        layoutInstalling.visibility = View.VISIBLE
+                        btnInstall.visibility = View.GONE
+                        btnActivate.visibility = View.GONE
+                        layoutInstalled.visibility = View.GONE
+                        btnLaunch.visibility = View.GONE
+                        tvInstallingLabel.text = "Activating..."
                         pbPkgHorizontal.visibility = View.VISIBLE
                         pbPkgHorizontal.isIndeterminate = true
+                        tvStatus.text = if (pkg.statusText.isNotEmpty()) pkg.statusText else "Activating Conda base environment..."
+                    }
+                    pkg.isInstalled && !pkg.isActivated -> {
+                        // Conda is installed but not yet activated -> show Red Activate button
+                        layoutInstalling.visibility = View.GONE
+                        pbPkgHorizontal.visibility = View.GONE
+                        btnInstall.visibility = View.GONE
+                        layoutInstalled.visibility = View.GONE
+                        btnLaunch.visibility = View.GONE
+                        btnActivate.visibility = View.VISIBLE
+                        tvStatus.text = if (pkg.statusText.isNotEmpty()) pkg.statusText else "Installed. Click Activate to enable."
+                    }
+                    pkg.isInstalled && pkg.isActivated -> {
+                        // Conda is installed and active
+                        layoutInstalling.visibility = View.GONE
+                        pbPkgHorizontal.visibility = View.GONE
+                        btnInstall.visibility = View.GONE
+                        btnActivate.visibility = View.GONE
+                        layoutInstalled.visibility = View.VISIBLE
+                        btnLaunch.visibility = if (pkg.launchUrl != null) View.VISIBLE else View.GONE
+                        tvStatus.text = "Active & Ready (base)"
+                    }
+                    else -> {
+                        // Conda not yet installed
+                        layoutInstalling.visibility = View.GONE
+                        pbPkgHorizontal.visibility = View.GONE
+                        btnInstall.visibility = View.VISIBLE
+                        btnActivate.visibility = View.GONE
+                        layoutInstalled.visibility = View.GONE
+                        btnLaunch.visibility = View.GONE
+                        tvStatus.text = if (pkg.statusText.isNotEmpty()) pkg.statusText else "Ready to install"
                     }
                 }
-                pkg.isInstalled -> {
-                    layoutInstalling.visibility = View.GONE
-                    pbPkgHorizontal.visibility = View.GONE
-                    btnInstall.visibility = View.GONE
-                    layoutInstalled.visibility = View.VISIBLE
-                    btnLaunch.visibility = if (pkg.launchUrl != null) View.VISIBLE else View.GONE
-                    tvStatus.text = "Installed and ready"
-                }
-                else -> {
-                    layoutInstalling.visibility = View.GONE
-                    pbPkgHorizontal.visibility = View.GONE
-                    btnInstall.visibility = View.VISIBLE
-                    layoutInstalled.visibility = View.GONE
-                    btnLaunch.visibility = View.GONE
-                    tvStatus.text = if (pkg.statusText.isNotEmpty()) pkg.statusText else "Ready to install"
+            } else {
+                btnActivate.visibility = View.GONE
+                when {
+                    pkg.isInstalling -> {
+                        layoutInstalling.visibility = View.VISIBLE
+                        btnInstall.visibility = View.GONE
+                        layoutInstalled.visibility = View.GONE
+                        btnLaunch.visibility = View.GONE
+                        tvStatus.text = if (pkg.statusText.isNotEmpty()) pkg.statusText else "Installing in background..."
+
+                        if (pkg.progressPercent >= 0) {
+                            tvInstallingLabel.text = "Installing ${pkg.progressPercent}%"
+                            pbPkgHorizontal.visibility = View.VISIBLE
+                            pbPkgHorizontal.isIndeterminate = false
+                            pbPkgHorizontal.progress = pkg.progressPercent
+                        } else {
+                            tvInstallingLabel.text = "Installing..."
+                            pbPkgHorizontal.visibility = View.VISIBLE
+                            pbPkgHorizontal.isIndeterminate = true
+                        }
+                    }
+                    pkg.isInstalled -> {
+                        layoutInstalling.visibility = View.GONE
+                        pbPkgHorizontal.visibility = View.GONE
+                        btnInstall.visibility = View.GONE
+                        layoutInstalled.visibility = View.VISIBLE
+                        btnLaunch.visibility = if (pkg.launchUrl != null) View.VISIBLE else View.GONE
+                        tvStatus.text = "Installed and ready"
+                    }
+                    else -> {
+                        layoutInstalling.visibility = View.GONE
+                        pbPkgHorizontal.visibility = View.GONE
+                        btnInstall.visibility = View.VISIBLE
+                        layoutInstalled.visibility = View.GONE
+                        btnLaunch.visibility = View.GONE
+                        tvStatus.text = if (pkg.statusText.isNotEmpty()) pkg.statusText else "Ready to install"
+                    }
                 }
             }
 
             btnInstall.setOnClickListener {
                 onInstallClick(pkg)
+            }
+
+            btnActivate.setOnClickListener {
+                onActivateClick(pkg)
             }
 
             btnLaunch.setOnClickListener {
@@ -109,3 +190,4 @@ class PackagesAdapter(
         }
     }
 }
+

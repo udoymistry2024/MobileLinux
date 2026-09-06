@@ -1,5 +1,8 @@
 package com.mobilelinux.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -205,7 +208,9 @@ class LibrariesActivity : AppCompatActivity() {
     private fun initRecyclerView() {
         adapter = PackagesAdapter(
             onInstallClick = { pkg -> installPackage(pkg) },
-            onLaunchClick = { pkg -> launchPackage(pkg) }
+            onLaunchClick = { pkg -> launchPackage(pkg) },
+            onActivateClick = { pkg -> activateConda(pkg) },
+            onCopyClick = { pkg -> copyPackageCommand(pkg) }
         )
         rvPackages.layoutManager = LinearLayoutManager(this)
         rvPackages.adapter = adapter
@@ -263,9 +268,20 @@ class LibrariesActivity : AppCompatActivity() {
                     .map { it.substringAfter("INSTALLED:").trim() }
                     .toSet()
 
+                // Check whether Conda is already activated in .bashrc and .condarc
+                val isCondaActivated = runtime.runCommand(
+                    "grep -q 'conda initialize' /home/ubuntu/.bashrc 2>/dev/null && [ -f /home/ubuntu/.condarc ]"
+                ).first == 0
+
                 allPackages.forEach { pkg ->
                     if (installedIds.contains(pkg.id)) {
                         pkg.isInstalled = true
+                        if (pkg.id == "miniconda") {
+                            pkg.isActivated = isCondaActivated
+                            pkg.statusText = if (isCondaActivated) "Active & Ready (base)" else "Installed. Click Activate to enable."
+                        } else {
+                            pkg.statusText = "Installed and ready"
+                        }
                     }
                 }
             } catch (ignored: Exception) {
@@ -322,17 +338,23 @@ class LibrariesActivity : AppCompatActivity() {
                     if (result.first == 0) {
                         pkg.isInstalled = true
                         pkg.progressPercent = 100
-                        pkg.statusText = "Installed and ready"
-                        adapter.updateItem(pkg.id)
-                        Toast.makeText(
-                            this@LibrariesActivity,
-                            "${pkg.name} installed successfully.",
-                            Toast.LENGTH_LONG
-                        ).show()
                         if (pkg.id == "miniconda") {
-                            withContext(Dispatchers.IO) {
-                                runtime.configureCondaEnvironment()
-                            }
+                            pkg.isActivated = false
+                            pkg.statusText = "Installed. Click Activate to enable."
+                            adapter.updateItem(pkg.id)
+                            Toast.makeText(
+                                this@LibrariesActivity,
+                                "Miniconda installed! Tap 'Activate' to enable Conda in your terminal.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        } else {
+                            pkg.statusText = "Installed and ready"
+                            adapter.updateItem(pkg.id)
+                            Toast.makeText(
+                                this@LibrariesActivity,
+                                "${pkg.name} installed successfully.",
+                                Toast.LENGTH_LONG
+                            ).show()
                         }
                     } else {
                         android.util.Log.e("LibrariesActivity", "Install error for ${pkg.id} (code ${result.first}): ${result.second}")
@@ -373,6 +395,74 @@ class LibrariesActivity : AppCompatActivity() {
                 Toast.makeText(this, "Could not open browser: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    /**
+     * Activates Conda base environment, runs conda init and hooks into .bashrc & .condarc
+     */
+    private fun activateConda(pkg: LinuxPackage) {
+        if (pkg.isActivating) return
+
+        pkg.isActivating = true
+        pkg.statusText = "Activating Conda base environment..."
+        adapter.updateItem(pkg.id)
+
+        Toast.makeText(this, "Activating Conda base environment...", Toast.LENGTH_SHORT).show()
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                // Ensure miniforge3 permissions and binaries are executable
+                runtime.runCommand("chmod -R u+rx /home/ubuntu/miniforge3/bin 2>/dev/null || true")
+
+                // Run conda init and configure settings inside container
+                val initCmd = listOf(
+                    "if [ -x /home/ubuntu/miniforge3/bin/conda ]; then",
+                    "    /home/ubuntu/miniforge3/bin/conda init bash",
+                    "    /home/ubuntu/miniforge3/bin/conda config --set always_copy true",
+                    "    /home/ubuntu/miniforge3/bin/conda config --set auto_activate_base true",
+                    "    /usr/local/bin/conda-sync-packages 2>/dev/null || true",
+                    "fi"
+                ).joinToString("\n")
+                runtime.runCommand(initCmd)
+
+                // Inject and verify .bashrc & .condarc & command wrappers
+                runtime.configureCondaEnvironment()
+
+                withContext(Dispatchers.Main) {
+                    pkg.isActivating = false
+                    pkg.isInstalled = true
+                    pkg.isActivated = true
+                    pkg.statusText = "Active & Ready (base)"
+                    adapter.updateItem(pkg.id)
+                    Toast.makeText(
+                        this@LibrariesActivity,
+                        "Conda activated successfully! (base) environment is active.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    pkg.isActivating = false
+                    pkg.statusText = "Activation error: ${e.message}"
+                    adapter.updateItem(pkg.id)
+                    Toast.makeText(
+                        this@LibrariesActivity,
+                        "Failed to activate Conda: ${e.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+    }
+
+    /**
+     * Copies the package install command directly to system clipboard
+     */
+    private fun copyPackageCommand(pkg: LinuxPackage) {
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = ClipData.newPlainText("Install Command", pkg.installCommand)
+        clipboard.setPrimaryClip(clip)
+        Toast.makeText(this, "Copied install command for ${pkg.name}", Toast.LENGTH_SHORT).show()
     }
 
     private fun dpToPx(dp: Int): Int {

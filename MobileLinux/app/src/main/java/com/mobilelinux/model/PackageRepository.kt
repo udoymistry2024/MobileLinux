@@ -869,7 +869,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "ARM64",
             description = "Lightweight installer for Conda, Python package and virtual environment manager.",
-            installCommand = "curl -fsSL https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh -o /tmp/miniconda.sh && bash /tmp/miniconda.sh -b -p /home/ubuntu/miniforge3 && rm -f /tmp/miniconda.sh && /home/ubuntu/miniforge3/bin/conda init bash && /home/ubuntu/miniforge3/bin/conda config --set always_copy true && /home/ubuntu/miniforge3/bin/conda config --set auto_activate_base true && /usr/local/bin/conda-sync-packages 2>/dev/null || true",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y curl wget bzip2 ca-certificates && if [ -x /usr/bin/curl ]; then curl -fSL https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh -o /tmp/miniforge.sh || curl -fSL https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh -o /tmp/miniforge.sh; else wget -O /tmp/miniforge.sh https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh || wget -O /tmp/miniforge.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh; fi && bash /tmp/miniforge.sh -b -p /home/ubuntu/miniforge3 -u && rm -f /tmp/miniforge.sh",
             checkInstalledCommand = "which conda || [ -x /home/ubuntu/miniforge3/bin/conda ] || [ -x /root/miniconda3/bin/conda ]",
             launchUrl = null
         ),

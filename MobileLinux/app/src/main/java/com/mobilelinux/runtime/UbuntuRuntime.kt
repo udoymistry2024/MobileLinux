@@ -937,6 +937,17 @@ class UbuntuRuntime(private val context: Context) {
             pipFile.setExecutable(true, false)
             pipFile.setReadable(true, false)
 
+            // Conda and Mamba CLI wrappers
+            val condaWrapperFile = File(usrLocalBin, "conda")
+            safeWriteFile(condaWrapperFile, getCondaWrapperScript())
+            condaWrapperFile.setExecutable(true, false)
+            condaWrapperFile.setReadable(true, false)
+
+            val mambaWrapperFile = File(usrLocalBin, "mamba")
+            safeWriteFile(mambaWrapperFile, getMambaWrapperScript())
+            mambaWrapperFile.setExecutable(true, false)
+            mambaWrapperFile.setReadable(true, false)
+
             // install-tools & pkg-install utilities
             val installToolsFile = File(usrLocalBin, "install-tools")
             safeWriteFile(installToolsFile, getInstallToolsScript())
@@ -1177,6 +1188,14 @@ class UbuntuRuntime(private val context: Context) {
                         .replace("alias pip='python3 -m pip'", "")
                     modified = true
                 }
+                // Ensure PATH includes conda/miniforge
+                if (existing.contains("export PATH=") && !existing.contains("/home/ubuntu/miniforge3/bin")) {
+                    existing = existing.replace(
+                        "export PATH=\"/usr/local/sbin",
+                        "export PATH=\"/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/root/miniconda3/bin:/usr/local/sbin"
+                    )
+                    modified = true
+                }
                 if (modified) {
                     safeWriteFile(ubuntuBashrc, existing)
                 }
@@ -1236,6 +1255,14 @@ class UbuntuRuntime(private val context: Context) {
                         .replace("alias python='python3'", "")
                         .replace("alias pip='python3 -m pip'\n", "")
                         .replace("alias pip='python3 -m pip'", "")
+                    modified = true
+                }
+                // Ensure PATH includes conda/miniforge
+                if (existing.contains("export PATH=") && !existing.contains("/home/ubuntu/miniforge3/bin")) {
+                    existing = existing.replace(
+                        "export PATH=\"/usr/local/sbin",
+                        "export PATH=\"/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/root/miniconda3/bin:/usr/local/sbin"
+                    )
                     modified = true
                 }
                 if (modified) {
@@ -1583,6 +1610,33 @@ class UbuntuRuntime(private val context: Context) {
         "exec \"\$JUPYTER_BIN\" notebook --allow-root --no-browser --ip=127.0.0.1 \"\$@\"\n"
     ).joinToString("\n")
 
+    private fun getCondaWrapperScript(): String = listOf(
+        "#!/bin/sh",
+        "# MobileLinux Conda dispatcher",
+        "for d in /home/ubuntu/miniforge3 /home/ubuntu/miniconda3 /root/miniconda3 /root/miniforge3 /opt/conda; do",
+        "    if [ -x \"\$d/bin/conda\" ]; then",
+        "        exec \"\$d/bin/conda\" \"\$@\"",
+        "    fi",
+        "done",
+        "echo \"conda: command not found (Miniconda / Miniforge not installed yet. You can install it from Libraries & Packages)\" >&2",
+        "exit 127\n"
+    ).joinToString("\n")
+
+    private fun getMambaWrapperScript(): String = listOf(
+        "#!/bin/sh",
+        "# MobileLinux Mamba dispatcher",
+        "for d in /home/ubuntu/miniforge3 /home/ubuntu/miniconda3 /root/miniconda3 /root/miniforge3 /opt/conda; do",
+        "    if [ -x \"\$d/bin/mamba\" ]; then",
+        "        exec \"\$d/bin/mamba\" \"\$@\"",
+        "    fi",
+        "done",
+        "if [ -x /usr/local/bin/conda ]; then",
+        "    exec /usr/local/bin/conda \"\$@\"",
+        "fi",
+        "echo \"mamba: command not found\" >&2",
+        "exit 127\n"
+    ).joinToString("\n")
+
     private fun getSudoScript(): String = listOf(
         "#!/bin/bash",
         "export LANG=C.UTF-8",
@@ -1767,7 +1821,7 @@ class UbuntuRuntime(private val context: Context) {
         "export LOGNAME=ubuntu",
         "export HOME=/home/ubuntu",
         "export TMPDIR=/tmp",
-        "export PATH=\"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games\"",
+        "export PATH=\"/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games\"",
         "shopt -s checkwinsize",
         "",
         "# Aliases",
@@ -1801,7 +1855,7 @@ class UbuntuRuntime(private val context: Context) {
         "export LOGNAME=root",
         "export HOME=/root",
         "export TMPDIR=/tmp",
-        "export PATH=\"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games\"",
+        "export PATH=\"/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games\"",
         "shopt -s checkwinsize",
         "",
         "# Aliases",

@@ -197,27 +197,34 @@ class LibrariesActivity : AppCompatActivity() {
     }
 
     /**
-     * Checks existing installations inside Ubuntu in the background
+     * Checks existing installations inside Ubuntu in the background using ultra-fast batch script
      */
     private fun scanInstalledPackages() {
         pbScanning.visibility = View.VISIBLE
         tvScanningLabel.visibility = View.VISIBLE
 
         lifecycleScope.launch(Dispatchers.IO) {
-            allPackages.forEach { pkg ->
-                try {
-                    val result = runtime.runCommand(pkg.checkInstalledCommand)
-                    if (result.first == 0) {
+            try {
+                val batchScript = PackageRepository.getFastBatchCheckScript()
+                val result = runtime.runCommand(batchScript)
+                val installedIds = result.second
+                    .lines()
+                    .filter { it.startsWith("INSTALLED:") }
+                    .map { it.substringAfter("INSTALLED:").trim() }
+                    .toSet()
+
+                allPackages.forEach { pkg ->
+                    if (installedIds.contains(pkg.id)) {
                         pkg.isInstalled = true
-                        withContext(Dispatchers.Main) {
-                            adapter.updateItem(pkg.id)
-                        }
                     }
-                } catch (ignored: Exception) {}
-            }
-            withContext(Dispatchers.Main) {
-                pbScanning.visibility = View.GONE
-                tvScanningLabel.visibility = View.GONE
+                }
+            } catch (ignored: Exception) {
+            } finally {
+                withContext(Dispatchers.Main) {
+                    applyFilters()
+                    pbScanning.visibility = View.GONE
+                    tvScanningLabel.visibility = View.GONE
+                }
             }
         }
     }

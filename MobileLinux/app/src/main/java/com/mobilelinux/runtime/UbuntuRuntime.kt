@@ -1599,11 +1599,15 @@ class UbuntuRuntime(private val context: Context) {
 
     private fun getSmartRmScript(): String = listOf(
         "#!/bin/bash",
-        "TMP_ERR=\"/tmp/.rm_err.\$\$\"",
+        "# Smart rm wrapper: delegates to /bin/rm first.",
+        "# On recursive failure due to read-only dirs or broken symlinks,",
+        "# falls back to python3 bottom-up unlinker. Uses /bin/rm internally",
+        "# to avoid recursive self-calls.",
+        "TMP_ERR=\"/tmp/.ml_rm_err.\$\$\"",
         "/bin/rm \"\$@\" 2>\"\$TMP_ERR\"",
         "EXIT_CODE=\$?",
         "if [ \$EXIT_CODE -eq 0 ]; then",
-        "    rm -f \"\$TMP_ERR\" 2>/dev/null",
+        "    /bin/rm -f \"\$TMP_ERR\" 2>/dev/null",
         "    exit 0",
         "fi",
         "IS_RECURSIVE=0",
@@ -1614,12 +1618,12 @@ class UbuntuRuntime(private val context: Context) {
         "            ;;",
         "    esac",
         "done",
-        "if [ \$IS_RECURSIVE -eq 1 ] && [ -x /usr/local/bin/mobilelinux-rm.py ]; then",
-        "    rm -f \"\$TMP_ERR\" 2>/dev/null",
+        "if [ \$IS_RECURSIVE -eq 1 ] && [ -x /usr/bin/python3 ] && [ -f /usr/local/bin/mobilelinux-rm.py ]; then",
+        "    /bin/rm -f \"\$TMP_ERR\" 2>/dev/null",
         "    exec /usr/bin/python3 /usr/local/bin/mobilelinux-rm.py \"\$@\"",
         "fi",
         "cat \"\$TMP_ERR\" >&2",
-        "rm -f \"\$TMP_ERR\" 2>/dev/null",
+        "/bin/rm -f \"\$TMP_ERR\" 2>/dev/null",
         "exit \$EXIT_CODE\n"
     ).joinToString("\n")
 

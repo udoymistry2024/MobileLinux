@@ -48,7 +48,9 @@ class PackageProgressParser(
         }
 
         if (foundPercent != null && foundPercent in 1..100) {
-            currentPercent = maxOf(currentPercent, foundPercent)
+            val isFinalLine = line.contains("complete", ignoreCase = true) || line.contains("successfully", ignoreCase = true)
+            val effectivePercent = if (foundPercent >= 98 && !isFinalLine) 95 else foundPercent
+            currentPercent = maxOf(currentPercent, effectivePercent)
         }
 
         // 2. Map line text to friendly stage & forward progress
@@ -107,7 +109,7 @@ class PackageProgressParser(
                 currentPercent = maxOf(currentPercent, 75)
                 "Resolving git deltas..."
             }
-            lower.contains("successfully installed") -> {
+            lower.contains("successfully installed") || lower.contains("installation complete") || lower.contains("sync complete") -> {
                 currentPercent = 100
                 "Installation complete"
             }

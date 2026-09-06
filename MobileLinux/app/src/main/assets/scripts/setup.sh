@@ -132,29 +132,45 @@ if [ -z "$PIP_PKG" ]; then
     exit 1
 fi
 echo -e "\033[1;36m[MobileLinux]\033[0m Installing \033[1;32m$PIP_PKG\033[0m across Python environments..."
+INSTALLED_SYSTEM=0
 if [ -n "$APT_PKG" ]; then
     export DEBIAN_FRONTEND=noninteractive
-    sudo apt-get update -y >/dev/null 2>&1 || true
-    sudo apt-get install -y "$APT_PKG" 2>/dev/null || pip3 install --break-system-packages --no-cache-dir "$PIP_PKG" || true
-else
-    pip3 install --break-system-packages --no-cache-dir "$PIP_PKG" || true
+    if sudo -o DPkg::Lock::Timeout=60 apt-get install -y --no-install-recommends "$APT_PKG" 2>/dev/null; then
+        INSTALLED_SYSTEM=1
+    fi
 fi
-for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do
-    if [ -x "$p" ]; then
-        "$p" install --no-cache-dir "$PIP_PKG" 2>/dev/null || true
+if [ $INSTALLED_SYSTEM -eq 0 ]; then
+    pip3 install --break-system-packages --prefer-binary --no-cache-dir --default-timeout=30 "$PIP_PKG" 2>/dev/null || true
+fi
+SEEN_DIRS=" "
+for conda_base in /home/ubuntu/miniforge3 /root/miniconda3 /opt/conda; do
+    if [ -d "$conda_base" ]; then
+        SEEN_DIRS="$SEEN_DIRS$conda_base "
+        if "$conda_base/bin/python" -c "import $PIP_PKG" >/dev/null 2>&1; then
+            echo -e "\033[1;32m[MobileLinux]\033[0m Already available in Conda: $conda_base"
+            continue
+        fi
+        if [ -x "$conda_base/bin/conda" ]; then
+            "$conda_base/bin/conda" install -y -q "$PIP_PKG" 2>/dev/null || \
+            "$conda_base/bin/pip" install --prefer-binary --no-cache-dir --default-timeout=30 "$PIP_PKG" 2>/dev/null || true
+        elif [ -x "$conda_base/bin/pip" ]; then
+            "$conda_base/bin/pip" install --prefer-binary --no-cache-dir --default-timeout=30 "$PIP_PKG" 2>/dev/null || true
+        fi
     fi
 done
-if [ -f /home/ubuntu/.conda/environments.txt ]; then
-    while IFS= read -r env_path; do
-        if [ -x "$env_path/bin/pip" ] && [ -d "$env_path" ]; then
-            "$env_path/bin/pip" install --no-cache-dir "$PIP_PKG" 2>/dev/null || true
+for env_pip in /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip; do
+    if [ -x "$env_pip" ]; then
+        ENV_DIR="$(dirname "$(dirname "$env_pip")")"
+        if [[ "$SEEN_DIRS" != *" $ENV_DIR "* ]]; then
+            SEEN_DIRS="$SEEN_DIRS$ENV_DIR "
+            if "$ENV_DIR/bin/python" -c "import $PIP_PKG" >/dev/null 2>&1; then
+                continue
+            fi
+            "$env_pip" install --prefer-binary --no-cache-dir --default-timeout=30 "$PIP_PKG" 2>/dev/null || true
         fi
-    done < /home/ubuntu/.conda/environments.txt
-fi
-if [ -n "$CONDA_PREFIX" ] && [ -x "$CONDA_PREFIX/bin/pip" ]; then
-    "$CONDA_PREFIX/bin/pip" install --no-cache-dir "$PIP_PKG" 2>/dev/null || true
-fi
-echo -e "\033[1;32m[MobileLinux]\033[0m ✓ $PIP_PKG installed across Python environments!"
+    fi
+done
+echo -e "\033[1;32m[MobileLinux]\033[0m ✓ $PIP_PKG installation complete across environments!"
 EOF
 chmod +x "$ROOTFS_DIR/usr/local/bin/pkg-install-python"
 
@@ -170,10 +186,13 @@ if [ -z "$TARGET_ENV" ]; then
     fi
 fi
 ENV_PIP=""
+ENV_PYTHON=""
 if [ -x "/home/ubuntu/miniforge3/envs/$TARGET_ENV/bin/pip" ]; then
     ENV_PIP="/home/ubuntu/miniforge3/envs/$TARGET_ENV/bin/pip"
+    ENV_PYTHON="/home/ubuntu/miniforge3/envs/$TARGET_ENV/bin/python"
 elif [ -n "$CONDA_PREFIX" ] && [ -x "$CONDA_PREFIX/bin/pip" ]; then
     ENV_PIP="$CONDA_PREFIX/bin/pip"
+    ENV_PYTHON="$CONDA_PREFIX/bin/python"
 fi
 if [ -z "$ENV_PIP" ] || [ ! -x "$ENV_PIP" ]; then
     echo "Could not find pip for environment '$TARGET_ENV'."
@@ -181,7 +200,12 @@ if [ -z "$ENV_PIP" ] || [ ! -x "$ENV_PIP" ]; then
 fi
 echo -e "\033[1;36m[MobileLinux]\033[0m Syncing essential packages to \033[1;33m$TARGET_ENV\033[0m..."
 for pkg in numpy pandas scipy matplotlib ipykernel; do
-    "$ENV_PIP" install --no-cache-dir "$pkg" 2>/dev/null || true
+    if [ -x "$ENV_PYTHON" ] && "$ENV_PYTHON" -c "import $pkg" >/dev/null 2>&1; then
+        echo -e "\033[1;32m[MobileLinux]\033[0m $pkg already exists in $TARGET_ENV"
+        continue
+    fi
+    echo -e "Syncing $pkg..."
+    "$ENV_PIP" install --prefer-binary --no-cache-dir --default-timeout=30 "$pkg" 2>/dev/null || true
 done
 echo -e "\033[1;32m[MobileLinux]\033[0m ✓ Sync complete for environment '$TARGET_ENV'!"
 EOF

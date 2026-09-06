@@ -54,6 +54,10 @@ class LibrariesActivity : AppCompatActivity() {
     private lateinit var tvScanningLabel: TextView
     private lateinit var layoutEmpty: LinearLayout
 
+    // Sequential Installation Queue & Concurrency Safety
+    private val installQueue = ArrayDeque<LinuxPackage>()
+    private var isQueueProcessing = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
@@ -207,7 +211,7 @@ class LibrariesActivity : AppCompatActivity() {
 
     private fun initRecyclerView() {
         adapter = PackagesAdapter(
-            onInstallClick = { pkg -> installPackage(pkg) },
+            onInstallClick = { pkg -> queueOrInstallPackage(pkg) },
             onLaunchClick = { pkg -> launchPackage(pkg) },
             onActivateClick = { pkg -> activateConda(pkg) },
             onCopyClick = { pkg -> copyPackageCommand(pkg) }
@@ -279,6 +283,9 @@ class LibrariesActivity : AppCompatActivity() {
                 ).first == 0
 
                 allPackages.forEach { pkg ->
+                    // Preserve status for packages currently installing or in queue
+                    if (pkg.isInstalling) return@forEach
+
                     if (pkg.id == "miniconda") {
                         pkg.isInstalled = realCondaInstalled
                         pkg.isActivated = isCondaActivated
@@ -304,11 +311,36 @@ class LibrariesActivity : AppCompatActivity() {
     }
 
     /**
-     * Performs background installation of the selected package
+     * Entry point for package installation with FIFO Queue & Concurrency Protection
      */
-    private fun installPackage(pkg: LinuxPackage) {
-        if (pkg.isInstalling) return
+    private fun queueOrInstallPackage(pkg: LinuxPackage) {
+        if (pkg.isInstalled) {
+            Toast.makeText(this, "${pkg.name} is already installed.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (pkg.isInstalling) {
+            Toast.makeText(this, "${pkg.name} is already in the installation queue.", Toast.LENGTH_SHORT).show()
+            return
+        }
 
+        if (!isQueueProcessing) {
+            isQueueProcessing = true
+            executeInstall(pkg)
+        } else {
+            installQueue.addLast(pkg)
+            pkg.isInstalling = true
+            pkg.progressPercent = -1
+            val queuePos = installQueue.size
+            pkg.statusText = "Queued (Pending #$queuePos in line)"
+            adapter.updateItem(pkg.id)
+            Toast.makeText(this, "${pkg.name} added to queue (Position #$queuePos)", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * Executes the actual installation process for a package
+     */
+    private fun executeInstall(pkg: LinuxPackage) {
         pkg.isInstalling = true
         pkg.progressPercent = 5
         pkg.statusText = "Starting installation..."
@@ -321,7 +353,10 @@ class LibrariesActivity : AppCompatActivity() {
             var lastUpdateMs = 0L
 
             try {
-                // Ensure pip.conf is present before running install
+                // Safety 1: Clean any broken dpkg state or leftover locks before starting
+                runtime.runCommand("sudo dpkg --configure -a 2>/dev/null || true")
+
+                // Safety 2: Ensure pip.conf is present before running install
                 runtime.runCommand("mkdir -p /etc && printf '[global]\\nbreak-system-packages = true\\n' > /etc/pip.conf 2>/dev/null || true")
 
                 val result = runtime.runCommand(pkg.installCommand) { line ->
@@ -412,7 +447,25 @@ class LibrariesActivity : AppCompatActivity() {
                         Toast.LENGTH_LONG
                     ).show()
                 }
+            } finally {
+                withContext(Dispatchers.Main) {
+                    processNextInQueue()
+                }
             }
+        }
+    }
+
+    private fun processNextInQueue() {
+        if (installQueue.isNotEmpty()) {
+            val nextPkg = installQueue.removeFirst()
+            // Update queue position numbers for remaining packages
+            installQueue.forEachIndexed { index, queuedPkg ->
+                queuedPkg.statusText = "Queued (Pending #${index + 1} in line)"
+                adapter.updateItem(queuedPkg.id)
+            }
+            executeInstall(nextPkg)
+        } else {
+            isQueueProcessing = false
         }
     }
 
@@ -433,6 +486,10 @@ class LibrariesActivity : AppCompatActivity() {
      */
     private fun activateConda(pkg: LinuxPackage) {
         if (pkg.isActivating) return
+        if (isQueueProcessing) {
+            Toast.makeText(this, "Please wait for current installation to finish before activating Conda.", Toast.LENGTH_SHORT).show()
+            return
+        }
 
         pkg.isActivating = true
         pkg.statusText = "Verifying Conda installation..."

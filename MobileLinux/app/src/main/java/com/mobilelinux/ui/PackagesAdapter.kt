@@ -89,7 +89,7 @@ class PackagesAdapter(
                             pbPkgHorizontal.isIndeterminate = false
                             pbPkgHorizontal.progress = pkg.progressPercent
                         } else {
-                            tvInstallingLabel.text = "Installing..."
+                            tvInstallingLabel.text = if (pkg.statusText.contains("Queue", ignoreCase = true) || pkg.statusText.contains("Pending", ignoreCase = true)) "In Queue" else "Installing..."
                             pbPkgHorizontal.visibility = View.VISIBLE
                             pbPkgHorizontal.isIndeterminate = true
                         }
@@ -152,7 +152,7 @@ class PackagesAdapter(
                             pbPkgHorizontal.isIndeterminate = false
                             pbPkgHorizontal.progress = pkg.progressPercent
                         } else {
-                            tvInstallingLabel.text = "Installing..."
+                            tvInstallingLabel.text = if (pkg.statusText.contains("Queue", ignoreCase = true) || pkg.statusText.contains("Pending", ignoreCase = true)) "In Queue" else "Installing..."
                             pbPkgHorizontal.visibility = View.VISIBLE
                             pbPkgHorizontal.isIndeterminate = true
                         }

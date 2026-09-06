@@ -172,8 +172,6 @@ alias cls='printf "\033[H\033[2J\033[3J"'
 alias update='apt-get update'
 alias upgrade='apt-get upgrade -y'
 alias install='apt-get install -y'
-alias python='python3'
-alias pip='python3 -m pip'
 
 # --- Environment ---
 export TERM=xterm-256color
@@ -183,6 +181,16 @@ export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/g
 shopt -s checkwinsize
 BASHRC
 log "✓ .bashrc configured with custom prompt"
+
+# Ensure PRoot compatibility for Conda (force copy mode to prevent .l2s hardlink errors)
+cat > "$ROOTFS_DIR/root/.condarc" << 'EOF'
+always_copy: true
+EOF
+mkdir -p "$ROOTFS_DIR/home/ubuntu"
+cat > "$ROOTFS_DIR/home/ubuntu/.condarc" << 'EOF'
+always_copy: true
+EOF
+log "✓ .condarc configured (always_copy: true)"
 
 # ===========================================================================
 # Step 9: Create /etc/profile.d/mobilelinux.sh

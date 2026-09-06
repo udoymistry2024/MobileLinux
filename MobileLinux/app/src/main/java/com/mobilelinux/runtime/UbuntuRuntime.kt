@@ -972,13 +972,26 @@ class UbuntuRuntime(private val context: Context) {
             if (!ubuntuBashrc.exists()) {
                 safeWriteFile(ubuntuBashrc, getUbuntuBashrc())
             } else {
-                val existing = ubuntuBashrc.readText()
+                var existing = ubuntuBashrc.readText()
+                var modified = false
                 if (!existing.contains("alias clear=")) {
                     val sb = StringBuilder(existing)
                     if (!existing.endsWith("\n") && existing.isNotEmpty()) sb.append("\n")
                     sb.append("alias clear='printf \"\\033[H\\033[2J\\033[3J\"'\n")
                     sb.append("alias cls='printf \"\\033[H\\033[2J\\033[3J\"'\n")
-                    safeWriteFile(ubuntuBashrc, sb.toString())
+                    existing = sb.toString()
+                    modified = true
+                }
+                // Strip legacy python/pip aliases that override Conda/venv environment isolation
+                if (existing.contains("alias python='python3'") || existing.contains("alias pip='python3 -m pip'")) {
+                    existing = existing.replace("alias python='python3'\n", "")
+                        .replace("alias python='python3'", "")
+                        .replace("alias pip='python3 -m pip'\n", "")
+                        .replace("alias pip='python3 -m pip'", "")
+                    modified = true
+                }
+                if (modified) {
+                    safeWriteFile(ubuntuBashrc, existing)
                 }
             }
             ubuntuBashrc.setReadable(true, false)
@@ -988,6 +1001,14 @@ class UbuntuRuntime(private val context: Context) {
                 safeWriteFile(ubuntuProfile, getProfileContent())
             }
             ubuntuProfile.setReadable(true, false)
+
+            // Ensure PRoot compatibility: enforce always_copy so Conda does not use hardlinks (.l2s)
+            val ubuntuCondarc = File(ubuntuHome, ".condarc")
+            if (!ubuntuCondarc.exists() || !ubuntuCondarc.readText().contains("always_copy")) {
+                safeWriteFile(ubuntuCondarc, "always_copy: true\n")
+            }
+            ubuntuCondarc.setReadable(true, false)
+            ubuntuCondarc.setWritable(true, false)
 
             val rootHome = File(rootfsDir, "root")
             ensureRealDirectory(rootHome)
@@ -999,13 +1020,25 @@ class UbuntuRuntime(private val context: Context) {
             if (!rootBashrc.exists()) {
                 safeWriteFile(rootBashrc, getRootBashrc())
             } else {
-                val existing = rootBashrc.readText()
+                var existing = rootBashrc.readText()
+                var modified = false
                 if (!existing.contains("alias clear=")) {
                     val sb = StringBuilder(existing)
                     if (!existing.endsWith("\n") && existing.isNotEmpty()) sb.append("\n")
                     sb.append("alias clear='printf \"\\033[H\\033[2J\\033[3J\"'\n")
                     sb.append("alias cls='printf \"\\033[H\\033[2J\\033[3J\"'\n")
-                    safeWriteFile(rootBashrc, sb.toString())
+                    existing = sb.toString()
+                    modified = true
+                }
+                if (existing.contains("alias python='python3'") || existing.contains("alias pip='python3 -m pip'")) {
+                    existing = existing.replace("alias python='python3'\n", "")
+                        .replace("alias python='python3'", "")
+                        .replace("alias pip='python3 -m pip'\n", "")
+                        .replace("alias pip='python3 -m pip'", "")
+                    modified = true
+                }
+                if (modified) {
+                    safeWriteFile(rootBashrc, existing)
                 }
             }
             rootBashrc.setReadable(true, false)
@@ -1015,6 +1048,13 @@ class UbuntuRuntime(private val context: Context) {
                 safeWriteFile(rootProfile, getProfileContent())
             }
             rootProfile.setReadable(true, false)
+
+            val rootCondarc = File(rootHome, ".condarc")
+            if (!rootCondarc.exists() || !rootCondarc.readText().contains("always_copy")) {
+                safeWriteFile(rootCondarc, "always_copy: true\n")
+            }
+            rootCondarc.setReadable(true, false)
+            rootCondarc.setWritable(true, false)
 
             // CRITICAL: Clean up obsolete mobilelinux-shell.sh from user home directories
             // In earlier versions, this file was placed in ~/ and caused line-wrapping (e.g. stray 'd') in `ls`
@@ -1235,8 +1275,6 @@ class UbuntuRuntime(private val context: Context) {
         "alias ll='ls -la --color=auto'",
         "alias update='sudo apt-get update'",
         "alias install='sudo apt-get install -y'",
-        "alias python='python3'",
-        "alias pip='python3 -m pip'",
         "alias clear='printf \"\\033[H\\033[2J\\033[3J\"'",
         "alias cls='printf \"\\033[H\\033[2J\\033[3J\"'",
         "alias install-tools='/usr/local/bin/install-tools'",
@@ -1266,8 +1304,6 @@ class UbuntuRuntime(private val context: Context) {
         "alias ll='ls -la --color=auto'",
         "alias update='apt-get update'",
         "alias install='apt-get install -y'",
-        "alias python='python3'",
-        "alias pip='python3 -m pip'",
         "alias clear='printf \"\\033[H\\033[2J\\033[3J\"'",
         "alias cls='printf \"\\033[H\\033[2J\\033[3J\"'",
         "alias install-tools='/usr/local/bin/install-tools'",

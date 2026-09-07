@@ -10,7 +10,7 @@
   [![Platform](https://img.shields.io/badge/Platform-Android%208.0%2B-3DDC84.svg?logo=android&logoColor=white)](https://github.com/udoymistry2024/MobileLinux/releases)
   [![OS: Ubuntu 24.04 LTS](https://img.shields.io/badge/Ubuntu-24.04%20LTS-E95420.svg?logo=ubuntu&logoColor=white)](https://ubuntu.com)
   [![Architecture](https://img.shields.io/badge/Arch-ARM64%20%7C%20ARMv7-007ACC.svg)](#architecture)
-  [![Version](https://img.shields.io/badge/Version-1.4.0-blueviolet.svg)](https://github.com/udoymistry2024/MobileLinux/releases)
+  [![Version](https://img.shields.io/badge/Version-1.4.1-blueviolet.svg)](https://github.com/udoymistry2024/MobileLinux/releases)
 
   <p align="center">
     <a href="#key-features">Key Features</a> •

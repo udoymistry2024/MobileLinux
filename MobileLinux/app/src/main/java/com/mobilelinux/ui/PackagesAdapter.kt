@@ -89,10 +89,17 @@ class PackagesAdapter(
                         layoutInstalled.visibility = View.GONE
                         btnLaunch.visibility = View.GONE
                         btnUninstall.visibility = View.GONE
-                        tvInstallingLabel.text = "Uninstalling..."
-                        pbPkgHorizontal.visibility = View.VISIBLE
-                        pbPkgHorizontal.isIndeterminate = true
                         tvStatus.text = if (pkg.statusText.isNotEmpty()) pkg.statusText else "Uninstalling Conda & environments..."
+                        if (pkg.progressPercent >= 0) {
+                            tvInstallingLabel.text = "Uninstalling ${pkg.progressPercent}%"
+                            pbPkgHorizontal.visibility = View.VISIBLE
+                            pbPkgHorizontal.isIndeterminate = false
+                            pbPkgHorizontal.progress = pkg.progressPercent
+                        } else {
+                            tvInstallingLabel.text = "Uninstalling..."
+                            pbPkgHorizontal.visibility = View.VISIBLE
+                            pbPkgHorizontal.isIndeterminate = true
+                        }
                     }
                     pkg.isInstalling -> {
                         layoutInstalling.visibility = View.VISIBLE
@@ -169,10 +176,17 @@ class PackagesAdapter(
                         layoutInstalled.visibility = View.GONE
                         btnLaunch.visibility = View.GONE
                         btnUninstall.visibility = View.GONE
-                        tvInstallingLabel.text = "Uninstalling..."
-                        pbPkgHorizontal.visibility = View.VISIBLE
-                        pbPkgHorizontal.isIndeterminate = true
                         tvStatus.text = if (pkg.statusText.isNotEmpty()) pkg.statusText else "Uninstalling ${pkg.name}..."
+                        if (pkg.progressPercent >= 0) {
+                            tvInstallingLabel.text = "Uninstalling ${pkg.progressPercent}%"
+                            pbPkgHorizontal.visibility = View.VISIBLE
+                            pbPkgHorizontal.isIndeterminate = false
+                            pbPkgHorizontal.progress = pkg.progressPercent
+                        } else {
+                            tvInstallingLabel.text = "Uninstalling..."
+                            pbPkgHorizontal.visibility = View.VISIBLE
+                            pbPkgHorizontal.isIndeterminate = true
+                        }
                     }
                     pkg.isInstalling -> {
                         layoutInstalling.visibility = View.VISIBLE

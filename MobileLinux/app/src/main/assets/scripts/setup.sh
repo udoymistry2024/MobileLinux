@@ -131,30 +131,50 @@ if [ -z "$PIP_PKG" ]; then
     echo "Usage: pkg-install-python <pip_package_name> [apt_package_name]"
     exit 1
 fi
-echo -e "\033[1;36m[MobileLinux]\033[0m Installing \033[1;32m$PIP_PKG\033[0m across Python environments..."
-INSTALLED_SYSTEM=0
+echo -e "\033[1;36m[MobileLinux]\033[0m Starting installation of \033[1;32m$PIP_PKG\033[0m..."
+INSTALLED_ANY=0
 if [ -n "$APT_PKG" ]; then
+    echo -e "\033[1;34m[MobileLinux]\033[0m Checking APT package $APT_PKG..."
     export DEBIAN_FRONTEND=noninteractive
-    if sudo -o DPkg::Lock::Timeout=60 apt-get install -y --no-install-recommends "$APT_PKG" 2>/dev/null; then
-        INSTALLED_SYSTEM=1
+    if sudo -o DPkg::Lock::Timeout=10 apt-get install -y --no-install-recommends "$APT_PKG" 2>&1; then
+        INSTALLED_ANY=1
+        echo -e "\033[1;32m[MobileLinux]\033[0m Installed via APT: $APT_PKG"
+    else
+        echo -e "\033[1;33m[MobileLinux]\033[0m Updating package lists and retrying APT install..."
+        sudo -o DPkg::Lock::Timeout=10 apt-get update 2>&1 || true
+        if sudo -o DPkg::Lock::Timeout=10 apt-get install -y --no-install-recommends "$APT_PKG" 2>&1; then
+            INSTALLED_ANY=1
+            echo -e "\033[1;32m[MobileLinux]\033[0m Installed via APT: $APT_PKG"
+        fi
     fi
 fi
-if [ $INSTALLED_SYSTEM -eq 0 ]; then
-    pip3 install --break-system-packages --prefer-binary --no-cache-dir --default-timeout=30 "$PIP_PKG" 2>/dev/null || true
+if [ $INSTALLED_ANY -eq 0 ]; then
+    echo -e "\033[1;34m[MobileLinux]\033[0m Installing $PIP_PKG via pip3..."
+    if ! command -v pip3 >/dev/null 2>&1; then
+        echo -e "\033[1;33m[MobileLinux]\033[0m Setting up pip3..."
+        sudo -o DPkg::Lock::Timeout=10 apt-get install -y python3-pip 2>&1 || true
+    fi
+    if command -v pip3 >/dev/null 2>&1; then
+        if pip3 install --break-system-packages --prefer-binary --no-cache-dir --default-timeout=30 "$PIP_PKG" 2>&1; then
+            INSTALLED_ANY=1
+            echo -e "\033[1;32m[MobileLinux]\033[0m Installed via pip3: $PIP_PKG"
+        fi
+    fi
 fi
 SEEN_DIRS=" "
 for conda_base in /home/ubuntu/miniforge3 /root/miniconda3 /opt/conda; do
     if [ -d "$conda_base" ]; then
         SEEN_DIRS="$SEEN_DIRS$conda_base "
         if "$conda_base/bin/python" -c "import $PIP_PKG" >/dev/null 2>&1; then
-            echo -e "\033[1;32m[MobileLinux]\033[0m Already available in Conda: $conda_base"
+            echo -e "\033[1;32m[MobileLinux]\033[0m $PIP_PKG is already available in Conda: $conda_base"
+            INSTALLED_ANY=1
             continue
         fi
-        if [ -x "$conda_base/bin/conda" ]; then
-            "$conda_base/bin/conda" install -y -q "$PIP_PKG" 2>/dev/null || \
-            "$conda_base/bin/pip" install --prefer-binary --no-cache-dir --default-timeout=30 "$PIP_PKG" 2>/dev/null || true
-        elif [ -x "$conda_base/bin/pip" ]; then
-            "$conda_base/bin/pip" install --prefer-binary --no-cache-dir --default-timeout=30 "$PIP_PKG" 2>/dev/null || true
+        if [ -x "$conda_base/bin/pip" ]; then
+            echo -e "\033[1;34m[MobileLinux]\033[0m Installing $PIP_PKG into Conda ($conda_base)..."
+            if "$conda_base/bin/pip" install --prefer-binary --no-cache-dir --default-timeout=30 "$PIP_PKG" 2>&1; then
+                INSTALLED_ANY=1
+            fi
         fi
     fi
 done
@@ -166,13 +186,115 @@ for env_pip in /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bi
             if "$ENV_DIR/bin/python" -c "import $PIP_PKG" >/dev/null 2>&1; then
                 continue
             fi
-            "$env_pip" install --prefer-binary --no-cache-dir --default-timeout=30 "$PIP_PKG" 2>/dev/null || true
+            "$env_pip" install --prefer-binary --no-cache-dir --default-timeout=30 "$PIP_PKG" 2>&1 || true
         fi
     fi
 done
-echo -e "\033[1;32m[MobileLinux]\033[0m ✓ $PIP_PKG installation complete across environments!"
+if [ -n "$CONDA_PREFIX" ] && [ -x "$CONDA_PREFIX/bin/pip" ]; then
+    if ! "$CONDA_PREFIX/bin/python" -c "import $PIP_PKG" >/dev/null 2>&1; then
+        "$CONDA_PREFIX/bin/pip" install --prefer-binary --no-cache-dir --default-timeout=30 "$PIP_PKG" 2>&1 || true
+    fi
+fi
+VERIFIED=0
+if python3 -c "import $PIP_PKG" >/dev/null 2>&1; then
+    VERIFIED=1
+elif [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c "import $PIP_PKG" >/dev/null 2>&1; then
+    VERIFIED=1
+elif [ -x /root/miniconda3/bin/python ] && /root/miniconda3/bin/python -c "import $PIP_PKG" >/dev/null 2>&1; then
+    VERIFIED=1
+elif [ -n "$CONDA_PREFIX" ] && [ -x "$CONDA_PREFIX/bin/python" ] && "$CONDA_PREFIX/bin/python" -c "import $PIP_PKG" >/dev/null 2>&1; then
+    VERIFIED=1
+fi
+if [ $VERIFIED -eq 1 ]; then
+    echo -e "\033[1;32m[MobileLinux]\033[0m ✓ $PIP_PKG installation complete and verified!"
+    exit 0
+else
+    echo -e "\033[1;31m[MobileLinux]\033[0m ✗ $PIP_PKG installation could not be verified."
+    exit 1
+fi
 EOF
 chmod +x "$ROOTFS_DIR/usr/local/bin/pkg-install-python"
+
+cat > "$ROOTFS_DIR/usr/local/bin/pkg-uninstall-python" << 'EOF'
+#!/bin/bash
+PIP_PKG="$1"
+APT_PKG="$2"
+if [ -z "$PIP_PKG" ]; then
+    echo "Usage: pkg-uninstall-python <pip_package_name> [apt_package_name]"
+    exit 1
+fi
+echo -e "\033[1;36m[MobileLinux]\033[0m Purging \033[1;31m$PIP_PKG\033[0m across all environments..."
+sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true
+export DEBIAN_FRONTEND=noninteractive
+TARGETS=""
+[ -n "$APT_PKG" ] && TARGETS="$TARGETS $APT_PKG"
+TARGETS="$TARGETS python3-$PIP_PKG"
+echo -e "\033[1;34m[MobileLinux]\033[0m Removing APT packages..."
+sudo -o DPkg::Lock::Timeout=10 apt-get purge -y $TARGETS 2>&1 || true
+sudo apt-get clean 2>/dev/null || true
+echo -e "\033[1;34m[MobileLinux]\033[0m Removing from system pip3..."
+pip3 uninstall -y --break-system-packages "$PIP_PKG" 2>&1 || true
+python3 -m pip uninstall -y --break-system-packages "$PIP_PKG" 2>&1 || true
+echo -e "\033[1;34m[MobileLinux]\033[0m Cleaning Python site-packages..."
+rm -rf /home/ubuntu/.local/lib/python*/site-packages/${PIP_PKG}* 2>/dev/null || true
+rm -rf /root/.local/lib/python*/site-packages/${PIP_PKG}* 2>/dev/null || true
+rm -rf /usr/local/lib/python*/dist-packages/${PIP_PKG}* 2>/dev/null || true
+rm -rf /usr/lib/python3/dist-packages/${PIP_PKG}* 2>/dev/null || true
+echo -e "\033[1;34m[MobileLinux]\033[0m Cleaning Conda environments..."
+SEEN_DIRS=" "
+for conda_base in /home/ubuntu/miniforge3 /root/miniconda3 /opt/conda; do
+    if [ -d "$conda_base" ]; then
+        SEEN_DIRS="$SEEN_DIRS$conda_base "
+        if [ -x "$conda_base/bin/pip" ]; then
+            "$conda_base/bin/pip" uninstall -y "$PIP_PKG" 2>/dev/null || true
+        fi
+        rm -rf "$conda_base"/lib/python*/site-packages/${PIP_PKG}* 2>/dev/null || true
+        if [ -x "$conda_base/bin/conda" ]; then
+            if "$conda_base/bin/conda" list 2>/dev/null | grep -E -q "^${PIP_PKG}[[:space:]]"; then
+                "$conda_base/bin/conda" remove -y -q "$PIP_PKG" 2>/dev/null || true
+            fi
+        fi
+    fi
+done
+for env_dir in /home/ubuntu/miniforge3/envs/* /root/miniconda3/envs/* /home/ubuntu/.conda/envs/* /root/.conda/envs/*; do
+    if [ -d "$env_dir" ]; then
+        if [[ "$SEEN_DIRS" != *" $env_dir "* ]]; then
+            SEEN_DIRS="$SEEN_DIRS$env_dir "
+            if [ -x "$env_dir/bin/pip" ]; then
+                "$env_dir/bin/pip" uninstall -y "$PIP_PKG" 2>/dev/null || true
+            fi
+            rm -rf "$env_dir"/lib/python*/site-packages/${PIP_PKG}* 2>/dev/null || true
+        fi
+    fi
+done
+if [ -n "$CONDA_PREFIX" ] && [ -d "$CONDA_PREFIX" ]; then
+    if [ -x "$CONDA_PREFIX/bin/pip" ]; then
+        "$CONDA_PREFIX/bin/pip" uninstall -y "$PIP_PKG" 2>/dev/null || true
+    fi
+    rm -rf "$CONDA_PREFIX"/lib/python*/site-packages/${PIP_PKG}* 2>/dev/null || true
+fi
+for py in python3 /home/ubuntu/miniforge3/bin/python /root/miniconda3/bin/python "$CONDA_PREFIX/bin/python"; do
+    if [ -x "$py" ]; then
+        LOC="$("$py" -c "import $PIP_PKG; import os; print(os.path.dirname(getattr($PIP_PKG, '__file__', '')))" 2>/dev/null)"
+        if [ -n "$LOC" ] && [ -d "$LOC" ]; then
+            rm -rf "$LOC" "${LOC}.dist-info" "${LOC}.egg-info" "${LOC}"-*.dist-info 2>/dev/null || true
+        fi
+        FILE_LOC="$("$py" -c "import $PIP_PKG; print(getattr($PIP_PKG, '__file__', ''))" 2>/dev/null)"
+        if [ -n "$FILE_LOC" ] && [ -f "$FILE_LOC" ]; then
+            rm -f "$FILE_LOC" 2>/dev/null || true
+        fi
+    fi
+done
+rm -f /usr/local/bin/"$PIP_PKG" /usr/local/bin/"${PIP_PKG}3" /usr/bin/"$PIP_PKG" 2>/dev/null || true
+rm -f /home/ubuntu/.local/bin/"$PIP_PKG" /root/.local/bin/"$PIP_PKG" 2>/dev/null || true
+for cb in /home/ubuntu/miniforge3/bin /root/miniconda3/bin /home/ubuntu/miniforge3/envs/*/bin /root/miniconda3/envs/*/bin; do
+    rm -f "$cb/$PIP_PKG" "$cb/${PIP_PKG}3" 2>/dev/null || true
+done
+find /home/ubuntu/.cache /root/.cache -name "*${PIP_PKG}*" -exec rm -rf {} + 2>/dev/null || true
+echo -e "\033[1;32m[MobileLinux]\033[0m ✓ $PIP_PKG permanently uninstalled and purged from all environments!"
+exit 0
+EOF
+chmod +x "$ROOTFS_DIR/usr/local/bin/pkg-uninstall-python"
 
 cat > "$ROOTFS_DIR/usr/local/bin/conda-sync-packages" << 'EOF'
 #!/bin/bash

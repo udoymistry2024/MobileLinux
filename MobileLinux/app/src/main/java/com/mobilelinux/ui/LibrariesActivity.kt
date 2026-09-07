@@ -588,12 +588,16 @@ class LibrariesActivity : AppCompatActivity() {
      */
     private fun executeUninstall(pkg: LinuxPackage) {
         pkg.isUninstalling = true
-        pkg.statusText = "Uninstalling ${pkg.name}..."
+        pkg.progressPercent = 10
+        pkg.statusText = "Starting uninstallation..."
         adapter.updateItem(pkg.id)
 
         Toast.makeText(this, "Uninstalling ${pkg.name}...", Toast.LENGTH_SHORT).show()
 
         lifecycleScope.launch(Dispatchers.IO) {
+            val parser = PackageProgressParser(pkg.name)
+            var lastUpdateMs = 0L
+
             try {
                 // Safety: Clean leftover locks before running purge
                 runtime.cleanupAptLocks()
@@ -601,7 +605,22 @@ class LibrariesActivity : AppCompatActivity() {
 
                 val uninstallCmd = PackageRepository.getUninstallCommand(pkg)
                 android.util.Log.d("LibrariesActivity", "Executing uninstall: $uninstallCmd")
-                val result = runtime.runCommand(uninstallCmd)
+                val result = runtime.runCommand(uninstallCmd) { line ->
+                    val update = parser.parseUninstallLine(line)
+                    val now = System.currentTimeMillis()
+                    if (update.percent != pkg.progressPercent || now - lastUpdateMs > 150) {
+                        lastUpdateMs = now
+                        lifecycleScope.launch(Dispatchers.Main) {
+                            pkg.progressPercent = update.percent
+                            pkg.statusText = if (update.percent > 0) {
+                                "${update.stage} (${update.percent}%)"
+                            } else {
+                                update.stage
+                            }
+                            adapter.updateItem(pkg.id)
+                        }
+                    }
+                }
                 android.util.Log.d("LibrariesActivity", "Uninstall result code: ${result.first}")
 
                 // Re-verify that the package is actually uninstalled
@@ -634,6 +653,7 @@ class LibrariesActivity : AppCompatActivity() {
                         ).show()
                     } else {
                         pkg.isInstalled = true
+                        pkg.progressPercent = -1
                         pkg.statusText = "Uninstall incomplete (still detected)"
                         adapter.updateItem(pkg.id)
                         Toast.makeText(
@@ -646,6 +666,7 @@ class LibrariesActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     pkg.isUninstalling = false
+                    pkg.progressPercent = -1
                     pkg.statusText = "Uninstall error: ${e.message}"
                     adapter.updateItem(pkg.id)
                     Toast.makeText(

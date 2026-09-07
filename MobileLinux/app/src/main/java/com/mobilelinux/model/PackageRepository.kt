@@ -93,60 +93,80 @@ object PackageRepository {
         // 2. Specialized packages handling
         when (pkg.id) {
             "miniconda" -> {
-                return "conda deactivate 2>/dev/null || true; " +
+                return "echo '[MobileLinux] Deactivating and removing Conda...'; " +
+                        "conda deactivate 2>/dev/null || true; " +
                         "rm -rf /home/ubuntu/miniforge3 /home/ubuntu/miniconda3 /root/miniconda3 /root/miniforge3 /home/ubuntu/.conda /root/.conda /opt/conda 2>/dev/null || true; " +
                         "sed -i '/miniforge3/d; /miniconda3/d; /conda/d' /home/ubuntu/.bashrc /root/.bashrc /etc/bash.bashrc 2>/dev/null || true; " +
-                        "rm -f /usr/local/bin/conda /usr/local/bin/mamba 2>/dev/null || true"
+                        "rm -f /usr/local/bin/conda /usr/local/bin/mamba 2>/dev/null || true; " +
+                        "echo '[MobileLinux] Conda successfully removed!'"
             }
             "jupyterlab" -> {
-                return "pip3 uninstall -y --break-system-packages jupyterlab notebook jupyter-core 2>/dev/null || true; " +
-                        "/home/ubuntu/miniforge3/bin/pip uninstall -y jupyterlab notebook jupyter-core 2>/dev/null || true; " +
-                        "/home/ubuntu/miniforge3/bin/conda remove -y -q jupyterlab notebook 2>/dev/null || true; " +
-                        "sudo -o DPkg::Lock::Timeout=60 apt-get purge -y jupyter jupyter-core 2>/dev/null || true; " +
-                        "sudo -o DPkg::Lock::Timeout=60 apt-get autoremove -y --purge 2>/dev/null || true; " +
-                        "rm -f /usr/local/bin/jupyter* /home/ubuntu/.local/bin/jupyter* 2>/dev/null || true"
+                return "echo '[MobileLinux] Purging JupyterLab...'; " +
+                        "pip3 uninstall -y --break-system-packages jupyterlab notebook jupyter-core 2>&1 || true; " +
+                        "/home/ubuntu/miniforge3/bin/pip uninstall -y jupyterlab notebook jupyter-core 2>&1 || true; " +
+                        "sudo -o DPkg::Lock::Timeout=10 apt-get purge -y jupyter jupyter-core 2>&1 || true; " +
+                        "rm -f /usr/local/bin/jupyter* /home/ubuntu/.local/bin/jupyter* 2>/dev/null || true; " +
+                        "echo '[MobileLinux] JupyterLab successfully uninstalled!'"
             }
             "antigravity-cli" -> {
-                return "rm -rf /home/ubuntu/.antigravity /root/.antigravity /home/ubuntu/.gemini /root/.gemini 2>/dev/null || true; " +
-                        "rm -f /home/ubuntu/.local/bin/agy /root/.local/bin/agy /usr/local/bin/agy /usr/bin/agy 2>/dev/null || true"
+                return "echo '[MobileLinux] Removing Antigravity CLI...'; " +
+                        "rm -rf /home/ubuntu/.antigravity /root/.antigravity /home/ubuntu/.gemini /root/.gemini 2>/dev/null || true; " +
+                        "rm -f /home/ubuntu/.local/bin/agy /root/.local/bin/agy /usr/local/bin/agy /usr/bin/agy 2>/dev/null || true; " +
+                        "echo '[MobileLinux] Antigravity CLI uninstalled!'"
             }
             "gemini-cli" -> {
-                return "sudo npm uninstall -g @google/gemini-cli gemini-cli 2>/dev/null || true; " +
-                        "pip3 uninstall -y --break-system-packages gemini-cli 2>/dev/null || true; " +
-                        "/home/ubuntu/miniforge3/bin/pip uninstall -y gemini-cli 2>/dev/null || true; " +
-                        "rm -f /usr/local/bin/gemini /usr/bin/gemini /home/ubuntu/.local/bin/gemini /root/.local/bin/gemini 2>/dev/null || true"
+                return "echo '[MobileLinux] Removing Gemini CLI...'; " +
+                        "sudo npm uninstall -g @google/gemini-cli gemini-cli 2>&1 || true; " +
+                        "pip3 uninstall -y --break-system-packages gemini-cli 2>&1 || true; " +
+                        "/home/ubuntu/miniforge3/bin/pip uninstall -y gemini-cli 2>&1 || true; " +
+                        "rm -f /usr/local/bin/gemini /usr/bin/gemini /home/ubuntu/.local/bin/gemini /root/.local/bin/gemini 2>/dev/null || true; " +
+                        "echo '[MobileLinux] Gemini CLI uninstalled!'"
             }
             "claude-code" -> {
-                return "sudo npm uninstall -g @anthropic-ai/claude-code claude-code 2>/dev/null || true; " +
-                        "rm -f /usr/local/bin/claude /usr/bin/claude /home/ubuntu/.local/bin/claude /root/.local/bin/claude 2>/dev/null || true"
+                return "echo '[MobileLinux] Removing Claude Code...'; " +
+                        "sudo npm uninstall -g @anthropic-ai/claude-code claude-code 2>&1 || true; " +
+                        "rm -f /usr/local/bin/claude /usr/bin/claude /home/ubuntu/.local/bin/claude /root/.local/bin/claude 2>/dev/null || true; " +
+                        "echo '[MobileLinux] Claude Code uninstalled!'"
             }
             "google-cloud-sdk" -> {
-                return "sudo -o DPkg::Lock::Timeout=60 apt-get purge -y google-cloud-cli 2>/dev/null || true; " +
+                return "echo '[MobileLinux] Removing Google Cloud SDK...'; " +
+                        "sudo -o DPkg::Lock::Timeout=10 apt-get purge -y google-cloud-cli 2>&1 || true; " +
                         "rm -rf /home/ubuntu/google-cloud-sdk /root/google-cloud-sdk 2>/dev/null || true; " +
-                        "rm -f /etc/apt/sources.list.d/google-cloud-sdk.list /usr/local/bin/gcloud /usr/bin/gcloud 2>/dev/null || true"
+                        "rm -f /etc/apt/sources.list.d/google-cloud-sdk.list /usr/local/bin/gcloud /usr/bin/gcloud 2>/dev/null || true; " +
+                        "echo '[MobileLinux] Google Cloud SDK uninstalled!'"
             }
             "aider-chat" -> {
-                return "pip3 uninstall -y --break-system-packages aider-chat 2>/dev/null || true; " +
-                        "/home/ubuntu/miniforge3/bin/pip uninstall -y aider-chat 2>/dev/null || true; " +
-                        "rm -f /home/ubuntu/.local/bin/aider /home/ubuntu/miniforge3/bin/aider /root/.local/bin/aider /usr/local/bin/aider 2>/dev/null || true"
+                return "echo '[MobileLinux] Removing Aider...'; " +
+                        "pip3 uninstall -y --break-system-packages aider-chat 2>&1 || true; " +
+                        "/home/ubuntu/miniforge3/bin/pip uninstall -y aider-chat 2>&1 || true; " +
+                        "rm -f /home/ubuntu/.local/bin/aider /home/ubuntu/miniforge3/bin/aider /root/.local/bin/aider /usr/local/bin/aider 2>/dev/null || true; " +
+                        "echo '[MobileLinux] Aider uninstalled!'"
             }
             "open-interpreter" -> {
-                return "pip3 uninstall -y --break-system-packages open-interpreter 2>/dev/null || true; " +
-                        "/home/ubuntu/miniforge3/bin/pip uninstall -y open-interpreter 2>/dev/null || true; " +
-                        "rm -f /home/ubuntu/.local/bin/interpreter /home/ubuntu/miniforge3/bin/interpreter /root/.local/bin/interpreter /usr/local/bin/interpreter 2>/dev/null || true"
+                return "echo '[MobileLinux] Removing Open Interpreter...'; " +
+                        "pip3 uninstall -y --break-system-packages open-interpreter 2>&1 || true; " +
+                        "/home/ubuntu/miniforge3/bin/pip uninstall -y open-interpreter 2>&1 || true; " +
+                        "rm -f /home/ubuntu/.local/bin/interpreter /home/ubuntu/miniforge3/bin/interpreter /root/.local/bin/interpreter /usr/local/bin/interpreter 2>/dev/null || true; " +
+                        "echo '[MobileLinux] Open Interpreter uninstalled!'"
             }
             "chatdev" -> {
-                return "pip3 uninstall -y --break-system-packages chatdev 2>/dev/null || true; " +
-                        "/home/ubuntu/miniforge3/bin/pip uninstall -y chatdev 2>/dev/null || true; " +
-                        "rm -f /home/ubuntu/.local/bin/chatdev /root/.local/bin/chatdev 2>/dev/null || true"
+                return "echo '[MobileLinux] Removing ChatDev...'; " +
+                        "pip3 uninstall -y --break-system-packages chatdev 2>&1 || true; " +
+                        "/home/ubuntu/miniforge3/bin/pip uninstall -y chatdev 2>&1 || true; " +
+                        "rm -f /home/ubuntu/.local/bin/chatdev /root/.local/bin/chatdev 2>/dev/null || true; " +
+                        "echo '[MobileLinux] ChatDev uninstalled!'"
             }
             "qwen-agent" -> {
-                return "pip3 uninstall -y --break-system-packages qwen-agent 2>/dev/null || true; " +
-                        "/home/ubuntu/miniforge3/bin/pip uninstall -y qwen-agent 2>/dev/null || true"
+                return "echo '[MobileLinux] Removing Qwen Agent...'; " +
+                        "pip3 uninstall -y --break-system-packages qwen-agent 2>&1 || true; " +
+                        "/home/ubuntu/miniforge3/bin/pip uninstall -y qwen-agent 2>&1 || true; " +
+                        "echo '[MobileLinux] Qwen Agent uninstalled!'"
             }
             "nuclei" -> {
-                return "sudo -o DPkg::Lock::Timeout=60 apt-get purge -y nuclei 2>/dev/null || true; " +
-                        "rm -f /home/ubuntu/go/bin/nuclei /root/go/bin/nuclei /usr/local/bin/nuclei /usr/bin/nuclei 2>/dev/null || true"
+                return "echo '[MobileLinux] Removing Nuclei...'; " +
+                        "sudo -o DPkg::Lock::Timeout=10 apt-get purge -y nuclei 2>&1 || true; " +
+                        "rm -f /home/ubuntu/go/bin/nuclei /root/go/bin/nuclei /usr/local/bin/nuclei /usr/bin/nuclei 2>/dev/null || true; " +
+                        "echo '[MobileLinux] Nuclei uninstalled!'"
             }
         }
 
@@ -157,13 +177,13 @@ object PackageRepository {
             val pipName = cleanArgs.getOrNull(0) ?: pkg.id
             val aptName = cleanArgs.getOrNull(1) ?: "python3-$pipName"
             return "if [ -x /usr/local/bin/pkg-uninstall-python ]; then /usr/local/bin/pkg-uninstall-python $pipName $aptName; else " +
-                    "sudo -o DPkg::Lock::Timeout=60 apt-get purge -y $aptName python3-$pipName 2>/dev/null || true; " +
-                    "sudo -o DPkg::Lock::Timeout=60 apt-get autoremove -y --purge 2>/dev/null || true; " +
-                    "pip3 uninstall -y --break-system-packages $pipName 2>/dev/null || true; " +
-                    "/home/ubuntu/miniforge3/bin/pip uninstall -y $pipName 2>/dev/null || true; " +
-                    "/home/ubuntu/miniforge3/bin/conda remove -y -q $pipName 2>/dev/null || true; " +
+                    "echo '[MobileLinux] Purging $pipName...'; " +
+                    "sudo -o DPkg::Lock::Timeout=10 apt-get purge -y $aptName python3-$pipName 2>&1 || true; " +
+                    "pip3 uninstall -y --break-system-packages $pipName 2>&1 || true; " +
+                    "/home/ubuntu/miniforge3/bin/pip uninstall -y $pipName 2>&1 || true; " +
                     "rm -rf /home/ubuntu/.local/lib/python*/site-packages/$pipName* /home/ubuntu/miniforge3/lib/python*/site-packages/$pipName* 2>/dev/null || true; " +
-                    "rm -f /usr/local/bin/$pipName /usr/bin/$pipName /home/ubuntu/miniforge3/bin/$pipName 2>/dev/null || true; fi"
+                    "rm -f /usr/local/bin/$pipName /usr/bin/$pipName /home/ubuntu/miniforge3/bin/$pipName 2>/dev/null || true; " +
+                    "echo '[MobileLinux] Successfully uninstalled $pipName!'; fi"
         }
 
         // 4. Standard APT packages
@@ -171,23 +191,26 @@ object PackageRepository {
             val raw = pkg.installCommand.substringAfter("apt-get install -y").trim()
             val cleanApt = raw.substringBefore(" ").substringBefore("||").substringBefore("&&").substringBefore(";").trim()
             val targetPkg = if (cleanApt.isNotBlank()) cleanApt else pkg.id
-            return "sudo -o DPkg::Lock::Timeout=60 apt-get purge -y $targetPkg 2>/dev/null || true; " +
-                    "sudo -o DPkg::Lock::Timeout=60 apt-get autoremove -y --purge 2>/dev/null || true; " +
-                    "sudo apt-get clean 2>/dev/null || true"
+            return "echo '[MobileLinux] Purging package $targetPkg...'; " +
+                    "sudo -o DPkg::Lock::Timeout=10 apt-get purge -y $targetPkg 2>&1 || true; " +
+                    "sudo apt-get clean 2>/dev/null || true; " +
+                    "echo '[MobileLinux] Successfully uninstalled $targetPkg!'"
         }
 
         // 5. General pip packages
         if (pkg.installCommand.contains("pip install") || pkg.installCommand.contains("pip3 install")) {
             return "if [ -x /usr/local/bin/pkg-uninstall-python ]; then /usr/local/bin/pkg-uninstall-python ${pkg.id} python3-${pkg.id}; else " +
-                    "pip3 uninstall -y --break-system-packages ${pkg.id} 2>/dev/null || true; " +
-                    "/home/ubuntu/miniforge3/bin/pip uninstall -y ${pkg.id} 2>/dev/null || true; " +
-                    "sudo -o DPkg::Lock::Timeout=60 apt-get purge -y python3-${pkg.id} 2>/dev/null || true; " +
-                    "sudo -o DPkg::Lock::Timeout=60 apt-get autoremove -y --purge 2>/dev/null || true; fi"
+                    "echo '[MobileLinux] Purging Python package ${pkg.id}...'; " +
+                    "pip3 uninstall -y --break-system-packages ${pkg.id} 2>&1 || true; " +
+                    "/home/ubuntu/miniforge3/bin/pip uninstall -y ${pkg.id} 2>&1 || true; " +
+                    "sudo -o DPkg::Lock::Timeout=10 apt-get purge -y python3-${pkg.id} 2>&1 || true; " +
+                    "echo '[MobileLinux] Successfully uninstalled ${pkg.id}!'; fi"
         }
 
-        // Default fallback: purge by id and autoremove
-        return "sudo -o DPkg::Lock::Timeout=60 apt-get purge -y ${pkg.id} 2>/dev/null || true; " +
-                "sudo -o DPkg::Lock::Timeout=60 apt-get autoremove -y --purge 2>/dev/null || true"
+        // Default fallback: direct purge by id
+        return "echo '[MobileLinux] Purging ${pkg.id}...'; " +
+                "sudo -o DPkg::Lock::Timeout=10 apt-get purge -y ${pkg.id} 2>&1 || true; " +
+                "echo '[MobileLinux] Successfully uninstalled ${pkg.id}!'"
     }
 
     private val cyberSecurityPackages: List<LinuxPackage> by lazy {

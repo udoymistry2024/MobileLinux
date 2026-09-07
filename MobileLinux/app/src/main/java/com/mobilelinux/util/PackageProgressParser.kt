@@ -126,6 +126,42 @@ class PackageProgressParser(
         return ProgressUpdate(currentPercent, stage)
     }
 
+    /**
+     * Parses output from package uninstallation scripts and returns clean progress updates.
+     */
+    fun parseUninstallLine(rawLine: String): ProgressUpdate {
+        val line = rawLine.replace(Regex("\u001B\\[[;?0-9]*[a-zA-Z]"), "").trim()
+        if (line.isEmpty()) {
+            return ProgressUpdate(currentPercent, lastStage)
+        }
+        val lower = line.lowercase()
+        val stage: String = when {
+            lower.contains("purging") || lower.contains("removing apt") || lower.contains("removing package") -> {
+                currentPercent = maxOf(currentPercent, 25)
+                "Removing package files..."
+            }
+            lower.contains("removing from system pip") || lower.contains("pip uninstall") || lower.contains("uninstalling") -> {
+                currentPercent = maxOf(currentPercent, 50)
+                "Uninstalling Python modules..."
+            }
+            lower.contains("cleaning python site-packages") || lower.contains("site-packages") -> {
+                currentPercent = maxOf(currentPercent, 70)
+                "Cleaning library directories..."
+            }
+            lower.contains("cleaning conda") || lower.contains("conda") -> {
+                currentPercent = maxOf(currentPercent, 85)
+                "Cleaning Conda environments..."
+            }
+            lower.contains("permanently uninstalled") || lower.contains("successfully uninstalled") || lower.contains("purged from all environments") -> {
+                currentPercent = 100
+                "Uninstallation complete"
+            }
+            else -> lastStage
+        }
+        lastStage = stage
+        return ProgressUpdate(currentPercent, stage)
+    }
+
     private fun extractDebName(line: String): String {
         val parts = line.split(" ")
         val debPart = parts.firstOrNull { it.contains("python3-") || it.contains(packageName.lowercase()) }

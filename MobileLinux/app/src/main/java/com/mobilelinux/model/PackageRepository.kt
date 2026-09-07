@@ -23,8 +23,9 @@ object PackageRepository {
     fun getFastBatchCheckScript(): String {
         val d = '$'
         val sb = java.lang.StringBuilder()
+        sb.append("export PATH=\"/home/ubuntu/.local/bin:/root/.local/bin:/home/ubuntu/go/bin:/root/go/bin:/home/ubuntu/.cargo/bin:/root/.cargo/bin:/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:\$PATH\"\n")
         sb.append("ALL_PY=\"").append(d).append("(python3 -c \"import sys\n")
-        sb.append("for m in ['numpy','pandas','scipy','torch','torchvision','torchaudio','tflite_runtime','onnxruntime','matplotlib','seaborn','plotly','bokeh','altair','cv2','PIL','skimage','nltk','spacy','transformers','tokenizers','datasets','gensim','networkx','sympy','statsmodels','xgboost','lightgbm','catboost','polars','dask','pyarrow','fastapi','uvicorn','streamlit','gradio','tqdm','joblib','h5py','zarr','librosa','soundfile','bs4','scrapy','selenium','playwright','requests','httpx','aiohttp','flask','django','sqlalchemy','alembic','psycopg2','pymysql','redis','celery','pydantic','pytest','hypothesis','locust','impacket','scapy','sherlock']:\n")
+        sb.append("for m in ['numpy','pandas','scipy','torch','torchvision','torchaudio','tflite_runtime','onnxruntime','matplotlib','seaborn','plotly','bokeh','altair','cv2','PIL','skimage','nltk','spacy','transformers','tokenizers','datasets','gensim','networkx','sympy','statsmodels','xgboost','lightgbm','catboost','polars','dask','pyarrow','fastapi','uvicorn','streamlit','gradio','tqdm','joblib','h5py','zarr','librosa','soundfile','bs4','scrapy','selenium','playwright','requests','httpx','aiohttp','flask','django','sqlalchemy','alembic','psycopg2','pymysql','redis','celery','pydantic','pytest','hypothesis','locust','impacket','scapy','sherlock','chatdev','qwen_agent']:\n")
         sb.append("    try:\n")
         sb.append("        __import__(m)\n")
         sb.append("        print('PY:' + m)\n")
@@ -68,6 +69,16 @@ object PackageRepository {
 
     private val cyberSecurityPackages: List<LinuxPackage> by lazy {
         listOf(
+        LinuxPackage(
+            id = "nuclei",
+            name = "Nuclei Vulnerability Scanner",
+            category = PackageCategory.CYBER_SECURITY,
+            version = "Latest",
+            description = "Fast, template-based vulnerability scanner widely featured on FreeBuf and SecTools for modern reconnaissance.",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y golang-go && export PATH=\"/home/ubuntu/go/bin:\$PATH\" && go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest",
+            checkInstalledCommand = "which nuclei || test -f /home/ubuntu/go/bin/nuclei",
+            launchUrl = null
+        ),
         LinuxPackage(
             id = "nmap",
             name = "Nmap Network Scanner",
@@ -1947,6 +1958,86 @@ object PackageRepository {
 
     private val devToolsPackages: List<LinuxPackage> by lazy {
         listOf(
+        LinuxPackage(
+            id = "antigravity-cli",
+            name = "Google Anti-Gravity CLI (agy)",
+            category = PackageCategory.DEV_TOOLS,
+            version = "Latest",
+            description = "Next-generation autonomous agentic AI pair programmer and CLI workspace manager by Google DeepMind.",
+            installCommand = "curl -fsSL https://antigravity.google/cli/install.sh | bash && export PATH=\"/home/ubuntu/.local/bin:\$PATH\"",
+            checkInstalledCommand = "test -x /home/ubuntu/.local/bin/agy || which agy",
+            launchUrl = null
+        ),
+        LinuxPackage(
+            id = "gemini-cli",
+            name = "Google Gemini CLI",
+            category = PackageCategory.DEV_TOOLS,
+            version = "Latest",
+            description = "Command-line AI coding assistant and prompt interface powered by Google Gemini multimodal models.",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y nodejs npm && sudo npm install -g gemini-cli",
+            checkInstalledCommand = "which gemini || test -f /usr/local/bin/gemini || test -f /home/ubuntu/.local/bin/gemini",
+            launchUrl = null
+        ),
+        LinuxPackage(
+            id = "google-cloud-sdk",
+            name = "Google Cloud Code / SDK (gcloud)",
+            category = PackageCategory.DEV_TOOLS,
+            version = "Latest",
+            description = "Official CLI for Google Cloud services, Cloud Code integrations, and compute clusters.",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y apt-transport-https ca-certificates gnupg curl && curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor --yes -o /usr/share/keyrings/cloud.google.gpg && echo \"deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main\" | sudo tee /etc/apt/sources.list.d/google-cloud-sdk.list && sudo apt-get update -y && sudo apt-get install -y google-cloud-cli",
+            checkInstalledCommand = "which gcloud",
+            launchUrl = null
+        ),
+        LinuxPackage(
+            id = "claude-code",
+            name = "Claude Code CLI (Anthropic)",
+            category = PackageCategory.DEV_TOOLS,
+            version = "Latest",
+            description = "Agentic terminal coding tool by Anthropic that deeply understands your codebase and performs complex refactoring.",
+            installCommand = "sudo apt-get update -y && sudo apt-get install -y nodejs npm && sudo npm install -g @anthropic-ai/claude-code",
+            checkInstalledCommand = "which claude || test -f /usr/local/bin/claude || test -f /home/ubuntu/.local/bin/claude",
+            launchUrl = null
+        ),
+        LinuxPackage(
+            id = "aider-chat",
+            name = "Aider AI Pair Programmer",
+            category = PackageCategory.DEV_TOOLS,
+            version = "Latest",
+            description = "Top-rated AI coding agent that pair-programs with you in terminal, edits files, and creates clean git commits.",
+            installCommand = "export PATH=\"/home/ubuntu/miniforge3/bin:\$PATH\" && pip install --break-system-packages aider-chat",
+            checkInstalledCommand = "which aider || test -f /home/ubuntu/.local/bin/aider || test -f /home/ubuntu/miniforge3/bin/aider",
+            launchUrl = null
+        ),
+        LinuxPackage(
+            id = "open-interpreter",
+            name = "OpenCode / Open Interpreter",
+            category = PackageCategory.DEV_TOOLS,
+            version = "Latest",
+            description = "Open-source natural language code execution agent that runs Python, Bash, and JavaScript locally.",
+            installCommand = "export PATH=\"/home/ubuntu/miniforge3/bin:\$PATH\" && pip install --break-system-packages open-interpreter",
+            checkInstalledCommand = "which interpreter || test -f /home/ubuntu/.local/bin/interpreter || test -f /home/ubuntu/miniforge3/bin/interpreter",
+            launchUrl = null
+        ),
+        LinuxPackage(
+            id = "chatdev",
+            name = "ChatDev Multi-Agent CLI",
+            category = PackageCategory.DEV_TOOLS,
+            version = "Latest",
+            description = "Communicative agentic software development framework by OpenBMB & Tsinghua for multi-agent code generation.",
+            installCommand = "export PATH=\"/home/ubuntu/miniforge3/bin:\$PATH\" && pip install --break-system-packages chatdev",
+            checkInstalledCommand = "which chatdev || test -f /home/ubuntu/.local/bin/chatdev || python3 -c 'import chatdev'",
+            launchUrl = null
+        ),
+        LinuxPackage(
+            id = "qwen-agent",
+            name = "Qwen-Agent Framework",
+            category = PackageCategory.DEV_TOOLS,
+            version = "Latest",
+            description = "Alibaba Qwen LLM agent framework for tool calling, complex reasoning, and code automation in CLI.",
+            installCommand = "export PATH=\"/home/ubuntu/miniforge3/bin:\$PATH\" && pip install --break-system-packages qwen-agent",
+            checkInstalledCommand = "python3 -c 'import qwen_agent'",
+            launchUrl = null
+        ),
         LinuxPackage(
             id = "git",
             name = "Git Version Control",

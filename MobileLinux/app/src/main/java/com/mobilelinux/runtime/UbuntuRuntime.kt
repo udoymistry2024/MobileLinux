@@ -618,6 +618,18 @@ class UbuntuRuntime(private val context: Context) {
                 val pathsProfile = File(profileD, "01-paths.sh")
                 safeWriteFile(pathsProfile, "export PATH=\"/home/ubuntu/.local/bin:/root/.local/bin:/home/ubuntu/go/bin:/root/go/bin:/home/ubuntu/.cargo/bin:/root/.cargo/bin:\$PATH\"\n")
                 pathsProfile.setReadable(true, false)
+
+                val bashBashrc = File(etcDir, "bash.bashrc")
+                val pathExportLine = "export PATH=\"/home/ubuntu/.local/bin:/root/.local/bin:/home/ubuntu/go/bin:/root/go/bin:/home/ubuntu/.cargo/bin:/root/.cargo/bin:/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:\$PATH\"\n"
+                if (bashBashrc.exists()) {
+                    val content = bashBashrc.readText()
+                    if (!content.contains("/home/ubuntu/.local/bin")) {
+                        safeWriteFile(bashBashrc, "$content\n$pathExportLine")
+                    }
+                } else {
+                    safeWriteFile(bashBashrc, pathExportLine)
+                }
+                bashBashrc.setReadable(true, false)
             } catch (e: Exception) {
                 Log.w(TAG, "Locale config notice: ${e.message}")
             }
@@ -1180,7 +1192,19 @@ class UbuntuRuntime(private val context: Context) {
             ubuntuHome.setReadable(true, false)
             ubuntuHome.setExecutable(true, false)
 
-            ensureRealDirectory(File(ubuntuHome, ".local/bin"))
+            val ubuntuLocalBin = File(ubuntuHome, ".local/bin")
+            val ubuntuLocalShare = File(ubuntuHome, ".local/share")
+            val ubuntuGoBin = File(ubuntuHome, "go/bin")
+            val ubuntuCargoBin = File(ubuntuHome, ".cargo/bin")
+            ensureRealDirectory(ubuntuLocalBin)
+            ensureRealDirectory(ubuntuLocalShare)
+            ensureRealDirectory(ubuntuGoBin)
+            ensureRealDirectory(ubuntuCargoBin)
+            listOf(ubuntuHome, File(ubuntuHome, ".local"), ubuntuLocalBin, ubuntuLocalShare, File(ubuntuHome, "go"), ubuntuGoBin, File(ubuntuHome, ".cargo"), ubuntuCargoBin).forEach {
+                it.setReadable(true, false)
+                it.setWritable(true, false)
+                it.setExecutable(true, false)
+            }
             val ubuntuBashrc = File(ubuntuHome, ".bashrc")
             if (!ubuntuBashrc.exists()) {
                 safeWriteFile(ubuntuBashrc, getUbuntuBashrc())
@@ -1255,10 +1279,19 @@ class UbuntuRuntime(private val context: Context) {
 
             val rootHome = File(rootfsDir, "root")
             ensureRealDirectory(rootHome)
-            ensureRealDirectory(File(rootHome, ".local/bin"))
-            rootHome.setWritable(true, false)
-            rootHome.setReadable(true, false)
-            rootHome.setExecutable(true, false)
+            val rootLocalBin = File(rootHome, ".local/bin")
+            val rootLocalShare = File(rootHome, ".local/share")
+            val rootGoBin = File(rootHome, "go/bin")
+            val rootCargoBin = File(rootHome, ".cargo/bin")
+            ensureRealDirectory(rootLocalBin)
+            ensureRealDirectory(rootLocalShare)
+            ensureRealDirectory(rootGoBin)
+            ensureRealDirectory(rootCargoBin)
+            listOf(rootHome, File(rootHome, ".local"), rootLocalBin, rootLocalShare, File(rootHome, "go"), rootGoBin, File(rootHome, ".cargo"), rootCargoBin).forEach {
+                it.setReadable(true, false)
+                it.setWritable(true, false)
+                it.setExecutable(true, false)
+            }
 
             val rootBashrc = File(rootHome, ".bashrc")
             if (!rootBashrc.exists()) {

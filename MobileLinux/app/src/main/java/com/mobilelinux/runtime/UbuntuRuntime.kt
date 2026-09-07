@@ -636,9 +636,49 @@ class UbuntuRuntime(private val context: Context) {
 
             // 7. Install ZeroMQ netlink fix and built-in Jupyter / IPython configurations
             installJupyterAndNetlinkFixes()
+
+            // 8. Configure APT globally to eliminate lock collisions, force IPv4, and auto-assume yes
+            try {
+                val aptConfD = File(etcDir, "apt/apt.conf.d")
+                ensureRealDirectory(aptConfD)
+                val mlAptConf = File(aptConfD, "99mobilelinux")
+                safeWriteFile(mlAptConf, """
+                    DPkg::Lock::Timeout "60";
+                    Acquire::ForceIPv4 "true";
+                    APT::Get::Assume-Yes "true";
+                    APT::Get::AllowUnauthenticated "false";
+                    Dpkg::Options {
+                        "--force-confdef";
+                        "--force-confold";
+                    };
+                """.trimIndent() + "\n")
+                mlAptConf.setReadable(true, false)
+            } catch (e: Exception) {
+                Log.w(TAG, "Apt config notice: ${e.message}")
+            }
         } catch (e: Exception) {
             Log.w(TAG, "Notice: ensureBashConfigured: ${e.message}")
         }
+    }
+
+    /**
+     * Remove stale APT and dpkg lock files directly from filesystem
+     * to eliminate Exit code 100 on subsequent apt-get runs.
+     */
+    fun cleanupAptLocks() {
+        try {
+            val lockFiles = listOf(
+                File(rootfsDir, "var/lib/apt/lists/lock"),
+                File(rootfsDir, "var/cache/apt/archives/lock"),
+                File(rootfsDir, "var/lib/dpkg/lock"),
+                File(rootfsDir, "var/lib/dpkg/lock-frontend")
+            )
+            lockFiles.forEach { file ->
+                if (file.exists()) {
+                    file.delete()
+                }
+            }
+        } catch (ignored: Exception) {}
     }
 
     /**
@@ -1706,6 +1746,7 @@ class UbuntuRuntime(private val context: Context) {
         "#!/bin/bash",
         "export LANG=C.UTF-8",
         "export LC_ALL=C.UTF-8",
+        "export PATH=\"/home/ubuntu/.local/bin:/root/.local/bin:/home/ubuntu/go/bin:/root/go/bin:/home/ubuntu/.cargo/bin:/root/.cargo/bin:/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/home/ubuntu/miniconda3/bin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:\$PATH\"",
         "if [ \$# -eq 0 ]; then",
         "    echo \"usage: sudo [-h] [-i | -s] [command]\"",
         "    exit 1",
@@ -2142,14 +2183,20 @@ class UbuntuRuntime(private val context: Context) {
 
     private fun getPipWrapperScript(): String = listOf(
         "#!/bin/bash",
-        "if /usr/bin/python3 -m pip --version >/dev/null 2>&1; then",
+        "export PATH=\"/home/ubuntu/.local/bin:/root/.local/bin:/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:\$PATH\"",
+        "if [ -x /home/ubuntu/miniforge3/bin/pip ]; then",
+        "    exec /home/ubuntu/miniforge3/bin/pip \"\$@\"",
+        "elif [ -x /home/ubuntu/.local/bin/pip ]; then",
+        "    exec /home/ubuntu/.local/bin/pip \"\$@\"",
+        "elif /usr/bin/python3 -m pip --version >/dev/null 2>&1; then",
         "    exec /usr/bin/python3 -m pip \"\$@\"",
         "elif [ -x /usr/bin/pip3 ]; then",
         "    exec /usr/bin/pip3 \"\$@\"",
         "fi",
         "echo -e \"\\033[1;36m[MobileLinux]\\033[0m pip is not installed yet. Installing python3-pip...\"",
         "export DEBIAN_FRONTEND=noninteractive",
-        "sudo apt-get update -y && sudo apt-get install -y --no-install-recommends python3-pip",
+        "sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true",
+        "(sudo apt-get install -y --no-install-recommends python3-pip || ((sudo apt-get update || true) && sudo apt-get install -y --no-install-recommends python3-pip))",
         "if /usr/bin/python3 -m pip --version >/dev/null 2>&1; then",
         "    exec /usr/bin/python3 -m pip \"\$@\"",
         "elif [ -x /usr/bin/pip3 ]; then",
@@ -2170,7 +2217,8 @@ class UbuntuRuntime(private val context: Context) {
         "fi",
         "echo -e \"\\033[1;36m[MobileLinux]\\033[0m '$cmdName' is not installed yet. Installing $pkgName...\"",
         "export DEBIAN_FRONTEND=noninteractive",
-        "if sudo apt-get update -y && sudo apt-get install -y --no-install-recommends $pkgName; then",
+        "sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true",
+        "if (sudo apt-get install -y --no-install-recommends \"$pkgName\" || ((sudo apt-get update || true) && sudo apt-get install -y --no-install-recommends \"$pkgName\")); then",
         "    echo -e \"\\033[1;32m[MobileLinux]\\033[0m '$cmdName' installed successfully!\\n\"",
         "    if [ -x \"/usr/bin/$cmdName\" ]; then",
         "        exec \"/usr/bin/$cmdName\" \"\$@\"",
@@ -2188,7 +2236,8 @@ class UbuntuRuntime(private val context: Context) {
         "echo -e \"\\033[1;36m[MobileLinux]\\033[0m Installing essential Linux CLI tools...\"",
         "echo -e \"\\033[0;37mPackages: nano vim-tiny git python3-pip htop tree unzip zip\\033[0m\\n\"",
         "export DEBIAN_FRONTEND=noninteractive",
-        "if sudo apt-get update -y && sudo apt-get install -y --no-install-recommends nano vim-tiny git python3-pip htop tree unzip zip; then",
+        "sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true",
+        "if (sudo apt-get install -y --no-install-recommends nano vim-tiny git python3-pip htop tree unzip zip || ((sudo apt-get update || true) && sudo apt-get install -y --no-install-recommends nano vim-tiny git python3-pip htop tree unzip zip)); then",
         "    sudo mkdir -p /etc/mobilelinux 2>/dev/null || true",
         "    sudo touch /etc/mobilelinux/.tools_installed 2>/dev/null || true",
         "    echo -e \"\\n\\033[1;32m[MobileLinux] All essential tools installed successfully!\\033[0m\"",
@@ -2204,7 +2253,8 @@ class UbuntuRuntime(private val context: Context) {
         "    exit 1",
         "fi",
         "export DEBIAN_FRONTEND=noninteractive",
-        "sudo apt-get -o DPkg::Lock::Timeout=60 -o Acquire::ForceIPv4=true update -y && sudo apt-get -o DPkg::Lock::Timeout=60 -o Acquire::ForceIPv4=true install -y --no-install-recommends \"\$@\"\n"
+        "sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true",
+        "(sudo apt-get -o DPkg::Lock::Timeout=60 -o Acquire::ForceIPv4=true install -y --no-install-recommends \"\$@\" || ((sudo apt-get -o DPkg::Lock::Timeout=60 -o Acquire::ForceIPv4=true update || true) && sudo apt-get -o DPkg::Lock::Timeout=60 -o Acquire::ForceIPv4=true install -y --no-install-recommends \"\$@\"))\n"
     ).joinToString("\n")
 
     data class PythonModuleWrapperConfig(
@@ -2718,7 +2768,8 @@ class UbuntuRuntime(private val context: Context) {
                 ensureRealDirectory(etcMl)
 
                 val installCmd = "export DEBIAN_FRONTEND=noninteractive && " +
-                        "apt-get -o DPkg::Lock::Timeout=60 -o Acquire::ForceIPv4=true update -y && " +
+                        "rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true; " +
+                        "(apt-get -o DPkg::Lock::Timeout=60 -o Acquire::ForceIPv4=true update || true) && " +
                         "apt-get -o DPkg::Lock::Timeout=60 -o Acquire::ForceIPv4=true install -y --no-install-recommends curl wget ca-certificates nano vim-tiny git python3-pip htop tree unzip zip && " +
                         "touch /etc/mobilelinux/.tools_installed"
 

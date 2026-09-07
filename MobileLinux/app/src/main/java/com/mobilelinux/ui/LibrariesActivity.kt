@@ -393,11 +393,13 @@ class LibrariesActivity : AppCompatActivity() {
             var lastUpdateMs = 0L
 
             try {
-                // Safety 1: Clean any broken dpkg state or leftover locks before starting
+                // Safety 1: Clean any broken dpkg state or leftover locks before starting (both filesystem & guest)
+                runtime.cleanupAptLocks()
+                runtime.runCommand("sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* /var/lib/dpkg/updates/* 2>/dev/null || true")
                 runtime.runCommand("sudo dpkg --configure -a 2>/dev/null || true")
 
                 // Safety 2: Ensure pip.conf is present before running install
-                runtime.runCommand("mkdir -p /etc && printf '[global]\\nbreak-system-packages = true\\n' > /etc/pip.conf 2>/dev/null || true")
+                runtime.runCommand("sudo mkdir -p /etc && printf '[global]\\nbreak-system-packages = true\\n' | sudo tee /etc/pip.conf >/dev/null 2>&1 || true")
 
                 val result = runtime.runCommand(pkg.installCommand) { line ->
                     val update = parser.parseLine(line)
@@ -473,7 +475,17 @@ class LibrariesActivity : AppCompatActivity() {
                         android.util.Log.e("LibrariesActivity", "Install error for ${pkg.id} (code ${result.first}): ${result.second}")
                         pkg.isInstalled = false
                         pkg.progressPercent = -1
-                        pkg.statusText = "Install failed (Exit code: ${result.first})"
+                        val errorSnippet = result.second.lines()
+                            .map { it.replace(Regex("\u001B\\[[;?0-9]*[a-zA-Z]"), "").trim() }
+                            .filter { it.isNotBlank() && (it.startsWith("E:") || it.startsWith("npm error") || it.contains("error:", ignoreCase = true) || it.contains("failed", ignoreCase = true) || it.contains("not found", ignoreCase = true)) }
+                            .lastOrNull()?.take(70)
+                            ?: result.second.lines().map { it.trim() }.filter { it.isNotBlank() }.lastOrNull()?.take(70)
+
+                        pkg.statusText = if (!errorSnippet.isNullOrBlank()) {
+                            "Failed (${result.first}): $errorSnippet"
+                        } else {
+                            "Install failed (Exit code: ${result.first})"
+                        }
                         adapter.updateItem(pkg.id)
                         Toast.makeText(
                             this@LibrariesActivity,

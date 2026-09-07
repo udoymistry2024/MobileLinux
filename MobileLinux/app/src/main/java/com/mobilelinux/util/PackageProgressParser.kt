@@ -109,7 +109,11 @@ class PackageProgressParser(
                 currentPercent = maxOf(currentPercent, 75)
                 "Resolving git deltas..."
             }
-            lower.contains("successfully installed") || lower.contains("installation complete") || lower.contains("sync complete") -> {
+            lower.contains("npm http fetch") -> {
+                currentPercent = maxOf(currentPercent, 50)
+                "Fetching npm package..."
+            }
+            (lower.contains("added ") && lower.contains("package")) || lower.contains("successfully installed") || lower.contains("installation complete") || lower.contains("sync complete") -> {
                 currentPercent = 100
                 "Installation complete"
             }

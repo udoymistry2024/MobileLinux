@@ -254,6 +254,16 @@ else
     PS1="${GREEN}┌─[${CYAN}MobileLinux${GREEN}]─[${YELLOW}\u@\h${GREEN}]─[${WHITE}\w${GREEN}]\n└─${GREEN}$ ${RESET}"
 fi
 
+# --- Colors & Terminal Settings ---
+if command -v dircolors >/dev/null 2>&1; then
+    eval "$(dircolors -b 2>/dev/null)"
+fi
+if [ -n "$LS_COLORS" ]; then
+    export LS_COLORS="$(echo "$LS_COLORS" | sed 's/ow=[0-9;]*/ow=01;34/g; s/tw=[0-9;]*/tw=01;34/g; s/st=[0-9;]*/st=01;34/g'):ow=01;34:tw=01;34:st=01;34:"
+else
+    export LS_COLORS="rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=00:tw=01;34:ow=01;34:st=01;34:ex=01;32:"
+fi
+
 # --- Aliases ---
 alias ls='ls --color=auto'
 alias ll='ls -alF --color=auto'

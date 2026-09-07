@@ -619,15 +619,40 @@ class UbuntuRuntime(private val context: Context) {
                 safeWriteFile(pathsProfile, "export PATH=\"/home/ubuntu/.local/bin:/root/.local/bin:/home/ubuntu/go/bin:/root/go/bin:/home/ubuntu/.cargo/bin:/root/.cargo/bin:\$PATH\"\n")
                 pathsProfile.setReadable(true, false)
 
+                val colorsProfile = File(profileD, "02-colors.sh")
+                val colorsContent = listOf(
+                    "# MobileLinux Clean Terminal Colors",
+                    "# Prevent ugly bright green/black background on other-writable (ow) and sticky (tw/st) folders",
+                    "if command -v dircolors >/dev/null 2>&1; then",
+                    "    eval \"\$(dircolors -b 2>/dev/null)\"",
+                    "fi",
+                    "if [ -n \"\$LS_COLORS\" ]; then",
+                    "    export LS_COLORS=\"\$(echo \"\$LS_COLORS\" | sed 's/ow=[0-9;]*/ow=01;34/g; s/tw=[0-9;]*/tw=01;34/g; s/st=[0-9;]*/st=01;34/g'):ow=01;34:tw=01;34:st=01;34:\"",
+                    "else",
+                    "    export LS_COLORS=\"rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=00:tw=01;34:ow=01;34:st=01;34:ex=01;32:\"",
+                    "fi\n"
+                ).joinToString("\n")
+                safeWriteFile(colorsProfile, colorsContent)
+                colorsProfile.setReadable(true, false)
+
                 val bashBashrc = File(etcDir, "bash.bashrc")
                 val pathExportLine = "export PATH=\"/home/ubuntu/.local/bin:/root/.local/bin:/home/ubuntu/go/bin:/root/go/bin:/home/ubuntu/.cargo/bin:/root/.cargo/bin:/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:\$PATH\"\n"
                 if (bashBashrc.exists()) {
-                    val content = bashBashrc.readText()
+                    var content = bashBashrc.readText()
+                    var modified = false
                     if (!content.contains("/home/ubuntu/.local/bin")) {
-                        safeWriteFile(bashBashrc, "$content\n$pathExportLine")
+                        content = "$content\n$pathExportLine"
+                        modified = true
+                    }
+                    if (!content.contains("ow=01;34")) {
+                        content = "$content\n$colorsContent"
+                        modified = true
+                    }
+                    if (modified) {
+                        safeWriteFile(bashBashrc, content)
                     }
                 } else {
-                    safeWriteFile(bashBashrc, pathExportLine)
+                    safeWriteFile(bashBashrc, "$pathExportLine\n$colorsContent")
                 }
                 bashBashrc.setReadable(true, false)
             } catch (e: Exception) {
@@ -1228,8 +1253,9 @@ class UbuntuRuntime(private val context: Context) {
         try {
             val ubuntuHome = File(rootfsDir, "home/ubuntu")
             ensureRealDirectory(ubuntuHome)
-            ubuntuHome.setWritable(true, false)
             ubuntuHome.setReadable(true, false)
+            ubuntuHome.setWritable(false, false)
+            ubuntuHome.setWritable(true, true)
             ubuntuHome.setExecutable(true, false)
 
             val ubuntuLocalBin = File(ubuntuHome, ".local/bin")
@@ -1242,7 +1268,8 @@ class UbuntuRuntime(private val context: Context) {
             ensureRealDirectory(ubuntuCargoBin)
             listOf(ubuntuHome, File(ubuntuHome, ".local"), ubuntuLocalBin, ubuntuLocalShare, File(ubuntuHome, "go"), ubuntuGoBin, File(ubuntuHome, ".cargo"), ubuntuCargoBin).forEach {
                 it.setReadable(true, false)
-                it.setWritable(true, false)
+                it.setWritable(false, false) // Strip any other-writable (o+w) bits to eliminate ugly green highlights in ls
+                it.setWritable(true, true)  // Owner only (0755)
                 it.setExecutable(true, false)
             }
             val ubuntuBashrc = File(ubuntuHome, ".bashrc")
@@ -1275,6 +1302,24 @@ class UbuntuRuntime(private val context: Context) {
                     existing = sb.toString()
                     modified = true
                 }
+                // Ensure clean LS_COLORS (disable hideous green/black highlight on other-writable/sticky folders)
+                if (!existing.contains("ow=01;34")) {
+                    val sb = StringBuilder(existing)
+                    if (!existing.endsWith("\n") && existing.isNotEmpty()) sb.append("\n")
+                    sb.append("""
+                        # MobileLinux Clean Terminal Colors
+                        if command -v dircolors >/dev/null 2>&1; then
+                            eval "${'$'}(dircolors -b 2>/dev/null)"
+                        fi
+                        if [ -n "${'$'}LS_COLORS" ]; then
+                            export LS_COLORS="${'$'}(echo "${'$'}LS_COLORS" | sed 's/ow=[0-9;]*/ow=01;34/g; s/tw=[0-9;]*/tw=01;34/g; s/st=[0-9;]*/st=01;34/g'):ow=01;34:tw=01;34:st=01;34:"
+                        else
+                            export LS_COLORS="rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=00:tw=01;34:ow=01;34:st=01;34:ex=01;32:"
+                        fi
+                    """.trimIndent()).append("\n")
+                    existing = sb.toString()
+                    modified = true
+                }
                 // Ensure PATH includes conda/miniforge
                 if (existing.contains("export PATH=") && !existing.contains("/home/ubuntu/miniforge3/bin")) {
                     existing = existing.replace(
@@ -1288,13 +1333,14 @@ class UbuntuRuntime(private val context: Context) {
                 }
             }
             ubuntuBashrc.setReadable(true, false)
+            ubuntuBashrc.setWritable(true, true)
 
             val ubuntuProfile = File(ubuntuHome, ".profile")
             if (!ubuntuProfile.exists()) {
                 safeWriteFile(ubuntuProfile, getProfileContent())
             }
             ubuntuProfile.setReadable(true, false)
-            ubuntuProfile.setWritable(true, false)
+            ubuntuProfile.setWritable(true, true)
 
             val ubuntuBashProfile = File(ubuntuHome, ".bash_profile")
             if (ubuntuBashProfile.exists()) {
@@ -1306,7 +1352,7 @@ class UbuntuRuntime(private val context: Context) {
                 safeWriteFile(ubuntuBashProfile, "if [ -f \"\$HOME/.bashrc\" ]; then\n    . \"\$HOME/.bashrc\"\nfi\n")
             }
             ubuntuBashProfile.setReadable(true, false)
-            ubuntuBashProfile.setWritable(true, false)
+            ubuntuBashProfile.setWritable(true, true)
 
             // Ensure PRoot compatibility: enforce always_copy and auto_activate_base so Conda does not use hardlinks (.l2s)
             val condarcContent = "always_copy: true\nauto_activate_base: true\nnotify_outdated_conda: false\n"
@@ -1315,7 +1361,7 @@ class UbuntuRuntime(private val context: Context) {
                 safeWriteFile(ubuntuCondarc, condarcContent)
             }
             ubuntuCondarc.setReadable(true, false)
-            ubuntuCondarc.setWritable(true, false)
+            ubuntuCondarc.setWritable(true, true)
 
             val rootHome = File(rootfsDir, "root")
             ensureRealDirectory(rootHome)
@@ -1327,9 +1373,15 @@ class UbuntuRuntime(private val context: Context) {
             ensureRealDirectory(rootLocalShare)
             ensureRealDirectory(rootGoBin)
             ensureRealDirectory(rootCargoBin)
+            rootHome.setReadable(true, false)
+            rootHome.setWritable(false, false)
+            rootHome.setWritable(true, true)
+            rootHome.setExecutable(true, false)
+
             listOf(rootHome, File(rootHome, ".local"), rootLocalBin, rootLocalShare, File(rootHome, "go"), rootGoBin, File(rootHome, ".cargo"), rootCargoBin).forEach {
                 it.setReadable(true, false)
-                it.setWritable(true, false)
+                it.setWritable(false, false) // Strip other-writable bits
+                it.setWritable(true, true)  // Owner only (0755)
                 it.setExecutable(true, false)
             }
 
@@ -1362,6 +1414,24 @@ class UbuntuRuntime(private val context: Context) {
                     existing = sb.toString()
                     modified = true
                 }
+                // Ensure clean LS_COLORS (disable hideous green/black highlight on other-writable/sticky folders)
+                if (!existing.contains("ow=01;34")) {
+                    val sb = StringBuilder(existing)
+                    if (!existing.endsWith("\n") && existing.isNotEmpty()) sb.append("\n")
+                    sb.append("""
+                        # MobileLinux Clean Terminal Colors
+                        if command -v dircolors >/dev/null 2>&1; then
+                            eval "${'$'}(dircolors -b 2>/dev/null)"
+                        fi
+                        if [ -n "${'$'}LS_COLORS" ]; then
+                            export LS_COLORS="${'$'}(echo "${'$'}LS_COLORS" | sed 's/ow=[0-9;]*/ow=01;34/g; s/tw=[0-9;]*/tw=01;34/g; s/st=[0-9;]*/st=01;34/g'):ow=01;34:tw=01;34:st=01;34:"
+                        else
+                            export LS_COLORS="rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=00:tw=01;34:ow=01;34:st=01;34:ex=01;32:"
+                        fi
+                    """.trimIndent()).append("\n")
+                    existing = sb.toString()
+                    modified = true
+                }
                 // Ensure PATH includes conda/miniforge
                 if (existing.contains("export PATH=") && !existing.contains("/home/ubuntu/miniforge3/bin")) {
                     existing = existing.replace(
@@ -1375,14 +1445,14 @@ class UbuntuRuntime(private val context: Context) {
                 }
             }
             rootBashrc.setReadable(true, false)
-            rootBashrc.setWritable(true, false)
+            rootBashrc.setWritable(true, true)
 
             val rootProfile = File(rootHome, ".profile")
             if (!rootProfile.exists()) {
                 safeWriteFile(rootProfile, getProfileContent())
             }
             rootProfile.setReadable(true, false)
-            rootProfile.setWritable(true, false)
+            rootProfile.setWritable(true, true)
 
             val rootBashProfile = File(rootHome, ".bash_profile")
             if (rootBashProfile.exists()) {
@@ -1394,14 +1464,14 @@ class UbuntuRuntime(private val context: Context) {
                 safeWriteFile(rootBashProfile, "if [ -f \"\$HOME/.bashrc\" ]; then\n    . \"\$HOME/.bashrc\"\nfi\n")
             }
             rootBashProfile.setReadable(true, false)
-            rootBashProfile.setWritable(true, false)
+            rootBashProfile.setWritable(true, true)
 
             val rootCondarc = File(rootHome, ".condarc")
             if (!rootCondarc.exists() || !rootCondarc.readText().contains("auto_activate_base")) {
                 safeWriteFile(rootCondarc, condarcContent)
             }
             rootCondarc.setReadable(true, false)
-            rootCondarc.setWritable(true, false)
+            rootCondarc.setWritable(true, true)
 
             // CRITICAL: Clean up obsolete mobilelinux-shell.sh from user home directories
             // In earlier versions, this file was placed in ~/ and caused line-wrapping (e.g. stray 'd') in `ls`
@@ -1930,6 +2000,16 @@ class UbuntuRuntime(private val context: Context) {
         "export PATH=\"/home/ubuntu/.local/bin:/root/.local/bin:/home/ubuntu/go/bin:/root/go/bin:/home/ubuntu/.cargo/bin:/root/.cargo/bin:/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games\"",
         "shopt -s checkwinsize",
         "",
+        "# Terminal Colors: Clean directory colors (disable green/black highlight on other-writable/sticky dirs)",
+        "if command -v dircolors >/dev/null 2>&1; then",
+        "    eval \"\$(dircolors -b 2>/dev/null)\"",
+        "fi",
+        "if [ -n \"\$LS_COLORS\" ]; then",
+        "    export LS_COLORS=\"\$(echo \"\$LS_COLORS\" | sed 's/ow=[0-9;]*/ow=01;34/g; s/tw=[0-9;]*/tw=01;34/g; s/st=[0-9;]*/st=01;34/g'):ow=01;34:tw=01;34:st=01;34:\"",
+        "else",
+        "    export LS_COLORS=\"rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=00:tw=01;34:ow=01;34:st=01;34:ex=01;32:\"",
+        "fi",
+        "",
         "# Aliases",
         "alias ls='ls --color=auto'",
         "alias ll='ls -la --color=auto'",
@@ -1963,6 +2043,16 @@ class UbuntuRuntime(private val context: Context) {
         "export TMPDIR=/tmp",
         "export PATH=\"/root/.local/bin:/home/ubuntu/.local/bin:/root/go/bin:/home/ubuntu/go/bin:/root/.cargo/bin:/home/ubuntu/.cargo/bin:/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games\"",
         "shopt -s checkwinsize",
+        "",
+        "# Terminal Colors: Clean directory colors (disable green/black highlight on other-writable/sticky dirs)",
+        "if command -v dircolors >/dev/null 2>&1; then",
+        "    eval \"\$(dircolors -b 2>/dev/null)\"",
+        "fi",
+        "if [ -n \"\$LS_COLORS\" ]; then",
+        "    export LS_COLORS=\"\$(echo \"\$LS_COLORS\" | sed 's/ow=[0-9;]*/ow=01;34/g; s/tw=[0-9;]*/tw=01;34/g; s/st=[0-9;]*/st=01;34/g'):ow=01;34:tw=01;34:st=01;34:\"",
+        "else",
+        "    export LS_COLORS=\"rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=00:tw=01;34:ow=01;34:st=01;34:ex=01;32:\"",
+        "fi",
         "",
         "# Aliases",
         "alias ls='ls --color=auto'",
@@ -2721,10 +2811,13 @@ class UbuntuRuntime(private val context: Context) {
         "                except Exception:",
         "                    pass",
         "fix_tree(\"/home/ubuntu\")",
+        "fix_tree(\"/root\")",
         "' 2>/dev/null",
         "else",
-        "    chmod -R u+rwX /home/ubuntu 2>/dev/null || true",
+        "    chmod -R u+rwX,go-w /home/ubuntu /root 2>/dev/null || true",
         "fi",
+        "chmod 755 /home/ubuntu /root /home/ubuntu/go /root/go /home/ubuntu/.local /home/ubuntu/.cargo 2>/dev/null || true",
+        "chmod -R go-w /home/ubuntu/go /root/go 2>/dev/null || true",
         "echo -e \"\\033[1;32m[MobileLinux]\\033[0m Permissions restored successfully ✓\"\n"
     ).joinToString("\n")
 

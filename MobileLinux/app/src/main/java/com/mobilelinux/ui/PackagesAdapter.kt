@@ -16,7 +16,8 @@ class PackagesAdapter(
     private val onInstallClick: (LinuxPackage) -> Unit,
     private val onLaunchClick: (LinuxPackage) -> Unit,
     private val onActivateClick: (LinuxPackage) -> Unit,
-    private val onCopyClick: (LinuxPackage) -> Unit
+    private val onCopyClick: (LinuxPackage) -> Unit,
+    private val onUninstallClick: (LinuxPackage) -> Unit
 ) : RecyclerView.Adapter<PackagesAdapter.PackageViewHolder>() {
 
     private val items = mutableListOf<LinuxPackage>()
@@ -56,6 +57,7 @@ class PackagesAdapter(
         private val tvInstallingLabel: TextView = itemView.findViewById(R.id.tv_installing_label)
         private val pbPkgHorizontal: ProgressBar = itemView.findViewById(R.id.pb_pkg_horizontal)
         private val layoutInstalled: LinearLayout = itemView.findViewById(R.id.layout_installed)
+        private val btnUninstall: ImageButton = itemView.findViewById(R.id.btn_uninstall)
         private val btnCopyCmd: ImageButton = itemView.findViewById(R.id.btn_copy_cmd)
         private val btnLaunch: Button = itemView.findViewById(R.id.btn_launch)
         private val btnActivate: Button = itemView.findViewById(R.id.btn_activate)
@@ -73,14 +75,32 @@ class PackagesAdapter(
                 onCopyClick(pkg)
             }
 
+            // Permanent Delete / Clean Uninstall Button
+            btnUninstall.setOnClickListener {
+                onUninstallClick(pkg)
+            }
+
             if (pkg.id == "miniconda") {
                 when {
+                    pkg.isUninstalling -> {
+                        layoutInstalling.visibility = View.VISIBLE
+                        btnInstall.visibility = View.GONE
+                        btnActivate.visibility = View.GONE
+                        layoutInstalled.visibility = View.GONE
+                        btnLaunch.visibility = View.GONE
+                        btnUninstall.visibility = View.GONE
+                        tvInstallingLabel.text = "Uninstalling..."
+                        pbPkgHorizontal.visibility = View.VISIBLE
+                        pbPkgHorizontal.isIndeterminate = true
+                        tvStatus.text = if (pkg.statusText.isNotEmpty()) pkg.statusText else "Uninstalling Conda & environments..."
+                    }
                     pkg.isInstalling -> {
                         layoutInstalling.visibility = View.VISIBLE
                         btnInstall.visibility = View.GONE
                         btnActivate.visibility = View.GONE
                         layoutInstalled.visibility = View.GONE
                         btnLaunch.visibility = View.GONE
+                        btnUninstall.visibility = View.GONE
                         tvStatus.text = if (pkg.statusText.isNotEmpty()) pkg.statusText else "Installing Conda in background..."
 
                         if (pkg.progressPercent >= 0) {
@@ -100,28 +120,31 @@ class PackagesAdapter(
                         btnActivate.visibility = View.GONE
                         layoutInstalled.visibility = View.GONE
                         btnLaunch.visibility = View.GONE
+                        btnUninstall.visibility = View.GONE
                         tvInstallingLabel.text = "Activating..."
                         pbPkgHorizontal.visibility = View.VISIBLE
                         pbPkgHorizontal.isIndeterminate = true
                         tvStatus.text = if (pkg.statusText.isNotEmpty()) pkg.statusText else "Activating Conda base environment..."
                     }
                     pkg.isInstalled && !pkg.isActivated -> {
-                        // Conda is installed but not yet activated -> show Red Activate button
+                        // Conda is installed but not yet activated -> show Red Activate button + Trash icon
                         layoutInstalling.visibility = View.GONE
                         pbPkgHorizontal.visibility = View.GONE
                         btnInstall.visibility = View.GONE
                         layoutInstalled.visibility = View.GONE
                         btnLaunch.visibility = View.GONE
                         btnActivate.visibility = View.VISIBLE
+                        btnUninstall.visibility = View.VISIBLE
                         tvStatus.text = if (pkg.statusText.isNotEmpty()) pkg.statusText else "Installed. Click Activate to enable."
                     }
                     pkg.isInstalled && pkg.isActivated -> {
-                        // Conda is installed and active
+                        // Conda is installed and active -> show Installed badge + Trash icon
                         layoutInstalling.visibility = View.GONE
                         pbPkgHorizontal.visibility = View.GONE
                         btnInstall.visibility = View.GONE
                         btnActivate.visibility = View.GONE
                         layoutInstalled.visibility = View.VISIBLE
+                        btnUninstall.visibility = View.VISIBLE
                         btnLaunch.visibility = if (pkg.launchUrl != null) View.VISIBLE else View.GONE
                         tvStatus.text = "Active & Ready (base)"
                     }
@@ -133,17 +156,30 @@ class PackagesAdapter(
                         btnActivate.visibility = View.GONE
                         layoutInstalled.visibility = View.GONE
                         btnLaunch.visibility = View.GONE
+                        btnUninstall.visibility = View.GONE
                         tvStatus.text = if (pkg.statusText.isNotEmpty()) pkg.statusText else "Ready to install"
                     }
                 }
             } else {
                 btnActivate.visibility = View.GONE
                 when {
+                    pkg.isUninstalling -> {
+                        layoutInstalling.visibility = View.VISIBLE
+                        btnInstall.visibility = View.GONE
+                        layoutInstalled.visibility = View.GONE
+                        btnLaunch.visibility = View.GONE
+                        btnUninstall.visibility = View.GONE
+                        tvInstallingLabel.text = "Uninstalling..."
+                        pbPkgHorizontal.visibility = View.VISIBLE
+                        pbPkgHorizontal.isIndeterminate = true
+                        tvStatus.text = if (pkg.statusText.isNotEmpty()) pkg.statusText else "Uninstalling ${pkg.name}..."
+                    }
                     pkg.isInstalling -> {
                         layoutInstalling.visibility = View.VISIBLE
                         btnInstall.visibility = View.GONE
                         layoutInstalled.visibility = View.GONE
                         btnLaunch.visibility = View.GONE
+                        btnUninstall.visibility = View.GONE
                         tvStatus.text = if (pkg.statusText.isNotEmpty()) pkg.statusText else "Installing in background..."
 
                         if (pkg.progressPercent >= 0) {
@@ -162,8 +198,9 @@ class PackagesAdapter(
                         pbPkgHorizontal.visibility = View.GONE
                         btnInstall.visibility = View.GONE
                         layoutInstalled.visibility = View.VISIBLE
+                        btnUninstall.visibility = View.VISIBLE
                         btnLaunch.visibility = if (pkg.launchUrl != null) View.VISIBLE else View.GONE
-                        tvStatus.text = "Installed and ready"
+                        tvStatus.text = if (pkg.statusText.isNotEmpty() && !pkg.statusText.contains("Uninstall", ignoreCase = true)) pkg.statusText else "Installed and ready"
                     }
                     else -> {
                         layoutInstalling.visibility = View.GONE
@@ -171,6 +208,7 @@ class PackagesAdapter(
                         btnInstall.visibility = View.VISIBLE
                         layoutInstalled.visibility = View.GONE
                         btnLaunch.visibility = View.GONE
+                        btnUninstall.visibility = View.GONE
                         tvStatus.text = if (pkg.statusText.isNotEmpty()) pkg.statusText else "Ready to install"
                     }
                 }

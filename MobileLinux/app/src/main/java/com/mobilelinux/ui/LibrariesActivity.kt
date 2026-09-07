@@ -221,7 +221,8 @@ class LibrariesActivity : AppCompatActivity() {
             onInstallClick = { pkg -> queueOrInstallPackage(pkg) },
             onLaunchClick = { pkg -> launchPackage(pkg) },
             onActivateClick = { pkg -> activateConda(pkg) },
-            onCopyClick = { pkg -> copyPackageCommand(pkg) }
+            onCopyClick = { pkg -> copyPackageCommand(pkg) },
+            onUninstallClick = { pkg -> confirmAndUninstallPackage(pkg) }
         )
         rvPackages.layoutManager = LinearLayoutManager(this)
         rvPackages.adapter = adapter
@@ -536,6 +537,86 @@ class LibrariesActivity : AppCompatActivity() {
                 startActivity(intent)
             } catch (e: Exception) {
                 Toast.makeText(this, "Could not open browser: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /**
+     * Prompts user with a confirmation dialog to permanently uninstall/clean the package.
+     */
+    private fun confirmAndUninstallPackage(pkg: LinuxPackage) {
+        if (pkg.isInstalling || pkg.isUninstalling || isQueueProcessing) {
+            Toast.makeText(this, "Please wait until active operations finish...", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle("Uninstall ${pkg.name}?")
+            .setMessage("Are you sure you want to permanently remove and clean '${pkg.name}' from your Linux system?\n\nThis will remove binaries, libraries, configurations, and free up storage space.")
+            .setIcon(R.drawable.ic_trash)
+            .setPositiveButton("Uninstall & Clean") { _, _ ->
+                executeUninstall(pkg)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    /**
+     * Executes clean removal and purge of a package, updating state and disk cache.
+     */
+    private fun executeUninstall(pkg: LinuxPackage) {
+        pkg.isUninstalling = true
+        pkg.statusText = "Uninstalling ${pkg.name}..."
+        adapter.updateItem(pkg.id)
+
+        Toast.makeText(this, "Uninstalling ${pkg.name}...", Toast.LENGTH_SHORT).show()
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                // Safety: Clean leftover locks before running purge
+                runtime.cleanupAptLocks()
+                runtime.runCommand("sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* /var/lib/dpkg/updates/* 2>/dev/null || true")
+
+                val uninstallCmd = PackageRepository.getUninstallCommand(pkg)
+                android.util.Log.d("LibrariesActivity", "Executing uninstall: $uninstallCmd")
+                val result = runtime.runCommand(uninstallCmd)
+                android.util.Log.d("LibrariesActivity", "Uninstall result code: ${result.first}")
+
+                withContext(Dispatchers.Main) {
+                    pkg.isUninstalling = false
+                    pkg.isInstalled = false
+                    pkg.isActivated = false
+                    pkg.progressPercent = -1
+                    pkg.statusText = "Ready to install"
+
+                    // Remove from persistent disk cache
+                    val prefs = getSharedPreferences("packages_state_cache", Context.MODE_PRIVATE)
+                    val currentSet = prefs.getStringSet("installed_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
+                    currentSet.remove(pkg.id)
+                    val editor = prefs.edit().putStringSet("installed_ids", currentSet)
+                    if (pkg.id == "miniconda") {
+                        editor.putBoolean("conda_active", false)
+                    }
+                    editor.apply()
+
+                    adapter.updateItem(pkg.id)
+                    Toast.makeText(
+                        this@LibrariesActivity,
+                        "${pkg.name} permanently uninstalled and cleaned.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    pkg.isUninstalling = false
+                    pkg.statusText = "Uninstall error: ${e.message}"
+                    adapter.updateItem(pkg.id)
+                    Toast.makeText(
+                        this@LibrariesActivity,
+                        "Error uninstalling ${pkg.name}: ${e.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
             }
         }
     }

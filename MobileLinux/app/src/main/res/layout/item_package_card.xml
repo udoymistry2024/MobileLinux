@@ -148,6 +148,21 @@
 
         </LinearLayout>
 
+        <!-- Clean Uninstall / Delete Trash Button (Shown when package is installed) -->
+        <ImageButton
+            android:id="@+id/btn_uninstall"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/bg_delete_button"
+            android:contentDescription="Uninstall and Clean Package"
+            android:padding="8dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_trash"
+            android:visibility="gone"
+            app:tint="#F85149"
+            tools:visibility="visible" />
+
         <!-- Copy Command Button (Small copy icon to the immediate left of action buttons) -->
         <ImageButton
             android:id="@+id/btn_copy_cmd"

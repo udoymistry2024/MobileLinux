@@ -67,6 +67,100 @@ object PackageRepository {
         return sb.toString()
     }
 
+    /**
+     * Generates a thorough, clean, and permanent uninstall command for a package.
+     * Purges APT packages, uninstalls pip/conda modules, removes NPM global binaries,
+     * and deletes leftover binaries and caches to avoid any future conflicts.
+     */
+    fun getUninstallCommand(pkg: LinuxPackage): String {
+        // 1. If an explicit uninstall command is provided, use it
+        if (!pkg.uninstallCommand.isNullOrBlank()) {
+            return pkg.uninstallCommand
+        }
+
+        // 2. Specialized packages handling
+        when (pkg.id) {
+            "miniconda" -> {
+                return "conda deactivate 2>/dev/null || true; " +
+                        "rm -rf /home/ubuntu/miniforge3 /home/ubuntu/miniconda3 /root/miniconda3 /root/miniforge3 /home/ubuntu/.conda /root/.conda /opt/conda 2>/dev/null || true; " +
+                        "sed -i '/miniforge3/d; /miniconda3/d; /conda/d' /home/ubuntu/.bashrc /root/.bashrc /etc/bash.bashrc 2>/dev/null || true; " +
+                        "rm -f /usr/local/bin/conda /usr/local/bin/mamba 2>/dev/null || true"
+            }
+            "antigravity-cli" -> {
+                return "rm -rf /home/ubuntu/.antigravity /root/.antigravity /home/ubuntu/.gemini /root/.gemini 2>/dev/null || true; " +
+                        "rm -f /home/ubuntu/.local/bin/agy /root/.local/bin/agy /usr/local/bin/agy /usr/bin/agy 2>/dev/null || true"
+            }
+            "gemini-cli" -> {
+                return "sudo npm uninstall -g @google/gemini-cli gemini-cli 2>/dev/null || true; " +
+                        "pip uninstall -y gemini-cli 2>/dev/null || true; " +
+                        "/home/ubuntu/miniforge3/bin/pip uninstall -y gemini-cli 2>/dev/null || true; " +
+                        "rm -f /usr/local/bin/gemini /usr/bin/gemini /home/ubuntu/.local/bin/gemini /root/.local/bin/gemini 2>/dev/null || true"
+            }
+            "claude-code" -> {
+                return "sudo npm uninstall -g @anthropic-ai/claude-code claude-code 2>/dev/null || true; " +
+                        "rm -f /usr/local/bin/claude /usr/bin/claude /home/ubuntu/.local/bin/claude /root/.local/bin/claude 2>/dev/null || true"
+            }
+            "google-cloud-sdk" -> {
+                return "sudo apt-get purge -y google-cloud-cli 2>/dev/null || true; " +
+                        "rm -rf /home/ubuntu/google-cloud-sdk /root/google-cloud-sdk 2>/dev/null || true; " +
+                        "rm -f /etc/apt/sources.list.d/google-cloud-sdk.list /usr/local/bin/gcloud /usr/bin/gcloud 2>/dev/null || true"
+            }
+            "aider-chat" -> {
+                return "pip uninstall -y aider-chat 2>/dev/null || true; " +
+                        "/home/ubuntu/miniforge3/bin/pip uninstall -y aider-chat 2>/dev/null || true; " +
+                        "rm -f /home/ubuntu/.local/bin/aider /home/ubuntu/miniforge3/bin/aider /root/.local/bin/aider /usr/local/bin/aider 2>/dev/null || true"
+            }
+            "open-interpreter" -> {
+                return "pip uninstall -y open-interpreter 2>/dev/null || true; " +
+                        "/home/ubuntu/miniforge3/bin/pip uninstall -y open-interpreter 2>/dev/null || true; " +
+                        "rm -f /home/ubuntu/.local/bin/interpreter /home/ubuntu/miniforge3/bin/interpreter /root/.local/bin/interpreter /usr/local/bin/interpreter 2>/dev/null || true"
+            }
+            "chatdev" -> {
+                return "pip uninstall -y chatdev 2>/dev/null || true; " +
+                        "/home/ubuntu/miniforge3/bin/pip uninstall -y chatdev 2>/dev/null || true; " +
+                        "rm -f /home/ubuntu/.local/bin/chatdev /root/.local/bin/chatdev 2>/dev/null || true"
+            }
+            "qwen-agent" -> {
+                return "pip uninstall -y qwen-agent 2>/dev/null || true; " +
+                        "/home/ubuntu/miniforge3/bin/pip uninstall -y qwen-agent 2>/dev/null || true"
+            }
+            "nuclei" -> {
+                return "sudo apt-get purge -y nuclei 2>/dev/null || true; " +
+                        "rm -f /home/ubuntu/go/bin/nuclei /root/go/bin/nuclei /usr/local/bin/nuclei /usr/bin/nuclei 2>/dev/null || true"
+            }
+        }
+
+        // 3. Python modules with pkg-install-python
+        if (pkg.installCommand.contains("pkg-install-python")) {
+            val parts = pkg.installCommand.substringAfter("pkg-install-python").trim().split(" ")
+            val pipName = parts.getOrNull(0) ?: pkg.id
+            val aptName = parts.getOrNull(1) ?: "python3-$pipName"
+            return "pip uninstall -y $pipName 2>/dev/null || true; " +
+                    "/home/ubuntu/miniforge3/bin/pip uninstall -y $pipName 2>/dev/null || true; " +
+                    "sudo apt-get purge -y $aptName 2>/dev/null || true; " +
+                    "sudo apt-get autoremove -y 2>/dev/null || true"
+        }
+
+        // 4. Standard APT packages
+        if (pkg.installCommand.contains("apt-get install -y")) {
+            val raw = pkg.installCommand.substringAfter("apt-get install -y").trim()
+            val cleanApt = raw.substringBefore(" ").substringBefore("||").substringBefore("&&").trim()
+            val targetPkg = if (cleanApt.isNotBlank()) cleanApt else pkg.id
+            return "sudo apt-get purge -y $targetPkg && sudo apt-get autoremove -y && sudo apt-get clean"
+        }
+
+        // 5. General pip packages
+        if (pkg.installCommand.contains("pip install") || pkg.installCommand.contains("pip3 install")) {
+            return "pip uninstall -y ${pkg.id} 2>/dev/null || true; " +
+                    "/home/ubuntu/miniforge3/bin/pip uninstall -y ${pkg.id} 2>/dev/null || true; " +
+                    "sudo apt-get purge -y python3-${pkg.id} 2>/dev/null || true; " +
+                    "sudo apt-get autoremove -y 2>/dev/null || true"
+        }
+
+        // Default fallback: purge by id and autoremove
+        return "sudo apt-get purge -y ${pkg.id} 2>/dev/null || true; sudo apt-get autoremove -y 2>/dev/null || true"
+    }
+
     private val cyberSecurityPackages: List<LinuxPackage> by lazy {
         listOf(
         LinuxPackage(

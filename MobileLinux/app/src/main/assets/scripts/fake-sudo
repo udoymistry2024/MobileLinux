@@ -9,44 +9,64 @@ if [ $# -eq 0 ]; then
     exit 1
 fi
 
-case "$1" in
-    su)
-        shift
-        export USER=root
-        export LOGNAME=root
-        export HOME=/root
-        if [ "$1" = "-" ] || [ "$1" = "-l" ] || [ "$1" = "--login" ]; then
+while [ $# -gt 0 ]; do
+    case "$1" in
+        su)
+            shift
+            export USER=root
+            export LOGNAME=root
+            export HOME=/root
+            if [ "$1" = "-" ] || [ "$1" = "-l" ] || [ "$1" = "--login" ]; then
+                cd /root
+            fi
+            exec /bin/bash --login -i
+            ;;
+        -i|--login|-s|--shell)
+            shift
             cd /root
-        fi
-        exec /bin/bash --login -i
-        ;;
-    -i|--login|-s|--shell)
-        shift
-        cd /root
-        export USER=root
-        export LOGNAME=root
-        export HOME=/root
-        if [ $# -gt 0 ]; then
-            exec /bin/bash --login -c "$*"
-        else
-            exec /bin/bash --login -i
-        fi
-        ;;
-    bash|/bin/bash|/usr/bin/bash|sh|/bin/sh)
-        shift
-        export USER=root
-        export LOGNAME=root
-        export HOME=/root
-        if [ $# -gt 0 ]; then
-            exec /bin/bash "$@"
-        else
-            exec /bin/bash --login -i
-        fi
-        ;;
-    *)
-        export USER=root
-        export LOGNAME=root
-        export HOME=/root
-        exec "$@"
-        ;;
-esac
+            export USER=root
+            export LOGNAME=root
+            export HOME=/root
+            if [ $# -gt 0 ]; then
+                exec /bin/bash --login -c "$*"
+            else
+                exec /bin/bash --login -i
+            fi
+            ;;
+        bash|/bin/bash|/usr/bin/bash|sh|/bin/sh)
+            shift
+            export USER=root
+            export LOGNAME=root
+            export HOME=/root
+            if [ $# -gt 0 ]; then
+                exec /bin/bash "$@"
+            else
+                exec /bin/bash --login -i
+            fi
+            ;;
+        -u|-g)
+            shift 2
+            ;;
+        -o)
+            OPT="$2"
+            shift 2
+            if [ "$1" = "apt-get" ] || [ "$1" = "apt" ] || [ "$1" = "dpkg" ]; then
+                CMD="$1"
+                shift
+                export USER=root
+                export LOGNAME=root
+                export HOME=/root
+                exec "$CMD" -o "$OPT" "$@"
+            fi
+            ;;
+        -E|-H|-n|-S|-k|-K|-v|-l|-b|--)
+            shift
+            ;;
+        *)
+            export USER=root
+            export LOGNAME=root
+            export HOME=/root
+            exec "$@"
+            ;;
+    esac
+done

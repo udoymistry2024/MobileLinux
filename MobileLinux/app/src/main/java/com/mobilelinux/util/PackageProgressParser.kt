@@ -56,6 +56,9 @@ class PackageProgressParser(
         // 2. Map line text to friendly stage & forward progress
         val lower = line.lowercase()
         val stage: String = when {
+            lower.startsWith("e: ") || lower.contains("dpkg: error") || lower.contains("could not get lock") -> {
+                "Resolving package manager state..."
+            }
             lower.contains("reading package lists") || lower.contains("building dependency tree") -> {
                 currentPercent = maxOf(currentPercent, 10)
                 "Resolving dependencies..."

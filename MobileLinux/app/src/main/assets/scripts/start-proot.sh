@@ -36,6 +36,11 @@ fi
 export TERM=xterm-256color
 export COLORTERM=truecolor
 
+# CRITICAL: Disable seccomp and ignore missing bindings for Android 12-16 compatibility
+export PROOT_NO_SECCOMP=1
+export PROOT_IGNORE_MISSING_BINDINGS=1
+export PROOT_FORCE_ROOTFS_FALLBACK=1
+
 # Ensure proot finds its loader and shared libraries
 LIB_DIR="$(dirname "$PROOT_BIN")"
 if [ -f "$LIB_DIR/libproot-loader.so" ]; then
@@ -63,30 +68,9 @@ CMD=(
 
     # System mounts — essential for Ubuntu to work
     --bind=/proc
-    --bind=/proc/self/fd:/dev/fd
-    --bind=/proc/self/fd/0:/dev/stdin
-    --bind=/proc/self/fd/1:/dev/stdout
-    --bind=/proc/self/fd/2:/dev/stderr
-    --bind=/sys
     --bind=/dev
     --bind="${SHM_DIR}:/dev/shm"
     --bind="${SHM_DIR}:/run/shm"
-    --bind=/dev/pts
-
-    # Android-specific mounts
-    --bind=/system
-    --bind=/vendor
-
-    # /sdcard access from inside Ubuntu
-    --bind="${SDCARD_DIR}:/sdcard"
-    --bind="${SDCARD_DIR}:/mnt/sdcard"
-
-    # Misc
-    --bind=/dev/null
-    --bind=/dev/zero
-    --bind=/dev/random
-    --bind=/dev/urandom
-    --bind=/dev/full
 
     # proot flags
     --kill-on-exit
@@ -96,6 +80,39 @@ CMD=(
     # Start in /home/ubuntu home dir
     --cwd=/home/ubuntu
 )
+
+# Conditional binds — only add if paths exist and are readable (Android 14+ restricts many)
+for path in /proc/self/fd:/dev/fd /proc/self/fd/0:/dev/stdin /proc/self/fd/1:/dev/stdout /proc/self/fd/2:/dev/stderr; do
+    src="${path%%:*}"
+    if [ -e "$src" ]; then
+        CMD+=(--bind="$path")
+    fi
+done
+
+# Device nodes — only bind if accessible
+for devpath in /dev/pts /dev/null /dev/zero /dev/random /dev/urandom /dev/full; do
+    if [ -e "$devpath" ]; then
+        CMD+=(--bind="$devpath")
+    fi
+done
+
+# /sys — restricted on Android 14+, only bind if readable
+if [ -d "/sys" ] && [ -r "/sys/kernel" ] 2>/dev/null; then
+    CMD+=(--bind=/sys)
+fi
+
+# Android system partitions — only bind if accessible (not available in all ROMs)
+for syspart in /system /vendor; do
+    if [ -d "$syspart" ] && [ -r "$syspart" ] 2>/dev/null; then
+        CMD+=(--bind="$syspart")
+    fi
+done
+
+# /sdcard access from inside Ubuntu
+if [ -d "${SDCARD_DIR}" ]; then
+    CMD+=(--bind="${SDCARD_DIR}:/sdcard")
+    CMD+=(--bind="${SDCARD_DIR}:/mnt/sdcard")
+fi
 
 # Environment to pass into Ubuntu
 ENV_VARS=(

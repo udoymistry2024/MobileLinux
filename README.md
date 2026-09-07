@@ -10,7 +10,7 @@
   [![Platform](https://img.shields.io/badge/Platform-Android%208.0%2B-3DDC84.svg?logo=android&logoColor=white)](https://github.com/udoymistry2024/MobileLinux/releases)
   [![OS: Ubuntu 24.04 LTS](https://img.shields.io/badge/Ubuntu-24.04%20LTS-E95420.svg?logo=ubuntu&logoColor=white)](https://ubuntu.com)
   [![Architecture](https://img.shields.io/badge/Arch-ARM64%20%7C%20ARMv7-007ACC.svg)](#architecture)
-  [![Version](https://img.shields.io/badge/Version-1.4.6-blueviolet.svg)](https://github.com/udoymistry2024/MobileLinux/releases)
+  [![Version](https://img.shields.io/badge/Version-1.4.9-blueviolet.svg)](https://github.com/udoymistry2024/MobileLinux/releases)
 
   <p align="center">
     <a href="#key-features">Key Features</a> •
@@ -37,18 +37,26 @@ Whether you are compiling C/C++ projects with `gcc`, running a **Miniforge / Con
 
 - 🐧 **Authentic Ubuntu 24.04 LTS Userland:**
   Native `apt` package manager with access to tens of thousands of official Ubuntu packages.
+- 📦 **Built-in Libraries & Packages Store (376+ Curated Packages):**
+  Browse, search, install, and cleanly uninstall over 376 curated developer packages across 10 specialized categories (Python & Data Science, Compilers, Databases, Security/Pentesting, Web & APIs, DevOps, CLI Utilities, Audio/Media, Network Tools) with real-time stream output and progress tracking.
+- 🐍 **Smart Python Data Science & CLI Ecosystem:**
+  Direct CLI execution for Python modules like `numpy`, `pandas`, `scipy`, `sklearn`, `torch`, `matplotlib`, `seaborn`, `polars`, `sympy` via `/usr/local/bin` wrappers, dynamic `pkg-install-python` generator, and intelligent `command_not_found_handle` in bash.
+- 📓 **Jupyter Notebook & Data Lab Ready:**
+  Seamlessly launch Jupyter Notebook and JupyterLab with full POSIX `/dev/shm` shared memory support, multi-core multiprocessing, and zero kernel crashes.
 - ⚡ **Zero Root Required (PRoot Technology):**
   Runs unprivileged in user-space via optimized PRoot virtualization with `--root-id` fake-root capabilities.
 - 🔓 **Root Mode (Chroot) Support:**
   For rooted devices, execute with true kernel-level `chroot` for maximum raw I/O performance.
-- 🛡️ **Intelligent Filesystem & Permission Engine (v1.2.0):**
+- 🛡️ **Intelligent Filesystem & Permission Engine:**
   Auto-heals read-only directory lockups and recursive permission problems with built-in `fix-permissions`, `force-rm`, and smart non-recursive `rm` wrapper.
+- 🗑️ **Clean Uninstallation & Verification Engine:**
+  Fast uninstallation with confirmation dialog, live progress feedback, automatic orphan dependency cleanup (`autoremove`), and robust verification.
 - 🔄 **Preserved User Configuration:**
   User `.bashrc` profile modifications (Conda, Miniforge, NVM, Rust cargo, pyenv) are completely preserved across app restarts and session lifecycles.
 - 🧠 **Full POSIX Shared Memory (`/dev/shm`) & System V IPC:**
   Full support for POSIX semaphores (`sem_open`), shared memory, and multi-process synchronization. Tools like **Miniforge, Anaconda, PyTorch DataLoader, and ProcessPoolExecutor** run without crashing!
 - 🖥️ **Terminal Architecture:**
-  - Full **xterm-256color** / VT100 emulation.
+  - Full **xterm-256color** / VT100 emulation with sanitized `LS_COLORS`.
   - Complete **Scrolling Margins (`DECSTBM`)** & **Alternate Screen Buffer** support (GNU Nano, Vim, Less, Htop render cleanly).
   - True **Scrollback Buffer clearing (`E3` / `CSI 3 J`)** when typing `clear`.
   - In-band **Dynamic PTY Window Resizing** (`TIOCSWINSZ` / `SIGWINCH`) adapting automatically to keyboard popups and screen rotation.
@@ -67,9 +75,11 @@ Whether you are compiling C/C++ projects with `gcc`, running a **Miniforge / Con
 | :--- | :---: | :---: | :---: | :---: |
 | **Linux C Library** | **glibc (True GNU/Linux)** | Bionic libc (Android) | glibc (PRoot) | glibc (PRoot) |
 | **Ubuntu Rootfs** | **Ubuntu 24.04 LTS (Built-in)** | Termux custom repos | Various distros | Requires script |
+| **1-Click Package Store (376+ pkgs)** | **✅ Built-in Store UI** | ❌ CLI only | ❌ CLI only | ⚠️ External scripts |
+| **Python Data Science CLI (numpy/pandas)** | **✅ Instant CLI Wrappers** | ❌ python -c only | ❌ Manual | ❌ Manual |
 | **POSIX Semaphores (`/dev/shm`)** | **✅ Built-in & Emulated** | ❌ Broken / Missing | ⚠️ Incomplete | ⚠️ Requires root/hacks |
 | **Miniforge / Conda / PyTorch** | **✅ Out-of-the-box** | ❌ Requires patching | ⚠️ Prone to crashes | ⚠️ Prone to crashes |
-| **Permission Auto-Healer (`fix-permissions`)** | **✅ Built-in (v1.2.0)** | ❌ None | ❌ None | ❌ None |
+| **Permission Auto-Healer (`fix-permissions`)** | **✅ Built-in** | ❌ None | ❌ None | ❌ None |
 | **Full Terminal Editor Support (Nano)** | **✅ Alternate Buffer + DECSTBM** | ✅ Good | ⚠️ VNC dependent | ⚠️ VNC dependent |
 | **Multiple Sessions Drawer** | **✅ Built-in (tmux-like)** | ⚠️ Basic drawer | ❌ External client | ❌ External client |
 | **True `clear` Scrollback Wipe** | **✅ Full E3 Support** | ✅ Good | ❌ Basic | ❌ Basic |
@@ -81,9 +91,9 @@ Whether you are compiling C/C++ projects with `gcc`, running a **Miniforge / Con
 
 ### 1. Download & Install
 Download the latest signed release APK from [**GitHub Releases**](https://github.com/udoymistry2024/MobileLinux/releases):
-- **`MobileLinux-v1.2.2.apk`** (or `MobileLinux-latest.apk`)
+- **`MobileLinux-v1.4.9.apk`** (or `MobileLinux-latest.apk`)
 
-Install the APK on any device running **Android 8.0 (Oreo) or higher**.
+Install the APK on any device running **Android 8.0 (Oreo) or higher** (Targeting Android 15 / API 35).
 
 ### 2. First Launch
 1. Open **MobileLinux**.
@@ -122,6 +132,16 @@ npm --version
 curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh"
 bash Miniforge3-Linux-aarch64.sh
 ```
+
+---
+
+## 🆕 What's New in v1.4.9
+
+- 🔍 **Comprehensive Audit of All 376 Packages:** Rigorously verified and repaired installation, uninstallation, and verification logic across all 10 categories in the Libraries & Packages store.
+- 🐍 **Smart Python CLI Architecture:** Direct terminal CLI commands (`numpy`, `pandas`, `scipy`, `sklearn`, `torch`, `matplotlib`, `seaborn`, `polars`, `sympy`) out-of-the-box with version display, interactive test shells, dynamic `pkg-install-python` wrapper generation, and shell `command_not_found_handle`.
+- 🛡️ **Universal Uninstallation Verification:** Fixed uninstallation verification to evaluate raw check commands rather than stripped binary names, eliminating false-negatives across Python modules, CLI flags, and filesystem paths.
+- 📦 **Repaired Standalone Package Installers:** Replaced placeholder commands with official ARM64 binary downloads (CockroachDB), added user-level PATH detection for Cargo/Rust and Bun (`~/.cargo/bin`, `~/.bun/bin`), and verified all build prerequisites.
+- ⚡ **Production-Ready Android 15 Release:** Signed release APK built with Target SDK 35, ProGuard optimizations, and baseline profile compilation.
 
 ---
 

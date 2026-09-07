@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Bundle
 import android.text.Editable
@@ -57,6 +58,7 @@ class LibrariesActivity : AppCompatActivity() {
     // Sequential Installation Queue & Concurrency Safety
     private val installQueue = ArrayDeque<LinuxPackage>()
     private var isQueueProcessing = false
+    @Volatile private var isUninstallRunning = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -228,13 +230,17 @@ class LibrariesActivity : AppCompatActivity() {
         rvPackages.adapter = adapter
     }
 
+    private fun getCachedInstalledIds(prefs: SharedPreferences): MutableSet<String> {
+        return (prefs.getStringSet("installed_ids", emptySet()) ?: emptySet()).toMutableSet()
+    }
+
     private fun loadPackages() {
         allPackages.clear()
         val curated = PackageRepository.getCuratedPackages()
 
         // Instant Cache from SharedPreferences: shows installed status in 0ms on startup
         val prefs = getSharedPreferences("packages_state_cache", Context.MODE_PRIVATE)
-        val savedInstalled = prefs.getStringSet("installed_ids", emptySet()) ?: emptySet()
+        val savedInstalled = getCachedInstalledIds(prefs)
         val isCondaActiveCached = prefs.getBoolean("conda_active", false)
 
         curated.forEach { pkg ->
@@ -289,9 +295,6 @@ class LibrariesActivity : AppCompatActivity() {
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                // Ensure pip.conf disables PEP 668 externally-managed errors globally
-                runtime.runCommand("mkdir -p /etc && printf '[global]\\nbreak-system-packages = true\\n' > /etc/pip.conf 2>/dev/null || true")
-
                 val batchScript = PackageRepository.getFastBatchCheckScript()
                 val result = runtime.runCommand(batchScript)
                 val installedIds = result.second
@@ -394,12 +397,28 @@ class LibrariesActivity : AppCompatActivity() {
             var lastUpdateMs = 0L
 
             try {
-                // Safety 1: Clean any broken dpkg state or leftover locks before starting (both filesystem & guest)
-                runtime.cleanupAptLocks()
-                runtime.runCommand("sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* /var/lib/dpkg/updates/* 2>/dev/null || true")
-                runtime.runCommand("sudo dpkg --configure -a 2>/dev/null || true")
+                // Safety 1: Wait if background essential tools are installing (APT lock contention)
+                if (runtime.isInstallingTools) {
+                    withContext(Dispatchers.Main) {
+                        pkg.statusText = "Waiting for system setup..."
+                        adapter.updateItem(pkg.id)
+                    }
+                    // Wait up to 90 seconds for background install to finish
+                    var waited = 0
+                    while (runtime.isInstallingTools && waited < 90) {
+                        kotlinx.coroutines.delay(1000)
+                        waited++
+                    }
+                }
 
-                // Safety 2: Ensure pip.conf is present before running install
+                // Safety 2: Clean locks + fix dpkg in one atomic guest command (prevents lock recreation race)
+                runtime.cleanupAptLocks()
+                runtime.runCommand(
+                    "sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* /var/lib/dpkg/updates/* /var/cache/debconf/*.lock /var/cache/debconf/*-lock 2>/dev/null; " +
+                    "sudo dpkg --configure -a 2>/dev/null || true"
+                )
+
+                // Safety 3: Ensure pip.conf is present before running install
                 runtime.runCommand("sudo mkdir -p /etc && printf '[global]\\nbreak-system-packages = true\\n' | sudo tee /etc/pip.conf >/dev/null 2>&1 || true")
 
                 val result = runtime.runCommand(pkg.installCommand) { line ->
@@ -435,7 +454,7 @@ class LibrariesActivity : AppCompatActivity() {
                                 pkg.isActivated = true
                                 pkg.progressPercent = 100
                                 pkg.statusText = "Active & Ready (base)"
-                                val currentSet = prefs.getStringSet("installed_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
+                                val currentSet = getCachedInstalledIds(prefs)
                                 currentSet.add(pkg.id)
                                 prefs.edit().putStringSet("installed_ids", currentSet).putBoolean("conda_active", true).apply()
                                 withContext(Dispatchers.IO) {
@@ -452,7 +471,7 @@ class LibrariesActivity : AppCompatActivity() {
                                 pkg.isActivated = false
                                 pkg.progressPercent = -1
                                 pkg.statusText = "Install completed but binary missing"
-                                val currentSet = prefs.getStringSet("installed_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
+                                val currentSet = getCachedInstalledIds(prefs)
                                 currentSet.remove(pkg.id)
                                 prefs.edit().putStringSet("installed_ids", currentSet).apply()
                                 adapter.updateItem(pkg.id)
@@ -470,7 +489,7 @@ class LibrariesActivity : AppCompatActivity() {
                                 pkg.isInstalled = true
                                 pkg.progressPercent = 100
                                 pkg.statusText = "Installed and ready"
-                                val currentSet = prefs.getStringSet("installed_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
+                                val currentSet = getCachedInstalledIds(prefs)
                                 currentSet.add(pkg.id)
                                 prefs.edit().putStringSet("installed_ids", currentSet).apply()
                                 adapter.updateItem(pkg.id)
@@ -483,7 +502,7 @@ class LibrariesActivity : AppCompatActivity() {
                                 pkg.isInstalled = false
                                 pkg.progressPercent = -1
                                 pkg.statusText = "Install completed, check failed"
-                                val currentSet = prefs.getStringSet("installed_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
+                                val currentSet = getCachedInstalledIds(prefs)
                                 currentSet.remove(pkg.id)
                                 prefs.edit().putStringSet("installed_ids", currentSet).apply()
                                 adapter.updateItem(pkg.id)
@@ -567,7 +586,7 @@ class LibrariesActivity : AppCompatActivity() {
      * Prompts user with a confirmation dialog to permanently uninstall/clean the package.
      */
     private fun confirmAndUninstallPackage(pkg: LinuxPackage) {
-        if (pkg.isInstalling || pkg.isUninstalling || isQueueProcessing) {
+        if (pkg.isInstalling || pkg.isUninstalling || isQueueProcessing || isUninstallRunning) {
             Toast.makeText(this, "Please wait until active operations finish...", Toast.LENGTH_SHORT).show()
             return
         }
@@ -588,6 +607,7 @@ class LibrariesActivity : AppCompatActivity() {
      */
     private fun executeUninstall(pkg: LinuxPackage) {
         pkg.isUninstalling = true
+        isUninstallRunning = true
         pkg.progressPercent = 10
         pkg.statusText = "Starting uninstallation..."
         adapter.updateItem(pkg.id)
@@ -599,9 +619,12 @@ class LibrariesActivity : AppCompatActivity() {
             var lastUpdateMs = 0L
 
             try {
-                // Safety: Clean leftover locks before running purge
+                // Safety: Clean leftover locks + fix dpkg in single atomic command
                 runtime.cleanupAptLocks()
-                runtime.runCommand("sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* /var/lib/dpkg/updates/* 2>/dev/null || true")
+                runtime.runCommand(
+                    "sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* /var/lib/dpkg/updates/* /var/cache/debconf/*.lock /var/cache/debconf/*-lock 2>/dev/null; " +
+                    "sudo dpkg --configure -a 2>/dev/null || true"
+                )
 
                 val uninstallCmd = PackageRepository.getUninstallCommand(pkg)
                 android.util.Log.d("LibrariesActivity", "Executing uninstall: $uninstallCmd")
@@ -623,9 +646,13 @@ class LibrariesActivity : AppCompatActivity() {
                 }
                 android.util.Log.d("LibrariesActivity", "Uninstall result code: ${result.first}")
 
-                // Re-verify that the package is actually uninstalled
-                val verifyResult = runtime.runCommand(pkg.checkInstalledCommand)
-                val isStillInstalled = (verifyResult.first == 0)
+                // BUG FIX: ALWAYS verify via checkInstalledCommand after uninstall,
+                // regardless of exit code. This catches cases where the uninstall command
+                // reports success but the binary/module is still present.
+                val verifyResult = withContext(Dispatchers.IO) {
+                    runtime.runCommand(pkg.checkInstalledCommand)
+                }
+                val isStillInstalled = verifyResult.first == 0
 
                 withContext(Dispatchers.Main) {
                     pkg.isUninstalling = false
@@ -637,7 +664,7 @@ class LibrariesActivity : AppCompatActivity() {
 
                         // Remove from persistent disk cache
                         val prefs = getSharedPreferences("packages_state_cache", Context.MODE_PRIVATE)
-                        val currentSet = prefs.getStringSet("installed_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
+                        val currentSet = getCachedInstalledIds(prefs)
                         currentSet.remove(pkg.id)
                         val editor = prefs.edit().putStringSet("installed_ids", currentSet)
                         if (pkg.id == "miniconda") {
@@ -675,6 +702,8 @@ class LibrariesActivity : AppCompatActivity() {
                         Toast.LENGTH_LONG
                     ).show()
                 }
+            } finally {
+                isUninstallRunning = false
             }
         }
     }
@@ -745,7 +774,7 @@ class LibrariesActivity : AppCompatActivity() {
                     pkg.statusText = "Active & Ready (base)"
 
                     val prefs = getSharedPreferences("packages_state_cache", Context.MODE_PRIVATE)
-                    val currentSet = prefs.getStringSet("installed_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
+                    val currentSet = getCachedInstalledIds(prefs)
                     currentSet.add("miniconda")
                     prefs.edit()
                         .putStringSet("installed_ids", currentSet)

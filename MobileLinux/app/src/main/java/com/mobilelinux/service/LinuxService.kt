@@ -80,8 +80,8 @@ class LinuxService : LifecycleService() {
         // Create notification channel
         createNotificationChannel()
 
-        // Start as foreground service
-        startForeground(NOTIFICATION_ID, buildNotification(0))
+        // Start as foreground service with proper Android 14/15 type
+        startServiceForeground(buildNotification(0))
 
         // Start periodic notification updates
         startStatusUpdates()
@@ -135,7 +135,21 @@ class LinuxService : LifecycleService() {
         if (!wakeLock.isHeld) {
             try { wakeLock.acquire() } catch (e: Exception) { Log.w(TAG, "WakeLock acquire error: ${e.message}") }
         }
-        startForeground(NOTIFICATION_ID, buildNotification(count))
+        startServiceForeground(buildNotification(count))
+    }
+
+    private fun startServiceForeground(notification: Notification) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(
+                NOTIFICATION_ID,
+                notification,
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+            )
+        } else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            startForeground(NOTIFICATION_ID, notification, 0)
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
     }
 
     // =========================================================================

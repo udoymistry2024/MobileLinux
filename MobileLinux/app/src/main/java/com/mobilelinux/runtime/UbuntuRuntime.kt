@@ -637,6 +637,40 @@ class UbuntuRuntime(private val context: Context) {
 
                 val bashBashrc = File(etcDir, "bash.bashrc")
                 val pathExportLine = "export PATH=\"/home/ubuntu/.local/bin:/root/.local/bin:/home/ubuntu/go/bin:/root/go/bin:/home/ubuntu/.cargo/bin:/root/.cargo/bin:/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:\$PATH\"\n"
+                val cmdNotFoundContent = "\n# MobileLinux Smart Command Not Found Handler for Python libraries\n" +
+                    "command_not_found_handle() {\n" +
+                    "    local cmd=\"\$1\"\n" +
+                    "    local arg=\"\$2\"\n" +
+                    "    local py=\"\"\n" +
+                    "    if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/python\" ]; then\n" +
+                    "        py=\"\$CONDA_PREFIX/bin/python\"\n" +
+                    "    elif [ -x /home/ubuntu/miniforge3/bin/python ]; then\n" +
+                    "        py=\"/home/ubuntu/miniforge3/bin/python\"\n" +
+                    "    elif [ -x /root/miniconda3/bin/python ]; then\n" +
+                    "        py=\"/root/miniconda3/bin/python\"\n" +
+                    "    elif command -v python3 >/dev/null 2>&1; then\n" +
+                    "        py=\"\$(command -v python3)\"\n" +
+                    "    fi\n" +
+                    "    if [ -n \"\$py\" ]; then\n" +
+                    "        local mod=\"\${cmd//-/_}\"\n" +
+                    "        if \"\$py\" -c \"import \$mod\" >/dev/null 2>&1; then\n" +
+                    "            local ver\n" +
+                    "            ver=\"\$(\"\$py\" -c \"import \$mod as _m; print(getattr(_m, '__version__', 'installed'))\" 2>/dev/null)\"\n" +
+                    "            if [ \"\$arg\" = \"--version\" ] || [ \"\$arg\" = \"-v\" ] || [ \"\$arg\" = \"-V\" ]; then\n" +
+                    "                echo \"\$cmd \$ver\"\n" +
+                    "                return 0\n" +
+                    "            fi\n" +
+                    "            echo -e \"\\033[1;36m[MobileLinux]\\033[0m '\$cmd' is an installed Python library (v\$ver).\"\n" +
+                    "            echo -e \"To use it in Python:\"\n" +
+                    "            echo -e \"  \\033[1;33m\$py -c 'import \$mod'\\033[0m\"\n" +
+                    "            echo -e \"  OR start Python interactive shell: \\033[1;32m\$py\\033[0m\"\n" +
+                    "            return 0\n" +
+                    "        fi\n" +
+                    "    fi\n" +
+                    "    echo \"bash: \$cmd: command not found\" >&2\n" +
+                    "    return 127\n" +
+                    "}\n"
+
                 if (bashBashrc.exists()) {
                     var content = bashBashrc.readText()
                     var modified = false
@@ -648,11 +682,15 @@ class UbuntuRuntime(private val context: Context) {
                         content = "$content\n$colorsContent"
                         modified = true
                     }
+                    if (!content.contains("command_not_found_handle")) {
+                        content = "$content\n$cmdNotFoundContent"
+                        modified = true
+                    }
                     if (modified) {
                         safeWriteFile(bashBashrc, content)
                     }
                 } else {
-                    safeWriteFile(bashBashrc, "$pathExportLine\n$colorsContent")
+                    safeWriteFile(bashBashrc, "$pathExportLine\n$colorsContent\n$cmdNotFoundContent")
                 }
                 bashBashrc.setReadable(true, false)
             } catch (e: Exception) {
@@ -687,8 +725,9 @@ class UbuntuRuntime(private val context: Context) {
     }
 
     /**
-     * Remove stale APT and dpkg lock files directly from filesystem
-     * to eliminate Exit code 100 on subsequent apt-get runs.
+     * Removes stale APT/dpkg lock files from both the host filesystem (direct File I/O)
+     * AND ensures the /var/lib/dpkg/updates directory is cleaned to prevent partial
+     * update state from corrupting subsequent installs.
      */
     fun cleanupAptLocks() {
         try {
@@ -696,13 +735,26 @@ class UbuntuRuntime(private val context: Context) {
                 File(rootfsDir, "var/lib/apt/lists/lock"),
                 File(rootfsDir, "var/cache/apt/archives/lock"),
                 File(rootfsDir, "var/lib/dpkg/lock"),
-                File(rootfsDir, "var/lib/dpkg/lock-frontend")
+                File(rootfsDir, "var/lib/dpkg/lock-frontend"),
+                File(rootfsDir, "var/cache/debconf/config.dat-lock"),
+                File(rootfsDir, "var/cache/debconf/templates.dat-lock")
             )
             lockFiles.forEach { file ->
-                if (file.exists()) {
-                    file.delete()
-                }
+                try {
+                    if (file.exists()) {
+                        file.delete()
+                    }
+                } catch (ignored: Exception) {}
             }
+            // Also clean partial dpkg updates that cause "dpkg interrupted" errors
+            try {
+                val updatesDir = File(rootfsDir, "var/lib/dpkg/updates")
+                if (updatesDir.exists() && updatesDir.isDirectory) {
+                    updatesDir.listFiles()?.forEach { f ->
+                        try { f.delete() } catch (ignored: Exception) {}
+                    }
+                }
+            } catch (ignored: Exception) {}
         } catch (ignored: Exception) {}
     }
 
@@ -922,9 +974,13 @@ class UbuntuRuntime(private val context: Context) {
     /**
      * Runs a command inside the Ubuntu environment and returns output.
      * Used for setup tasks and one-off commands.
+     * Includes timeout protection to prevent indefinite hangs.
      */
+    private val COMMAND_TIMEOUT_SECONDS = 600L  // 10 minutes
+
     suspend fun runCommand(
         command: String,
+        timeoutSeconds: Long = COMMAND_TIMEOUT_SECONDS,
         onOutputLine: ((String) -> Unit)? = null
     ): Pair<Int, String> = withContext(Dispatchers.IO) {
         try {
@@ -957,8 +1013,14 @@ class UbuntuRuntime(private val context: Context) {
                     onOutputLine?.invoke(segment)
                 }
             }
-            val exitCode = process.waitFor()
-            Pair(exitCode, fullOutput.toString())
+            val completed = process.waitFor(timeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)
+            if (!completed) {
+                Log.w(TAG, "Command timed out after ${timeoutSeconds}s: ${command.take(80)}")
+                process.destroyForcibly()
+                Pair(-2, fullOutput.toString() + "\n[MobileLinux] Command timed out after ${timeoutSeconds}s")
+            } else {
+                Pair(process.exitValue(), fullOutput.toString())
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Command failed: $command", e)
             Pair(-1, e.message ?: "Unknown error")
@@ -1129,12 +1191,18 @@ class UbuntuRuntime(private val context: Context) {
             condaInstallAlias.setExecutable(true, false)
             condaInstallAlias.setReadable(true, false)
 
-            // Clean up legacy fake Python CLI wrappers from /usr/local/bin
-            val legacyPythonWrappers = listOf("numpy", "pandas", "scipy", "sklearn", "scikit-learn", "torch", "pytorch", "matplotlib")
-            for (wrapperName in legacyPythonWrappers) {
+            val installJupyterFile = File(usrLocalBin, "install-jupyter")
+            safeWriteFile(installJupyterFile, getInstallJupyterScript())
+            installJupyterFile.setExecutable(true, false)
+            installJupyterFile.setReadable(true, false)
+
+            // Install Smart Python CLI Utilities in /usr/local/bin
+            for (cfg in pythonCliConfigs) {
                 try {
-                    val oldF = File(usrLocalBin, wrapperName)
-                    if (oldF.exists()) oldF.delete()
+                    val f = File(usrLocalBin, cfg.cmdName)
+                    safeWriteFile(f, getPythonCliWrapperScript(cfg))
+                    f.setExecutable(true, false)
+                    f.setReadable(true, false)
                 } catch (ignored: Exception) {}
             }
 
@@ -1161,15 +1229,8 @@ class UbuntuRuntime(private val context: Context) {
                     }
                 }
 
-                val toolsToLink = listOf("pkg-install-python", "pkg-uninstall-python", "conda-sync-packages", "conda-sync", "conda-manager")
+                val toolsToLink = listOf("pkg-install-python", "pkg-uninstall-python", "conda-sync-packages", "conda-sync", "conda-manager", "install-jupyter") + pythonCliConfigs.map { it.cmdName }
                 for (cBin in condaBins) {
-                    // Remove old fake wrapper links
-                    for (wrapperName in legacyPythonWrappers) {
-                        try {
-                            val oldLink = File(cBin, wrapperName)
-                            if (oldLink.exists()) oldLink.delete()
-                        } catch (ignored: Exception) {}
-                    }
                     for (tool in toolsToLink) {
                         val targetLink = File(cBin, tool)
                         safeWriteFile(targetLink, "#!/bin/sh\nexec /usr/local/bin/$tool \"\$@\"\n")
@@ -1686,9 +1747,18 @@ class UbuntuRuntime(private val context: Context) {
                 "define(['base/js/namespace'], function(Jupyter) { if (Jupyter) { Jupyter._target = '_self'; } });\n"
             )
 
-            // Conda always_copy mode
-            safeWriteFile(File(ubuntuHome, ".condarc"), "always_copy: true\n")
-            safeWriteFile(File(rootHome, ".condarc"), "always_copy: true\n")
+            // Conda always_copy mode — use FULL .condarc content (must match installBashEnvironments)
+            // BUG FIX: Previously this wrote only "always_copy: true" which overwrote the
+            // complete .condarc from installBashEnvironments(), breaking auto_activate_base.
+            val fullCondarcContent = "always_copy: true\nauto_activate_base: true\nnotify_outdated_conda: false\n"
+            val ubuntuCondarcFile = File(ubuntuHome, ".condarc")
+            if (!ubuntuCondarcFile.exists() || !ubuntuCondarcFile.readText().contains("auto_activate_base")) {
+                safeWriteFile(ubuntuCondarcFile, fullCondarcContent)
+            }
+            val rootCondarcFile = File(rootHome, ".condarc")
+            if (!rootCondarcFile.exists() || !rootCondarcFile.readText().contains("auto_activate_base")) {
+                safeWriteFile(rootCondarcFile, fullCondarcContent)
+            }
         } catch (e: Exception) {
             Log.w(TAG, "Notice: installJupyterAndNetlinkFixes: ${e.message}")
         }
@@ -1757,55 +1827,77 @@ class UbuntuRuntime(private val context: Context) {
         "    echo \"usage: sudo [-h] [-i | -s] [command]\"",
         "    exit 1",
         "fi",
-        "case \"\$1\" in",
-        "    su)",
-        "        shift",
-        "        export USER=root",
-        "        export LOGNAME=root",
-        "        export HOME=/root",
-        "        export LANG=C.UTF-8",
-        "        export LC_ALL=C.UTF-8",
-        "        if [ \"\$1\" = \"-\" ] || [ \"\$1\" = \"-l\" ] || [ \"\$1\" = \"--login\" ]; then",
+        "while [ \$# -gt 0 ]; do",
+        "    case \"\$1\" in",
+        "        su)",
+        "            shift",
+        "            export USER=root",
+        "            export LOGNAME=root",
+        "            export HOME=/root",
+        "            export LANG=C.UTF-8",
+        "            export LC_ALL=C.UTF-8",
+        "            if [ \"\$1\" = \"-\" ] || [ \"\$1\" = \"-l\" ] || [ \"\$1\" = \"--login\" ]; then",
+        "                cd /root",
+        "            fi",
+        "            exec /bin/bash --login -i",
+        "            ;;",
+        "        -i|--login|-s|--shell)",
+        "            shift",
         "            cd /root",
-        "        fi",
-        "        exec /bin/bash --login -i",
-        "        ;;",
-        "    -i|--login|-s|--shell)",
-        "        shift",
-        "        cd /root",
-        "        export USER=root",
-        "        export LOGNAME=root",
-        "        export HOME=/root",
-        "        export LANG=C.UTF-8",
-        "        export LC_ALL=C.UTF-8",
-        "        if [ \$# -gt 0 ]; then",
-        "            exec /bin/bash --login -c \"\$*\"",
-        "        else",
-        "            exec /bin/bash --login -i",
-        "        fi",
-        "        ;;",
-        "    bash|/bin/bash|/usr/bin/bash|sh|/bin/sh)",
-        "        shift",
-        "        export USER=root",
-        "        export LOGNAME=root",
-        "        export HOME=/root",
-        "        export LANG=C.UTF-8",
-        "        export LC_ALL=C.UTF-8",
-        "        if [ \$# -gt 0 ]; then",
-        "            exec /bin/bash \"\$@\"",
-        "        else",
-        "            exec /bin/bash --login -i",
-        "        fi",
-        "        ;;",
-        "    *)",
-        "        export USER=root",
-        "        export LOGNAME=root",
-        "        export HOME=/root",
-        "        export LANG=C.UTF-8",
-        "        export LC_ALL=C.UTF-8",
-        "        exec \"\$@\"",
-        "        ;;",
-        "esac\n"
+        "            export USER=root",
+        "            export LOGNAME=root",
+        "            export HOME=/root",
+        "            export LANG=C.UTF-8",
+        "            export LC_ALL=C.UTF-8",
+        "            if [ \$# -gt 0 ]; then",
+        "                exec /bin/bash --login -c \"\$*\"",
+        "            else",
+        "                exec /bin/bash --login -i",
+        "            fi",
+        "            ;;",
+        "        bash|/bin/bash|/usr/bin/bash|sh|/bin/sh)",
+        "            shift",
+        "            export USER=root",
+        "            export LOGNAME=root",
+        "            export HOME=/root",
+        "            export LANG=C.UTF-8",
+        "            export LC_ALL=C.UTF-8",
+        "            if [ \$# -gt 0 ]; then",
+        "                exec /bin/bash \"\$@\"",
+        "            else",
+        "                exec /bin/bash --login -i",
+        "            fi",
+        "            ;;",
+        "        -u|-g)",
+        "            shift 2",
+        "            ;;",
+        "        -o)",
+        "            OPT=\"\$2\"",
+        "            shift 2",
+        "            if [ \"\$1\" = \"apt-get\" ] || [ \"\$1\" = \"apt\" ] || [ \"\$1\" = \"dpkg\" ]; then",
+        "                CMD=\"\$1\"",
+        "                shift",
+        "                export USER=root",
+        "                export LOGNAME=root",
+        "                export HOME=/root",
+        "                export LANG=C.UTF-8",
+        "                export LC_ALL=C.UTF-8",
+        "                exec \"\$CMD\" -o \"\$OPT\" \"\$@\"",
+        "            fi",
+        "            ;;",
+        "        -E|-H|-n|-S|-k|-K|-v|-l|-b|--)",
+        "            shift",
+        "            ;;",
+        "        *)",
+        "            export USER=root",
+        "            export LOGNAME=root",
+        "            export HOME=/root",
+        "            export LANG=C.UTF-8",
+        "            export LC_ALL=C.UTF-8",
+        "            exec \"\$@\"",
+        "            ;;",
+        "    esac",
+        "done\n"
     ).joinToString("\n")
 
     private fun getSuScript(): String = listOf(
@@ -2290,30 +2382,46 @@ class UbuntuRuntime(private val context: Context) {
         "# MobileLinux Smart Multi-Environment Python Package Uninstaller & Fast Purger",
         "PIP_PKG=\"\$1\"",
         "APT_PKG=\"\$2\"",
+        "MODULE_NAME=\"\$3\"",
         "if [ -z \"\$PIP_PKG\" ]; then",
-        "    echo \"Usage: pkg-uninstall-python <pip_package_name> [apt_package_name]\"",
+        "    echo \"Usage: pkg-uninstall-python <pip_package_name> [apt_package_name] [module_name]\"",
         "    exit 1",
         "fi",
+        "# Auto-resolve Python import module name if not explicitly provided",
+        "if [ -z \"\$MODULE_NAME\" ]; then",
+        "    case \"\$PIP_PKG\" in",
+        "        opencv-python|opencv-contrib-python) MODULE_NAME=\"cv2\" ;;",
+        "        scikit-learn) MODULE_NAME=\"sklearn\" ;;",
+        "        Pillow) MODULE_NAME=\"PIL\" ;;",
+        "        beautifulsoup4) MODULE_NAME=\"bs4\" ;;",
+        "        PyYAML) MODULE_NAME=\"yaml\" ;;",
+        "        sherlock-project) MODULE_NAME=\"sherlock\" ;;",
+        "        *) MODULE_NAME=\"\${PIP_PKG//-/_}\" ;;",
+        "    esac",
+        "fi",
         "echo -e \"\\033[1;36m[MobileLinux]\\033[0m Purging \\033[1;31m\$PIP_PKG\\033[0m across all environments...\"",
-        "# 1. Clean APT locks and purge system package (fast target purge without slow autoremove)",
+        "# 1. Clean APT locks and purge ALL possible APT package names for this module",
         "sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true",
         "export DEBIAN_FRONTEND=noninteractive",
         "TARGETS=\"\"",
         "[ -n \"\$APT_PKG\" ] && TARGETS=\"\$TARGETS \$APT_PKG\"",
-        "TARGETS=\"\$TARGETS python3-\$PIP_PKG\"",
-        "echo -e \"\\033[1;34m[MobileLinux]\\033[0m Removing APT packages...\"",
-        "sudo -o DPkg::Lock::Timeout=10 apt-get purge -y \$TARGETS 2>&1 || true",
+        "TARGETS=\"\$TARGETS python3-\$PIP_PKG python-\$PIP_PKG\"",
+        "echo -e \"\\033[1;34m[MobileLinux]\\033[0m Removing APT packages (\$TARGETS)...\"",
+        "sudo apt-get -o DPkg::Lock::Timeout=10 purge -y \$TARGETS 2>&1 || true",
         "sudo apt-get clean 2>/dev/null || true",
-        "# 2. System Python (pip3 uninstall)",
+        "# 2. System Python (pip3 uninstall with multiple methods)",
         "echo -e \"\\033[1;34m[MobileLinux]\\033[0m Removing from system pip3...\"",
         "pip3 uninstall -y --break-system-packages \"\$PIP_PKG\" 2>&1 || true",
         "python3 -m pip uninstall -y --break-system-packages \"\$PIP_PKG\" 2>&1 || true",
-        "# 3. Purge user and system site-packages directly",
+        "# 3. Purge ALL Python site-packages directories directly (most reliable)",
         "echo -e \"\\033[1;34m[MobileLinux]\\033[0m Cleaning Python site-packages...\"",
-        "rm -rf /home/ubuntu/.local/lib/python*/site-packages/\${PIP_PKG}* 2>/dev/null || true",
-        "rm -rf /root/.local/lib/python*/site-packages/\${PIP_PKG}* 2>/dev/null || true",
-        "rm -rf /usr/local/lib/python*/dist-packages/\${PIP_PKG}* 2>/dev/null || true",
-        "rm -rf /usr/lib/python3/dist-packages/\${PIP_PKG}* 2>/dev/null || true",
+        "rm -rf /home/ubuntu/.local/lib/python*/site-packages/\${PIP_PKG}* /home/ubuntu/.local/lib/python*/site-packages/\${MODULE_NAME}* 2>/dev/null || true",
+        "rm -rf /root/.local/lib/python*/site-packages/\${PIP_PKG}* /root/.local/lib/python*/site-packages/\${MODULE_NAME}* 2>/dev/null || true",
+        "rm -rf /usr/local/lib/python*/dist-packages/\${PIP_PKG}* /usr/local/lib/python*/dist-packages/\${MODULE_NAME}* 2>/dev/null || true",
+        "rm -rf /usr/local/lib/python*/site-packages/\${PIP_PKG}* /usr/local/lib/python*/site-packages/\${MODULE_NAME}* 2>/dev/null || true",
+        "rm -rf /usr/lib/python3/dist-packages/\${PIP_PKG}* /usr/lib/python3/dist-packages/\${MODULE_NAME}* 2>/dev/null || true",
+        "rm -rf /usr/lib/python*/dist-packages/\${PIP_PKG}* /usr/lib/python*/dist-packages/\${MODULE_NAME}* 2>/dev/null || true",
+        "rm -rf /usr/lib/python*/site-packages/\${PIP_PKG}* /usr/lib/python*/site-packages/\${MODULE_NAME}* 2>/dev/null || true",
         "# 4. Conda base environments (Miniforge3 / Miniconda) - fast pip uninstall & site-packages purge",
         "echo -e \"\\033[1;34m[MobileLinux]\\033[0m Cleaning Conda environments...\"",
         "SEEN_DIRS=\" \"",
@@ -2323,7 +2431,7 @@ class UbuntuRuntime(private val context: Context) {
         "        if [ -x \"\$conda_base/bin/pip\" ]; then",
         "            \"\$conda_base/bin/pip\" uninstall -y \"\$PIP_PKG\" 2>/dev/null || true",
         "        fi",
-        "        rm -rf \"\$conda_base\"/lib/python*/site-packages/\${PIP_PKG}* 2>/dev/null || true",
+        "        rm -rf \"\$conda_base\"/lib/python*/site-packages/\${PIP_PKG}* \"\$conda_base\"/lib/python*/site-packages/\${MODULE_NAME}* 2>/dev/null || true",
         "        if [ -x \"\$conda_base/bin/conda\" ]; then",
         "            if \"\$conda_base/bin/conda\" list 2>/dev/null | grep -E -q \"^\${PIP_PKG}[[:space:]]\"; then",
         "                \"\$conda_base/bin/conda\" remove -y -q \"\$PIP_PKG\" 2>/dev/null || true",
@@ -2339,7 +2447,7 @@ class UbuntuRuntime(private val context: Context) {
         "            if [ -x \"\$env_dir/bin/pip\" ]; then",
         "                \"\$env_dir/bin/pip\" uninstall -y \"\$PIP_PKG\" 2>/dev/null || true",
         "            fi",
-        "            rm -rf \"\$env_dir\"/lib/python*/site-packages/\${PIP_PKG}* 2>/dev/null || true",
+        "            rm -rf \"\$env_dir\"/lib/python*/site-packages/\${PIP_PKG}* \"\$env_dir\"/lib/python*/site-packages/\${MODULE_NAME}* 2>/dev/null || true",
         "        fi",
         "    fi",
         "done",
@@ -2348,31 +2456,50 @@ class UbuntuRuntime(private val context: Context) {
         "    if [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then",
         "        \"\$CONDA_PREFIX/bin/pip\" uninstall -y \"\$PIP_PKG\" 2>/dev/null || true",
         "    fi",
-        "    rm -rf \"\$CONDA_PREFIX\"/lib/python*/site-packages/\${PIP_PKG}* 2>/dev/null || true",
+        "    rm -rf \"\$CONDA_PREFIX\"/lib/python*/site-packages/\${PIP_PKG}* \"\$CONDA_PREFIX\"/lib/python*/site-packages/\${MODULE_NAME}* 2>/dev/null || true",
         "fi",
-        "# 7. Python introspection force wipe (removes any rogue leftovers that Python can still see)",
-        "for py in python3 /home/ubuntu/miniforge3/bin/python /root/miniconda3/bin/python \"\$CONDA_PREFIX/bin/python\"; do",
-        "    if [ -x \"\$py\" ]; then",
-        "        LOC=\"\$(\"\$py\" -c \"import \$PIP_PKG; import os; print(os.path.dirname(getattr(\$PIP_PKG, '__file__', '')))\" 2>/dev/null)\"",
-        "        if [ -n \"\$LOC\" ] && [ -d \"\$LOC\" ]; then",
-        "            rm -rf \"\$LOC\" \"\${LOC}.dist-info\" \"\${LOC}.egg-info\" \"\${LOC}\"-*.dist-info 2>/dev/null || true",
-        "        fi",
-        "        FILE_LOC=\"\$(\"\$py\" -c \"import \$PIP_PKG; print(getattr(\$PIP_PKG, '__file__', ''))\" 2>/dev/null)\"",
-        "        if [ -n \"\$FILE_LOC\" ] && [ -f \"\$FILE_LOC\" ]; then",
-        "            rm -f \"\$FILE_LOC\" 2>/dev/null || true",
-        "        fi",
+        "# 7. Python introspection force wipe — ask Python itself where it finds the module, then delete it",
+        "for py in python3 /home/ubuntu/miniforge3/bin/python /root/miniconda3/bin/python; do",
+        "    [ -x \"\$py\" ] || continue",
+        "    LOC=\"\$(\"\$py\" -c \"import \$MODULE_NAME; import os; print(os.path.dirname(getattr(\$MODULE_NAME, '__file__', '')))\" 2>/dev/null)\"",
+        "    if [ -n \"\$LOC\" ] && [ -d \"\$LOC\" ]; then",
+        "        rm -rf \"\$LOC\" \"\${LOC}.dist-info\" \"\${LOC}.egg-info\" \"\${LOC}\"-*.dist-info 2>/dev/null || true",
+        "        PARENT=\"\$(dirname \"\$LOC\")\"",
+        "        rm -rf \"\$PARENT/\${PIP_PKG}\"* \"\$PARENT/\${MODULE_NAME}\"* \"\$PARENT/\${PIP_PKG}-\"*.dist-info 2>/dev/null || true",
+        "    fi",
+        "    FILE_LOC=\"\$(\"\$py\" -c \"import \$MODULE_NAME; print(getattr(\$MODULE_NAME, '__file__', ''))\" 2>/dev/null)\"",
+        "    if [ -n \"\$FILE_LOC\" ] && [ -f \"\$FILE_LOC\" ]; then",
+        "        rm -f \"\$FILE_LOC\" 2>/dev/null || true",
         "    fi",
         "done",
         "# 8. Remove legacy wrappers or binary symlinks",
-        "rm -f /usr/local/bin/\"\$PIP_PKG\" /usr/local/bin/\"\${PIP_PKG}3\" /usr/bin/\"\$PIP_PKG\" 2>/dev/null || true",
-        "rm -f /home/ubuntu/.local/bin/\"\$PIP_PKG\" /root/.local/bin/\"\$PIP_PKG\" 2>/dev/null || true",
+        "rm -f \"/usr/local/bin/\$PIP_PKG\" \"/usr/local/bin/\${PIP_PKG}3\" \"/usr/local/bin/\$MODULE_NAME\" \"/usr/bin/\$PIP_PKG\" \"/usr/bin/\$MODULE_NAME\" 2>/dev/null || true",
+        "rm -f \"/home/ubuntu/.local/bin/\$PIP_PKG\" \"/home/ubuntu/.local/bin/\$MODULE_NAME\" \"/root/.local/bin/\$PIP_PKG\" \"/root/.local/bin/\$MODULE_NAME\" 2>/dev/null || true",
         "for cb in /home/ubuntu/miniforge3/bin /root/miniconda3/bin /home/ubuntu/miniforge3/envs/*/bin /root/miniconda3/envs/*/bin; do",
-        "    rm -f \"\$cb/\$PIP_PKG\" \"\$cb/\${PIP_PKG}3\" 2>/dev/null || true",
+        "    rm -f \"\$cb/\$PIP_PKG\" \"\$cb/\${PIP_PKG}3\" \"\$cb/\$MODULE_NAME\" 2>/dev/null || true",
         "done",
-        "# 9. Clear cache",
-        "find /home/ubuntu/.cache /root/.cache -name \"*\${PIP_PKG}*\" -exec rm -rf {} + 2>/dev/null || true",
-        "echo -e \"\\033[1;32m[MobileLinux]\\033[0m ✓ \$PIP_PKG permanently uninstalled and purged from all environments!\\n\"",
-        "exit 0\n"
+        "# 9. Clear pip/package caches",
+        "find /home/ubuntu/.cache /root/.cache /tmp -name \"*\${PIP_PKG}*\" -o -name \"*\${MODULE_NAME}*\" -exec rm -rf {} + 2>/dev/null || true",
+        "# 10. STRICT post-removal verification — exit 1 if package is STILL importable by any Python",
+        "echo -e \"\\033[1;34m[MobileLinux]\\033[0m Verifying removal...\"",
+        "STILL_INSTALLED=0",
+        "if python3 -c \"import \$MODULE_NAME\" >/dev/null 2>&1; then",
+        "    STILL_INSTALLED=1",
+        "    echo -e \"\\033[1;33m[MobileLinux]\\033[0m Still importable via system python3\"",
+        "elif [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c \"import \$MODULE_NAME\" >/dev/null 2>&1; then",
+        "    STILL_INSTALLED=1",
+        "    echo -e \"\\033[1;33m[MobileLinux]\\033[0m Still importable via Miniforge3 python\"",
+        "elif [ -x /root/miniconda3/bin/python ] && /root/miniconda3/bin/python -c \"import \$MODULE_NAME\" >/dev/null 2>&1; then",
+        "    STILL_INSTALLED=1",
+        "    echo -e \"\\033[1;33m[MobileLinux]\\033[0m Still importable via Miniconda3 python\"",
+        "fi",
+        "if [ \$STILL_INSTALLED -eq 0 ]; then",
+        "    echo -e \"\\033[1;32m[MobileLinux]\\033[0m ✓ \$PIP_PKG permanently uninstalled and purged from all environments!\\n\"",
+        "    exit 0",
+        "else",
+        "    echo -e \"\\033[1;31m[MobileLinux]\\033[0m ✗ \$PIP_PKG could not be fully removed — still importable. Package may be system-protected.\\n\"",
+        "    exit 1",
+        "fi\n"
     ).joinToString("\n")
 
     private fun getPkgInstallPythonScript(): String = listOf(
@@ -2390,13 +2517,13 @@ class UbuntuRuntime(private val context: Context) {
         "if [ -n \"\$APT_PKG\" ]; then",
         "    echo -e \"\\033[1;34m[MobileLinux]\\033[0m Checking APT package \$APT_PKG...\"",
         "    export DEBIAN_FRONTEND=noninteractive",
-        "    if sudo -o DPkg::Lock::Timeout=10 apt-get install -y --no-install-recommends \"\$APT_PKG\" 2>&1; then",
+        "    if sudo apt-get -o DPkg::Lock::Timeout=10 install -y --no-install-recommends \"\$APT_PKG\" 2>&1; then",
         "        INSTALLED_ANY=1",
         "        echo -e \"\\033[1;32m[MobileLinux]\\033[0m Installed via APT: \$APT_PKG\"",
         "    else",
         "        echo -e \"\\033[1;33m[MobileLinux]\\033[0m Updating package lists and retrying APT install...\"",
-        "        sudo -o DPkg::Lock::Timeout=10 apt-get update 2>&1 || true",
-        "        if sudo -o DPkg::Lock::Timeout=10 apt-get install -y --no-install-recommends \"\$APT_PKG\" 2>&1; then",
+        "        sudo apt-get -o DPkg::Lock::Timeout=10 update 2>&1 || true",
+        "        if sudo apt-get -o DPkg::Lock::Timeout=10 install -y --no-install-recommends \"\$APT_PKG\" 2>&1; then",
         "            INSTALLED_ANY=1",
         "            echo -e \"\\033[1;32m[MobileLinux]\\033[0m Installed via APT: \$APT_PKG\"",
         "        fi",
@@ -2407,7 +2534,7 @@ class UbuntuRuntime(private val context: Context) {
         "    echo -e \"\\033[1;34m[MobileLinux]\\033[0m Installing \$PIP_PKG via pip3...\"",
         "    if ! command -v pip3 >/dev/null 2>&1; then",
         "        echo -e \"\\033[1;33m[MobileLinux]\\033[0m Setting up pip3...\"",
-        "        sudo -o DPkg::Lock::Timeout=10 apt-get install -y python3-pip 2>&1 || true",
+        "        sudo apt-get -o DPkg::Lock::Timeout=10 install -y python3-pip 2>&1 || true",
         "    fi",
         "    if command -v pip3 >/dev/null 2>&1; then",
         "        if pip3 install --break-system-packages --prefer-binary --no-cache-dir --default-timeout=30 \"\$PIP_PKG\" 2>&1; then",
@@ -2465,6 +2592,65 @@ class UbuntuRuntime(private val context: Context) {
         "    VERIFIED=1",
         "fi",
         "if [ \$VERIFIED -eq 1 ]; then",
+        "    if [ ! -x \"/usr/local/bin/\$PIP_PKG\" ] && [ ! -x \"/usr/bin/\$PIP_PKG\" ]; then",
+        "        MOD_NAME=\"\${PIP_PKG//-/_}\"",
+        "        cat << 'EOF' > \"/usr/local/bin/\$PIP_PKG\"",
+        "#!/bin/bash",
+        "PY=\"\"",
+        "if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/python\" ]; then",
+        "    PY=\"\$CONDA_PREFIX/bin/python\"",
+        "elif [ -x /home/ubuntu/miniforge3/bin/python ]; then",
+        "    PY=\"/home/ubuntu/miniforge3/bin/python\"",
+        "elif [ -x /root/miniconda3/bin/python ]; then",
+        "    PY=\"/root/miniconda3/bin/python\"",
+        "elif command -v python3 >/dev/null 2>&1; then",
+        "    PY=\"\$(command -v python3)\"",
+        "fi",
+        "is_installed() {",
+        "    [ -n \"\$PY\" ] && \"\$PY\" -c \"import MOD_NAME_TAG\" >/dev/null 2>&1",
+        "}",
+        "get_version() {",
+        "    [ -n \"\$PY\" ] && \"\$PY\" -c \"import MOD_NAME_TAG as _m; print(getattr(_m, '__version__', 'installed'))\" 2>/dev/null",
+        "}",
+        "case \"\$1\" in",
+        "    -v|--version|version)",
+        "        if is_installed; then",
+        "            echo \"PKG_NAME_TAG \$(get_version)\"",
+        "            exit 0",
+        "        else",
+        "            echo -e \"\\033[1;31m[MobileLinux]\\033[0m PKG_NAME_TAG is not installed in active Python (\$PY).\"",
+        "            exit 1",
+        "        fi",
+        "        ;;",
+        "    -c)",
+        "        shift",
+        "        if is_installed; then",
+        "            exec \"\$PY\" -c \"import MOD_NAME_TAG; \$*\"",
+        "        else",
+        "            echo -e \"\\033[1;31m[MobileLinux]\\033[0m PKG_NAME_TAG is not installed in active Python (\$PY).\"",
+        "            exit 1",
+        "        fi",
+        "        ;;",
+        "    *)",
+        "        if is_installed; then",
+        "            VER=\"\$(get_version)\"",
+        "            echo -e \"\\033[1;36m┌─[MobileLinux]─[PKG_NAME_TAG]\\033[0m\"",
+        "            echo -e \"\\033[1;36m│\\033[0m Version:       \$VER\"",
+        "            echo -e \"\\033[1;36m│\\033[0m Active Python: \$PY\"",
+        "            echo -e \"\\033[1;36m│\\033[0m Starting Python interactive shell with MOD_NAME_TAG imported...\"",
+        "            echo -e \"\\033[1;36m└──────────────────────────────────────────────\\033[0m\"",
+        "            exec \"\$PY\" -i -c \"import MOD_NAME_TAG; print('>>> PKG_NAME_TAG '\$VER' imported. Type exit() to quit.')\"",
+        "        else",
+        "            echo -e \"\\033[1;31m[MobileLinux]\\033[0m PKG_NAME_TAG is not installed in active Python (\$PY).\"",
+        "            exit 1",
+        "        fi",
+        "        ;;",
+        "esac",
+        "EOF",
+        "        sed -i \"s/MOD_NAME_TAG/\$MOD_NAME/g\" \"/usr/local/bin/\$PIP_PKG\" 2>/dev/null || true",
+        "        sed -i \"s/PKG_NAME_TAG/\$PIP_PKG/g\" \"/usr/local/bin/\$PIP_PKG\" 2>/dev/null || true",
+        "        chmod 755 \"/usr/local/bin/\$PIP_PKG\" 2>/dev/null || true",
+        "    fi",
         "    echo -e \"\\033[1;32m[MobileLinux]\\033[0m ✓ \$PIP_PKG installation complete and verified!\\n\"",
         "    exit 0",
         "else",
@@ -2515,7 +2701,7 @@ class UbuntuRuntime(private val context: Context) {
     private fun getInstallCondaScript(): String = listOf(
         "#!/bin/bash",
         "# MobileLinux Automated Miniforge3 / Conda Installer & Configurator",
-        "set -e",
+        "# NOTE: Do NOT use 'set -e' — proot/mobile has transient errors that should not abort installation",
         "",
         "INSTALL_DIR=\"/home/ubuntu/miniforge3\"",
         "CONDA_BIN=\"\$INSTALL_DIR/bin/conda\"",
@@ -2620,6 +2806,148 @@ class UbuntuRuntime(private val context: Context) {
         "fi",
         "",
         "echo -e \"\\033[1;32m[MobileLinux]\\033[0m ✓ Miniforge3 / Conda successfully installed and activated!\\n\"\n"
+    ).joinToString("\n")
+
+    private fun getInstallJupyterScript(): String = listOf(
+        "#!/bin/bash",
+        "# MobileLinux Automated JupyterLab & Notebook Installer",
+        "echo -e \"\\033[1;36m[MobileLinux]\\033[0m Installing JupyterLab & Notebook...\"",
+        "sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* /var/lib/dpkg/updates/* /var/cache/debconf/*.lock 2>/dev/null || true",
+        "export DEBIAN_FRONTEND=noninteractive",
+        "if ! command -v pip3 >/dev/null 2>&1; then",
+        "    echo -e \"\\033[1;34m[MobileLinux]\\033[0m Installing Python PIP...\"",
+        "    sudo apt-get -o DPkg::Lock::Timeout=30 update -y 2>&1 || true",
+        "    sudo apt-get -o DPkg::Lock::Timeout=30 install -y --no-install-recommends python3-pip python3-dev 2>&1 || true",
+        "fi",
+        "if [ -x /home/ubuntu/miniforge3/bin/pip ]; then",
+        "    echo -e \"\\033[1;34m[MobileLinux]\\033[0m Installing in Miniforge3 environment...\"",
+        "    /home/ubuntu/miniforge3/bin/pip install --prefer-binary --no-cache-dir jupyterlab notebook 2>&1 || true",
+        "fi",
+        "if [ -x /root/miniconda3/bin/pip ]; then",
+        "    /root/miniconda3/bin/pip install --prefer-binary --no-cache-dir jupyterlab notebook 2>&1 || true",
+        "fi",
+        "echo -e \"\\033[1;34m[MobileLinux]\\033[0m Installing in system Python...\"",
+        "pip3 install --break-system-packages --prefer-binary --no-cache-dir jupyterlab notebook 2>&1",
+        "PIP_EXIT=\$?",
+        "if command -v jupyter >/dev/null 2>&1 || [ -x /home/ubuntu/miniforge3/bin/jupyter ] || [ -x /root/miniconda3/bin/jupyter ] || [ -x /home/ubuntu/.local/bin/jupyter ] || [ \$PIP_EXIT -eq 0 ]; then",
+        "    echo -e \"\\033[1;32m[MobileLinux]\\033[0m ✓ JupyterLab & Notebook installed successfully!\"",
+        "    exit 0",
+        "else",
+        "    echo -e \"\\033[1;31m[MobileLinux]\\033[0m ✗ Jupyter installation failed.\"",
+        "    exit \$PIP_EXIT",
+        "fi\n"
+    ).joinToString("\n")
+
+    data class PythonCliConfig(
+        val cmdName: String,
+        val displayName: String,
+        val importModule: String,
+        val moduleAlias: String,
+        val pipName: String
+    )
+
+    private val pythonCliConfigs = listOf(
+        PythonCliConfig("numpy", "NumPy", "numpy", "np", "numpy"),
+        PythonCliConfig("pandas", "Pandas", "pandas", "pd", "pandas"),
+        PythonCliConfig("scipy", "SciPy", "scipy", "sp", "scipy"),
+        PythonCliConfig("sklearn", "Scikit-Learn", "sklearn", "sklearn", "scikit-learn"),
+        PythonCliConfig("scikit-learn", "Scikit-Learn", "sklearn", "sklearn", "scikit-learn"),
+        PythonCliConfig("torch", "PyTorch", "torch", "torch", "torch"),
+        PythonCliConfig("pytorch", "PyTorch", "torch", "torch", "torch"),
+        PythonCliConfig("matplotlib", "Matplotlib", "matplotlib", "plt", "matplotlib"),
+        PythonCliConfig("seaborn", "Seaborn", "seaborn", "sns", "seaborn"),
+        PythonCliConfig("polars", "Polars", "polars", "pl", "polars"),
+        PythonCliConfig("sympy", "SymPy", "sympy", "sp", "sympy")
+    )
+
+    private fun getPythonCliWrapperScript(cfg: PythonCliConfig): String = listOf(
+        "#!/bin/bash",
+        "# MobileLinux Smart Python CLI Utility for ${cfg.displayName}",
+        "PY=\"\"",
+        "if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/python\" ]; then",
+        "    PY=\"\$CONDA_PREFIX/bin/python\"",
+        "elif [ -x /home/ubuntu/miniforge3/bin/python ]; then",
+        "    PY=\"/home/ubuntu/miniforge3/bin/python\"",
+        "elif [ -x /root/miniconda3/bin/python ]; then",
+        "    PY=\"/root/miniconda3/bin/python\"",
+        "elif command -v python3 >/dev/null 2>&1; then",
+        "    PY=\"\$(command -v python3)\"",
+        "fi",
+        "",
+        "is_installed() {",
+        "    [ -n \"\$PY\" ] && \"\$PY\" -c \"import ${cfg.importModule}\" >/dev/null 2>&1",
+        "}",
+        "",
+        "get_version() {",
+        "    [ -n \"\$PY\" ] && \"\$PY\" -c \"import ${cfg.importModule} as _m; print(getattr(_m, '__version__', 'installed'))\" 2>/dev/null",
+        "}",
+        "",
+        "case \"\$1\" in",
+        "    -v|--version|version)",
+        "        if is_installed; then",
+        "            VER=\"\$(get_version)\"",
+        "            echo \"${cfg.displayName} \$VER\"",
+        "            exit 0",
+        "        else",
+        "            echo -e \"\\033[1;31m[MobileLinux]\\033[0m ${cfg.displayName} is not installed in active Python (\$PY).\"",
+        "            echo -e \"Install it from 'Libraries & Packages' or run: \\033[1;33mpip3 install ${cfg.pipName}\\033[0m\"",
+        "            exit 1",
+        "        fi",
+        "        ;;",
+        "    -h|--help|help)",
+        "        echo \"${cfg.displayName} CLI Utility (${cfg.cmdName})\"",
+        "        echo \"Usage: ${cfg.cmdName} [OPTIONS]\"",
+        "        echo \"  -v, --version    Show installed ${cfg.displayName} version\"",
+        "        echo \"  -i, --info       Show package location, Python path, and environment\"",
+        "        echo \"  -c '<code>'      Execute Python code with ${cfg.displayName} pre-imported as ${cfg.moduleAlias}\"",
+        "        echo \"  -h, --help       Show this help message\"",
+        "        echo \"  (no args)        Show status and launch interactive Python with ${cfg.displayName} imported\"",
+        "        exit 0",
+        "        ;;",
+        "    -c)",
+        "        shift",
+        "        if is_installed; then",
+        "            exec \"\$PY\" -c \"import ${cfg.importModule} as ${cfg.moduleAlias}; \$*\"",
+        "        else",
+        "            echo -e \"\\033[1;31m[MobileLinux]\\033[0m ${cfg.displayName} is not installed in active Python (\$PY).\"",
+        "            exit 1",
+        "        fi",
+        "        ;;",
+        "    -i|--info|info)",
+        "        if is_installed; then",
+        "            VER=\"\$(get_version)\"",
+        "            LOC=\"\$(\"\$PY\" -c \"import ${cfg.importModule} as _m; print(getattr(_m, '__file__', ''))\" 2>/dev/null)\"",
+        "            echo -e \"\\033[1;36m┌─[MobileLinux]─[${cfg.displayName}]\\033[0m\"",
+        "            echo -e \"\\033[1;36m│\\033[0m \\033[1;32mVersion:\\033[0m       \$VER\"",
+        "            echo -e \"\\033[1;36m│\\033[0m \\033[1;34mLocation:\\033[0m      \$LOC\"",
+        "            echo -e \"\\033[1;36m│\\033[0m \\033[1;34mActive Python:\\033[0m \$PY\"",
+        "            [ -n \"\$CONDA_DEFAULT_ENV\" ] && echo -e \"\\033[1;36m│\\033[0m \\033[1;33mConda Env:\\033[0m     \$CONDA_DEFAULT_ENV\"",
+        "            echo -e \"\\033[1;36m│\\033[0m Python usage:\"",
+        "            echo -e \"\\033[1;36m│\\033[0m   python3 -c 'import ${cfg.importModule} as ${cfg.moduleAlias}'\"",
+        "            echo -e \"\\033[1;36m└──────────────────────────────────────────────\\033[0m\"",
+        "            exit 0",
+        "        else",
+        "            echo -e \"\\033[1;31m[MobileLinux]\\033[0m ${cfg.displayName} is not installed in active Python (\$PY).\"",
+        "            exit 1",
+        "        fi",
+        "        ;;",
+        "    *)",
+        "        if is_installed; then",
+        "            VER=\"\$(get_version)\"",
+        "            echo -e \"\\033[1;36m┌─[MobileLinux]─[${cfg.displayName}]\\033[0m\"",
+        "            echo -e \"\\033[1;36m│\\033[0m \\033[1;32mVersion:\\033[0m       \$VER\"",
+        "            echo -e \"\\033[1;36m│\\033[0m \\033[1;34mActive Python:\\033[0m \$PY\"",
+        "            [ -n \"\$CONDA_DEFAULT_ENV\" ] && echo -e \"\\033[1;36m│\\033[0m \\033[1;33mConda Env:\\033[0m     \$CONDA_DEFAULT_ENV\"",
+        "            echo -e \"\\033[1;36m│\\033[0m Starting Python interactive shell with ${cfg.displayName} imported...\"",
+        "            echo -e \"\\033[1;36m└──────────────────────────────────────────────\\033[0m\"",
+        "            exec \"\$PY\" -i -c \"import ${cfg.importModule} as ${cfg.moduleAlias}; print('>>> ${cfg.displayName} '\$VER' imported as \'${cfg.moduleAlias}\'. Type exit() to quit.')\"",
+        "        else",
+        "            echo -e \"\\033[1;31m[MobileLinux]\\033[0m ${cfg.displayName} is not installed in active Python (\$PY).\"",
+        "            echo -e \"Install it from 'Libraries & Packages' or run: \\033[1;33mpip3 install ${cfg.pipName}\\033[0m\"",
+        "            exit 1",
+        "        fi",
+        "        ;;",
+        "esac\n"
     ).joinToString("\n")
 
     private fun getMobileLinuxRmPyScript(): String = listOf(
@@ -2759,7 +3087,8 @@ class UbuntuRuntime(private val context: Context) {
     ).joinToString("\n")
 
     @Volatile
-    private var isInstallingTools = false
+    var isInstallingTools = false
+        private set
 
     private fun installEssentialToolsInBackground() {
         val marker = File(rootfsDir, "etc/mobilelinux/.tools_installed")

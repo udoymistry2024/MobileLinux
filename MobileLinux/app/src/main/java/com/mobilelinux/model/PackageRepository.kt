@@ -104,9 +104,9 @@ object PackageRepository {
                 return "echo '[MobileLinux] Purging JupyterLab...'; " +
                         "pip3 uninstall -y --break-system-packages jupyterlab notebook jupyter-core 2>&1 || true; " +
                         "/home/ubuntu/miniforge3/bin/pip uninstall -y jupyterlab notebook jupyter-core 2>&1 || true; " +
-                        "sudo -o DPkg::Lock::Timeout=10 apt-get purge -y jupyter jupyter-core 2>&1 || true; " +
-                        "rm -f /usr/local/bin/jupyter* /home/ubuntu/.local/bin/jupyter* 2>/dev/null || true; " +
-                        "echo '[MobileLinux] JupyterLab successfully uninstalled!'"
+                        "sudo apt-get -o DPkg::Lock::Timeout=10 purge -y jupyter jupyter-core 2>&1 || true; " +
+                        "rm -f /usr/local/bin/jupyter /usr/local/bin/jupyter-lab /usr/local/bin/jupyter-notebook /home/ubuntu/.local/bin/jupyter* 2>/dev/null || true; " +
+                        "if command -v jupyter >/dev/null 2>&1; then echo '[MobileLinux] ✗ jupyter binary still found'; exit 1; else echo '[MobileLinux] ✓ JupyterLab successfully uninstalled!'; exit 0; fi"
             }
             "antigravity-cli" -> {
                 return "echo '[MobileLinux] Removing Antigravity CLI...'; " +
@@ -130,7 +130,7 @@ object PackageRepository {
             }
             "google-cloud-sdk" -> {
                 return "echo '[MobileLinux] Removing Google Cloud SDK...'; " +
-                        "sudo -o DPkg::Lock::Timeout=10 apt-get purge -y google-cloud-cli 2>&1 || true; " +
+                        "sudo apt-get -o DPkg::Lock::Timeout=10 purge -y google-cloud-cli 2>&1 || true; " +
                         "rm -rf /home/ubuntu/google-cloud-sdk /root/google-cloud-sdk 2>/dev/null || true; " +
                         "rm -f /etc/apt/sources.list.d/google-cloud-sdk.list /usr/local/bin/gcloud /usr/bin/gcloud 2>/dev/null || true; " +
                         "echo '[MobileLinux] Google Cloud SDK uninstalled!'"
@@ -164,9 +164,38 @@ object PackageRepository {
             }
             "nuclei" -> {
                 return "echo '[MobileLinux] Removing Nuclei...'; " +
-                        "sudo -o DPkg::Lock::Timeout=10 apt-get purge -y nuclei 2>&1 || true; " +
+                        "sudo apt-get -o DPkg::Lock::Timeout=10 purge -y nuclei 2>&1 || true; " +
                         "rm -f /home/ubuntu/go/bin/nuclei /root/go/bin/nuclei /usr/local/bin/nuclei /usr/bin/nuclei 2>/dev/null || true; " +
                         "echo '[MobileLinux] Nuclei uninstalled!'"
+            }
+            "bun" -> {
+                return "echo '[MobileLinux] Removing Bun...'; " +
+                        "rm -rf /home/ubuntu/.bun /root/.bun 2>/dev/null || true; " +
+                        "rm -f /usr/local/bin/bun /usr/bin/bun /home/ubuntu/.local/bin/bun /root/.local/bin/bun 2>/dev/null || true; " +
+                        "if which bun >/dev/null 2>&1 || [ -x /home/ubuntu/.bun/bin/bun ] || [ -x /root/.bun/bin/bun ]; then exit 1; else echo '[MobileLinux] Bun successfully removed!'; exit 0; fi"
+            }
+            "rust", "cargo" -> {
+                return "echo '[MobileLinux] Removing Rust & Cargo...'; " +
+                        "rm -rf /home/ubuntu/.cargo /home/ubuntu/.rustup /root/.cargo /root/.rustup 2>/dev/null || true; " +
+                        "sudo apt-get -o DPkg::Lock::Timeout=10 purge -y rustc cargo 2>&1 || true; " +
+                        "rm -f /usr/local/bin/rustc /usr/local/bin/cargo /usr/bin/rustc /usr/bin/cargo /home/ubuntu/.cargo/bin/rustc /home/ubuntu/.cargo/bin/cargo 2>/dev/null || true; " +
+                        "echo '[MobileLinux] Rust & Cargo uninstalled!'"
+            }
+            "surrealdb" -> {
+                return "echo '[MobileLinux] Removing SurrealDB...'; " +
+                        "rm -rf /home/ubuntu/.surrealdb /root/.surrealdb 2>/dev/null || true; " +
+                        "rm -f /usr/local/bin/surreal /usr/bin/surreal /home/ubuntu/.local/bin/surreal 2>/dev/null || true; " +
+                        "if (${pkg.checkInstalledCommand}) >/dev/null 2>&1; then exit 1; else echo '[MobileLinux] SurrealDB successfully removed!'; exit 0; fi"
+            }
+            "meilisearch" -> {
+                return "echo '[MobileLinux] Removing Meilisearch...'; " +
+                        "rm -f /usr/local/bin/meilisearch /usr/bin/meilisearch /home/ubuntu/.local/bin/meilisearch 2>/dev/null || true; " +
+                        "if (${pkg.checkInstalledCommand}) >/dev/null 2>&1; then exit 1; else echo '[MobileLinux] Meilisearch successfully removed!'; exit 0; fi"
+            }
+            "cockroachdb" -> {
+                return "echo '[MobileLinux] Removing CockroachDB...'; " +
+                        "rm -f /usr/local/bin/cockroach /usr/bin/cockroach /home/ubuntu/.local/bin/cockroach 2>/dev/null || true; " +
+                        "if (${pkg.checkInstalledCommand}) >/dev/null 2>&1; then exit 1; else echo '[MobileLinux] CockroachDB successfully removed!'; exit 0; fi"
             }
         }
 
@@ -176,41 +205,89 @@ object PackageRepository {
             val cleanArgs = raw.substringBefore(";").substringBefore("||").substringBefore("&&").trim().split(Regex("\\s+"))
             val pipName = cleanArgs.getOrNull(0) ?: pkg.id
             val aptName = cleanArgs.getOrNull(1) ?: "python3-$pipName"
-            return "if [ -x /usr/local/bin/pkg-uninstall-python ]; then /usr/local/bin/pkg-uninstall-python $pipName $aptName; else " +
+            val moduleName = if (pkg.checkInstalledCommand.contains("import ")) {
+                Regex("""import\s+([a-zA-Z0-9_]+)""").find(pkg.checkInstalledCommand)?.groupValues?.getOrNull(1) ?: pipName.replace('-', '_')
+            } else {
+                pipName.replace('-', '_')
+            }
+            return "if [ -x /usr/local/bin/pkg-uninstall-python ]; then /usr/local/bin/pkg-uninstall-python $pipName $aptName $moduleName; else " +
                     "echo '[MobileLinux] Purging $pipName...'; " +
-                    "sudo -o DPkg::Lock::Timeout=10 apt-get purge -y $aptName python3-$pipName 2>&1 || true; " +
+                    "sudo apt-get -o DPkg::Lock::Timeout=10 purge -y $aptName python3-$pipName 2>&1 || true; " +
                     "pip3 uninstall -y --break-system-packages $pipName 2>&1 || true; " +
                     "/home/ubuntu/miniforge3/bin/pip uninstall -y $pipName 2>&1 || true; " +
-                    "rm -rf /home/ubuntu/.local/lib/python*/site-packages/$pipName* /home/ubuntu/miniforge3/lib/python*/site-packages/$pipName* 2>/dev/null || true; " +
-                    "rm -f /usr/local/bin/$pipName /usr/bin/$pipName /home/ubuntu/miniforge3/bin/$pipName 2>/dev/null || true; " +
-                    "echo '[MobileLinux] Successfully uninstalled $pipName!'; fi"
+                    "rm -rf /home/ubuntu/.local/lib/python*/site-packages/$pipName* /home/ubuntu/.local/lib/python*/site-packages/$moduleName* /home/ubuntu/miniforge3/lib/python*/site-packages/$pipName* /home/ubuntu/miniforge3/lib/python*/site-packages/$moduleName* 2>/dev/null || true; " +
+                    "rm -f /usr/local/bin/$pipName /usr/bin/$pipName /home/ubuntu/miniforge3/bin/$pipName /home/ubuntu/.local/bin/$pipName 2>/dev/null || true; " +
+                    "if (${pkg.checkInstalledCommand}) >/dev/null 2>&1; then echo '[MobileLinux] ✗ $pipName still found'; exit 1; else echo '[MobileLinux] ✓ Successfully uninstalled $pipName!'; exit 0; fi; fi"
         }
 
         // 4. Standard APT packages
-        if (pkg.installCommand.contains("apt-get install -y")) {
-            val raw = pkg.installCommand.substringAfter("apt-get install -y").trim()
-            val cleanApt = raw.substringBefore(" ").substringBefore("||").substringBefore("&&").substringBefore(";").trim()
-            val targetPkg = if (cleanApt.isNotBlank()) cleanApt else pkg.id
-            return "echo '[MobileLinux] Purging package $targetPkg...'; " +
-                    "sudo -o DPkg::Lock::Timeout=10 apt-get purge -y $targetPkg 2>&1 || true; " +
+        if (pkg.installCommand.contains("apt-get install -y") || pkg.installCommand.contains("apt-get install")) {
+            val raw = if (pkg.installCommand.contains("apt-get install -y")) {
+                pkg.installCommand.substringAfter("apt-get install -y").trim()
+            } else {
+                pkg.installCommand.substringAfter("apt-get install").trim().removePrefix("-y").trim()
+            }
+            val tokens = raw.split(Regex("\\s+"))
+            val validPackageTokens = tokens.takeWhile { token ->
+                !token.startsWith("||") && !token.startsWith("&&") && !token.startsWith(";") &&
+                !token.startsWith("(") && !token.startsWith("|") && !token.startsWith("2>") &&
+                !token.startsWith("--no-install") && !token.startsWith("-o") && !token.startsWith("sudo")
+            }.filter { it.isNotBlank() }
+            val cleanTargets = if (validPackageTokens.isNotEmpty()) validPackageTokens.joinToString(" ") else pkg.id
+
+            return "echo '[MobileLinux] Purging package $cleanTargets...'; " +
+                    "sudo apt-get -o DPkg::Lock::Timeout=10 purge -y $cleanTargets 2>&1 || true; " +
                     "sudo apt-get clean 2>/dev/null || true; " +
-                    "echo '[MobileLinux] Successfully uninstalled $targetPkg!'"
+                    "for p in $cleanTargets ${pkg.id}; do rm -f \"/usr/bin/\$p\" \"/usr/local/bin/\$p\" \"/usr/sbin/\$p\" 2>/dev/null || true; done; " +
+                    "if (${pkg.checkInstalledCommand}) >/dev/null 2>&1; then " +
+                    "echo '[MobileLinux] ✗ $cleanTargets still found after purge'; exit 1; else " +
+                    "echo '[MobileLinux] ✓ Successfully uninstalled $cleanTargets!'; exit 0; fi"
         }
 
-        // 5. General pip packages
+        // 5. Ruby gems
+        if (pkg.installCommand.contains("gem install")) {
+            val gemName = pkg.installCommand.substringAfter("gem install").trim().substringBefore(" ").substringBefore(";").substringBefore("&&")
+            val targetGem = if (gemName.isNotBlank()) gemName else pkg.id
+            return "echo '[MobileLinux] Removing Ruby gem $targetGem...'; " +
+                    "gem uninstall -a -x $targetGem 2>&1 || true; " +
+                    "rm -f /usr/local/bin/$targetGem /usr/bin/$targetGem /home/ubuntu/.local/bin/$targetGem 2>/dev/null || true; " +
+                    "if (${pkg.checkInstalledCommand}) >/dev/null 2>&1; then echo '[MobileLinux] ✗ $targetGem still found'; exit 1; else echo '[MobileLinux] ✓ Successfully uninstalled $targetGem!'; exit 0; fi"
+        }
+
+        // 6. Global NPM packages
+        if (pkg.installCommand.contains("npm install -g")) {
+            val raw = pkg.installCommand.substringAfter("npm install -g").trim()
+            val npmPkgs = raw.split(";")[0].split("&&")[0].trim()
+            return "echo '[MobileLinux] Removing NPM package $npmPkgs...'; " +
+                    "sudo npm uninstall -g $npmPkgs 2>&1 || true; " +
+                    "for p in $npmPkgs ${pkg.id}; do rm -f \"/usr/local/bin/\$p\" \"/usr/bin/\$p\" \"/home/ubuntu/.local/bin/\$p\" 2>/dev/null || true; done; " +
+                    "if (${pkg.checkInstalledCommand}) >/dev/null 2>&1; then echo '[MobileLinux] ✗ $npmPkgs still found'; exit 1; else echo '[MobileLinux] ✓ Successfully uninstalled $npmPkgs!'; exit 0; fi"
+        }
+
+        // 7. General pip packages
         if (pkg.installCommand.contains("pip install") || pkg.installCommand.contains("pip3 install")) {
-            return "if [ -x /usr/local/bin/pkg-uninstall-python ]; then /usr/local/bin/pkg-uninstall-python ${pkg.id} python3-${pkg.id}; else " +
+            val moduleName = if (pkg.checkInstalledCommand.contains("import ")) {
+                Regex("""import\s+([a-zA-Z0-9_]+)""").find(pkg.checkInstalledCommand)?.groupValues?.getOrNull(1) ?: pkg.id.replace('-', '_')
+            } else {
+                pkg.id.replace('-', '_')
+            }
+            return "if [ -x /usr/local/bin/pkg-uninstall-python ]; then /usr/local/bin/pkg-uninstall-python ${pkg.id} python3-${pkg.id} $moduleName; else " +
                     "echo '[MobileLinux] Purging Python package ${pkg.id}...'; " +
                     "pip3 uninstall -y --break-system-packages ${pkg.id} 2>&1 || true; " +
                     "/home/ubuntu/miniforge3/bin/pip uninstall -y ${pkg.id} 2>&1 || true; " +
-                    "sudo -o DPkg::Lock::Timeout=10 apt-get purge -y python3-${pkg.id} 2>&1 || true; " +
-                    "echo '[MobileLinux] Successfully uninstalled ${pkg.id}!'; fi"
+                    "sudo apt-get -o DPkg::Lock::Timeout=10 purge -y python3-${pkg.id} 2>&1 || true; " +
+                    "rm -rf /home/ubuntu/.local/lib/python*/site-packages/${pkg.id}* /home/ubuntu/.local/lib/python*/site-packages/$moduleName* 2>/dev/null || true; " +
+                    "rm -f /home/ubuntu/.local/bin/${pkg.id} /usr/local/bin/${pkg.id} /usr/bin/${pkg.id} 2>/dev/null || true; " +
+                    "if (${pkg.checkInstalledCommand}) >/dev/null 2>&1; then echo '[MobileLinux] ✗ ${pkg.id} still found'; exit 1; else echo '[MobileLinux] ✓ Successfully uninstalled ${pkg.id}!'; exit 0; fi; fi"
         }
 
         // Default fallback: direct purge by id
         return "echo '[MobileLinux] Purging ${pkg.id}...'; " +
-                "sudo -o DPkg::Lock::Timeout=10 apt-get purge -y ${pkg.id} 2>&1 || true; " +
-                "echo '[MobileLinux] Successfully uninstalled ${pkg.id}!'"
+                "sudo apt-get -o DPkg::Lock::Timeout=10 purge -y ${pkg.id} 2>&1 || true; " +
+                "rm -f /usr/bin/${pkg.id} /usr/local/bin/${pkg.id} /usr/sbin/${pkg.id} 2>/dev/null || true; " +
+                "if (${pkg.checkInstalledCommand}) >/dev/null 2>&1; then " +
+                "echo '[MobileLinux] ✗ ${pkg.id} still found after purge'; exit 1; else " +
+                "echo '[MobileLinux] ✓ Successfully uninstalled ${pkg.id}!'; exit 0; fi"
     }
 
     private val cyberSecurityPackages: List<LinuxPackage> by lazy {
@@ -391,7 +468,7 @@ object PackageRepository {
             category = PackageCategory.CYBER_SECURITY,
             version = "Python 3",
             description = "Hunt down social media accounts by username across 300+ social networks.",
-            installCommand = "(sudo apt-get install -y sherlock || ((sudo apt-get update || true) && sudo apt-get install -y sherlock)) || pip3 install --break-system-packages --no-cache-dir sherlock-project",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python sherlock-project sherlock; else (sudo apt-get install -y sherlock || ((sudo apt-get update || true) && sudo apt-get install -y sherlock)) || pip3 install --break-system-packages --no-cache-dir sherlock-project; fi",
             checkInstalledCommand = "which sherlock || python3 -c 'import sherlock' 2>/dev/null",
             launchUrl = null
         ),
@@ -631,7 +708,7 @@ object PackageRepository {
             category = PackageCategory.CYBER_SECURITY,
             version = "Python 3",
             description = "Powerful interactive packet manipulation library and tool to forge or decode network packets.",
-            installCommand = "(sudo apt-get install -y python3-scapy || ((sudo apt-get update || true) && sudo apt-get install -y python3-scapy)) || pip3 install --break-system-packages --no-cache-dir scapy",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python scapy python3-scapy; else (sudo apt-get install -y python3-scapy || ((sudo apt-get update || true) && sudo apt-get install -y python3-scapy)) || pip3 install --break-system-packages --no-cache-dir scapy; fi",
             checkInstalledCommand = "which scapy || python3 -c 'import scapy' 2>/dev/null",
             launchUrl = null
         ),
@@ -641,7 +718,7 @@ object PackageRepository {
             category = PackageCategory.CYBER_SECURITY,
             version = "Python 3",
             description = "Collection of Python classes for working with network protocols (SMB, MSRPC, Kerberos, etc.).",
-            installCommand = "(sudo apt-get install -y python3-impacket || ((sudo apt-get update || true) && sudo apt-get install -y python3-impacket)) || pip3 install --break-system-packages --no-cache-dir impacket",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python impacket python3-impacket; else (sudo apt-get install -y python3-impacket || ((sudo apt-get update || true) && sudo apt-get install -y python3-impacket)) || pip3 install --break-system-packages --no-cache-dir impacket; fi",
             checkInstalledCommand = "python3 -c 'import impacket' 2>/dev/null",
             launchUrl = null
         ),
@@ -661,7 +738,7 @@ object PackageRepository {
             category = PackageCategory.CYBER_SECURITY,
             version = "Latest",
             description = "Swiss army knife for pentesting networks and Active Directory environments.",
-            installCommand = "(sudo apt-get install -y crackmapexec || ((sudo apt-get update || true) && sudo apt-get install -y crackmapexec)) || pip3 install --break-system-packages --no-cache-dir crackmapexec",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python crackmapexec crackmapexec; else (sudo apt-get install -y crackmapexec || ((sudo apt-get update || true) && sudo apt-get install -y crackmapexec)) || pip3 install --break-system-packages --no-cache-dir crackmapexec; fi",
             checkInstalledCommand = "which crackmapexec || which cme",
             launchUrl = null
         ),
@@ -671,7 +748,7 @@ object PackageRepository {
             category = PackageCategory.CYBER_SECURITY,
             version = "Latest",
             description = "The ultimate WinRM shell for hacking and pentesting Windows systems from Linux.",
-            installCommand = "gem install evil-winrm",
+            installCommand = "((which gem >/dev/null 2>&1) || (sudo apt-get install -y ruby-full || ((sudo apt-get update || true) && sudo apt-get install -y ruby-full))) && gem install evil-winrm",
             checkInstalledCommand = "which evil-winrm",
             launchUrl = null
         ),
@@ -721,7 +798,7 @@ object PackageRepository {
             category = PackageCategory.CYBER_SECURITY,
             version = "Latest",
             description = "DNS reconnaissance tool for locating non-contiguous IP space and hostnames across domains.",
-            installCommand = "(sudo apt-get install -y fierce || ((sudo apt-get update || true) && sudo apt-get install -y fierce)) || pip3 install --break-system-packages --no-cache-dir fierce",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python fierce fierce; else (sudo apt-get install -y fierce || ((sudo apt-get update || true) && sudo apt-get install -y fierce)) || pip3 install --break-system-packages --no-cache-dir fierce; fi",
             checkInstalledCommand = "which fierce",
             launchUrl = null
         ),
@@ -781,7 +858,7 @@ object PackageRepository {
             category = PackageCategory.CYBER_SECURITY,
             version = "Latest",
             description = "Interactive, SSL/TLS-capable intercepting HTTP proxy for mobile and web app reverse engineering.",
-            installCommand = "(sudo apt-get install -y mitmproxy || ((sudo apt-get update || true) && sudo apt-get install -y mitmproxy)) || pip3 install --break-system-packages --no-cache-dir mitmproxy",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python mitmproxy mitmproxy; else (sudo apt-get install -y mitmproxy || ((sudo apt-get update || true) && sudo apt-get install -y mitmproxy)) || pip3 install --break-system-packages --no-cache-dir mitmproxy; fi",
             checkInstalledCommand = "which mitmproxy || which mitmdump",
             launchUrl = null
         ),
@@ -831,7 +908,7 @@ object PackageRepository {
             category = PackageCategory.CYBER_SECURITY,
             version = "Latest",
             description = "Gather emails, subdomains, hosts, employee names, open ports and banners from public sources.",
-            installCommand = "(sudo apt-get install -y theharvester || ((sudo apt-get update || true) && sudo apt-get install -y theharvester)) || pip3 install --break-system-packages --no-cache-dir theHarvester",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python theHarvester theharvester; else (sudo apt-get install -y theharvester || ((sudo apt-get update || true) && sudo apt-get install -y theharvester)) || pip3 install --break-system-packages --no-cache-dir theHarvester; fi",
             checkInstalledCommand = "which theHarvester || which theharvester",
             launchUrl = null
         ),
@@ -861,7 +938,7 @@ object PackageRepository {
             category = PackageCategory.CYBER_SECURITY,
             version = "Latest",
             description = "Identify the different types of cryptographic hashes used to encrypt data and passwords.",
-            installCommand = "(sudo apt-get install -y hashid || ((sudo apt-get update || true) && sudo apt-get install -y hashid)) || pip3 install --break-system-packages --no-cache-dir hashID",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python hashID hashid; else (sudo apt-get install -y hashid || ((sudo apt-get update || true) && sudo apt-get install -y hashid)) || pip3 install --break-system-packages --no-cache-dir hashID; fi",
             checkInstalledCommand = "which hashid",
             launchUrl = null
         ),
@@ -1036,8 +1113,14 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Latest / Web IDE",
             description = "Interactive web-based notebooks, code cells, terminal, and visualization dashboard.",
-            installCommand = "(sudo apt-get install -y jupyter jupyter-core python3-pip && pip3 install --break-system-packages --no-cache-dir jupyterlab notebook; if [ -x /home/ubuntu/miniforge3/bin/pip ]; then /home/ubuntu/miniforge3/bin/pip install --no-cache-dir jupyterlab notebook 2>/dev/null || ((sudo apt-get update || true) && sudo apt-get install -y jupyter jupyter-core python3-pip && pip3 install --break-system-packages --no-cache-dir jupyterlab notebook; if [ -x /home/ubuntu/miniforge3/bin/pip ]; then /home/ubuntu/miniforge3/bin/pip install --no-cache-dir jupyterlab notebook 2>/dev/null)) || true; fi",
-            checkInstalledCommand = "which jupyter || [ -x /home/ubuntu/miniforge3/bin/jupyter ] || [ -x /root/miniconda3/bin/jupyter ]",
+            installCommand = "if [ -x /usr/local/bin/install-jupyter ]; then /usr/local/bin/install-jupyter; else " +
+                    "sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true; " +
+                    "if ! command -v pip3 >/dev/null 2>&1; then (sudo apt-get -o DPkg::Lock::Timeout=30 update 2>&1 || true) && sudo apt-get -o DPkg::Lock::Timeout=30 install -y --no-install-recommends python3-pip python3-dev 2>&1 || true; fi; " +
+                    "pip3 install --break-system-packages --prefer-binary --no-cache-dir jupyterlab notebook 2>&1; PIP_EXIT=\$?; " +
+                    "if [ -x /home/ubuntu/miniforge3/bin/pip ]; then /home/ubuntu/miniforge3/bin/pip install --prefer-binary --no-cache-dir jupyterlab notebook 2>&1 || true; fi; " +
+                    "if [ -x /root/miniconda3/bin/pip ]; then /root/miniconda3/bin/pip install --prefer-binary --no-cache-dir jupyterlab notebook 2>&1 || true; fi; " +
+                    "if command -v jupyter >/dev/null 2>&1 || [ -x /home/ubuntu/miniforge3/bin/jupyter ] || [ -x /root/miniconda3/bin/jupyter ] || [ -x /home/ubuntu/.local/bin/jupyter ] || [ \$PIP_EXIT -eq 0 ]; then exit 0; else exit 1; fi; fi",
+            checkInstalledCommand = "which jupyter || [ -x /home/ubuntu/miniforge3/bin/jupyter ] || [ -x /root/miniconda3/bin/jupyter ] || [ -x /home/ubuntu/.local/bin/jupyter ]",
             launchUrl = "http://127.0.0.1:8888/lab"
         ),
         LinuxPackage(
@@ -1665,8 +1748,8 @@ object PackageRepository {
             category = PackageCategory.RUNTIMES,
             version = "Latest",
             description = "Ultra-fast, reliable, and secure dependency management for JavaScript and Node.",
-            installCommand = "npm install -g yarn",
-            checkInstalledCommand = "which yarn",
+            installCommand = "((which npm >/dev/null 2>&1) || (sudo apt-get install -y nodejs npm || ((sudo apt-get update || true) && sudo apt-get install -y nodejs npm))) && sudo npm install -g yarn",
+            checkInstalledCommand = "which yarn || [ -f \"\$(npm config get prefix 2>/dev/null)/bin/yarn\" ]",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1675,8 +1758,8 @@ object PackageRepository {
             category = PackageCategory.RUNTIMES,
             version = "Latest",
             description = "Fast, disk space efficient package manager using content-addressable storage.",
-            installCommand = "npm install -g pnpm",
-            checkInstalledCommand = "which pnpm",
+            installCommand = "((which npm >/dev/null 2>&1) || (sudo apt-get install -y nodejs npm || ((sudo apt-get update || true) && sudo apt-get install -y nodejs npm))) && sudo npm install -g pnpm",
+            checkInstalledCommand = "which pnpm || [ -f \"\$(npm config get prefix 2>/dev/null)/bin/pnpm\" ]",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1685,8 +1768,8 @@ object PackageRepository {
             category = PackageCategory.RUNTIMES,
             version = "ARM64",
             description = "Incredibly fast all-in-one JavaScript runtime, bundler, test runner, and package manager.",
-            installCommand = "curl -fsSL https://bun.sh/install | bash",
-            checkInstalledCommand = "which bun || [ -x /root/.bun/bin/bun ]",
+            installCommand = "(which curl >/dev/null 2>&1 || sudo apt-get install -y --no-install-recommends curl ca-certificates unzip) && (curl -fsSL https://bun.sh/install | bash)",
+            checkInstalledCommand = "which bun || [ -x /home/ubuntu/.bun/bin/bun ] || [ -x /root/.bun/bin/bun ]",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1695,8 +1778,8 @@ object PackageRepository {
             category = PackageCategory.RUNTIMES,
             version = "Latest",
             description = "Strict syntactical superset of JavaScript that adds optional static typing.",
-            installCommand = "npm install -g typescript ts-node",
-            checkInstalledCommand = "which tsc",
+            installCommand = "((which npm >/dev/null 2>&1) || (sudo apt-get install -y nodejs npm || ((sudo apt-get update || true) && sudo apt-get install -y nodejs npm))) && sudo npm install -g typescript ts-node",
+            checkInstalledCommand = "which tsc || [ -x /usr/local/bin/tsc ] || [ -f \"\$(npm config get prefix 2>/dev/null)/bin/tsc\" ]",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1735,8 +1818,8 @@ object PackageRepository {
             category = PackageCategory.RUNTIMES,
             version = "Latest",
             description = "Language empowering everyone to build reliable and efficient software without garbage collector.",
-            installCommand = "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
-            checkInstalledCommand = "which rustc || [ -x /root/.cargo/bin/rustc ]",
+            installCommand = "((which curl >/dev/null 2>&1 || sudo apt-get install -y --no-install-recommends curl ca-certificates) && (curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y)) || (sudo apt-get install -y rustc cargo)",
+            checkInstalledCommand = "which rustc || [ -x /root/.cargo/bin/rustc ] || [ -x /home/ubuntu/.cargo/bin/rustc ]",
             launchUrl = null
         ),
         LinuxPackage(
@@ -1745,8 +1828,8 @@ object PackageRepository {
             category = PackageCategory.RUNTIMES,
             version = "Latest",
             description = "The official Rust package manager for downloading dependencies and building crates.",
-            installCommand = "which cargo || [ -x /root/.cargo/bin/cargo ]",
-            checkInstalledCommand = "which cargo || [ -x /root/.cargo/bin/cargo ]",
+            installCommand = "(sudo apt-get install -y cargo || ((sudo apt-get update || true) && sudo apt-get install -y cargo)) || ((which curl >/dev/null 2>&1 || sudo apt-get install -y --no-install-recommends curl ca-certificates) && (curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y))",
+            checkInstalledCommand = "which cargo || [ -x /root/.cargo/bin/cargo ] || [ -x /home/ubuntu/.cargo/bin/cargo ]",
             launchUrl = null
         ),
         LinuxPackage(
@@ -2100,8 +2183,8 @@ object PackageRepository {
             category = PackageCategory.DEV_TOOLS,
             version = "Latest",
             description = "Next-generation autonomous agentic AI pair programmer and CLI workspace manager by Google DeepMind.",
-            installCommand = "curl -fsSL https://antigravity.google/cli/install.sh | bash && export PATH=\"/home/ubuntu/.local/bin:\$PATH\"",
-            checkInstalledCommand = "test -x /home/ubuntu/.local/bin/agy || which agy",
+            installCommand = "(which curl >/dev/null 2>&1 || sudo apt-get install -y --no-install-recommends curl ca-certificates) && (curl -fsSL https://antigravity.google/cli/install.sh | bash) && export PATH=\"/home/ubuntu/.local/bin:\$PATH\"",
+            checkInstalledCommand = "test -x /home/ubuntu/.local/bin/agy || test -x /usr/local/bin/agy || which agy",
             launchUrl = null
         ),
         LinuxPackage(
@@ -2540,8 +2623,8 @@ object PackageRepository {
             category = PackageCategory.DEV_TOOLS,
             version = "Latest",
             description = "Terminal JSON viewer & interactive processing tool.",
-            installCommand = "npm install -g fx",
-            checkInstalledCommand = "which fx",
+            installCommand = "((which npm >/dev/null 2>&1) || (sudo apt-get install -y nodejs npm || ((sudo apt-get update || true) && sudo apt-get install -y nodejs npm))) && sudo npm install -g fx",
+            checkInstalledCommand = "which fx || [ -f \"\$(npm config get prefix 2>/dev/null)/bin/fx\" ]",
             launchUrl = null
         ),
         LinuxPackage(
@@ -3105,7 +3188,7 @@ object PackageRepository {
             category = PackageCategory.DATABASES,
             version = "Latest",
             description = "Postgres CLI with autocompletion and syntax highlighting for productive SQL writing.",
-            installCommand = "(sudo apt-get install -y pgcli || ((sudo apt-get update || true) && sudo apt-get install -y pgcli)) || pip3 install --break-system-packages --no-cache-dir pgcli",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python pgcli pgcli; else (sudo apt-get install -y pgcli || ((sudo apt-get update || true) && sudo apt-get install -y pgcli)) || pip3 install --break-system-packages --no-cache-dir pgcli; fi",
             checkInstalledCommand = "which pgcli",
             launchUrl = null
         ),
@@ -3115,7 +3198,7 @@ object PackageRepository {
             category = PackageCategory.DATABASES,
             version = "Latest",
             description = "MySQL and MariaDB CLI with autocompletion and syntax highlighting.",
-            installCommand = "(sudo apt-get install -y mycli || ((sudo apt-get update || true) && sudo apt-get install -y mycli)) || pip3 install --break-system-packages --no-cache-dir mycli",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python mycli mycli; else (sudo apt-get install -y mycli || ((sudo apt-get update || true) && sudo apt-get install -y mycli)) || pip3 install --break-system-packages --no-cache-dir mycli; fi",
             checkInstalledCommand = "which mycli",
             launchUrl = null
         ),
@@ -3125,7 +3208,7 @@ object PackageRepository {
             category = PackageCategory.DATABASES,
             version = "Latest",
             description = "CLI for SQLite Databases with Auto-completion and Syntax Highlighting.",
-            installCommand = "pip3 install --break-system-packages --no-cache-dir litecli",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python litecli; else pip3 install --break-system-packages --no-cache-dir litecli; fi",
             checkInstalledCommand = "which litecli",
             launchUrl = null
         ),
@@ -3135,7 +3218,7 @@ object PackageRepository {
             category = PackageCategory.DATABASES,
             version = "Latest",
             description = "A Terminal Client for Redis with AutoCompletion and Syntax Highlighting.",
-            installCommand = "pip3 install --break-system-packages --no-cache-dir iredis",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python iredis; else pip3 install --break-system-packages --no-cache-dir iredis; fi",
             checkInstalledCommand = "which iredis",
             launchUrl = null
         ),
@@ -3195,8 +3278,8 @@ object PackageRepository {
             category = PackageCategory.DATABASES,
             version = "Latest",
             description = "Distributed SQL database designed for cloud resilience and scale.",
-            installCommand = "which cockroach || echo 'installed via download'",
-            checkInstalledCommand = "which cockroach",
+            installCommand = "(which curl >/dev/null 2>&1 || sudo apt-get install -y --no-install-recommends curl tar) && (curl -fsSL https://binaries.cockroachdb.com/cockroach-v23.2.3.linux-arm64.tgz 2>/dev/null | tar -xz && sudo cp -f cockroach-*/cockroach /usr/local/bin/ && rm -rf cockroach-*)",
+            checkInstalledCommand = "which cockroach || [ -x /usr/local/bin/cockroach ]",
             launchUrl = null
         ),
         LinuxPackage(
@@ -3205,8 +3288,8 @@ object PackageRepository {
             category = PackageCategory.DATABASES,
             version = "Latest",
             description = "Ultimate multi-model database for tomorrow's applications with SQL-like query language.",
-            installCommand = "curl -sSf https://install.surrealdb.com | sh",
-            checkInstalledCommand = "which surreal",
+            installCommand = "(which curl >/dev/null 2>&1 || sudo apt-get install -y --no-install-recommends curl ca-certificates) && (curl -sSf https://install.surrealdb.com | sh)",
+            checkInstalledCommand = "which surreal || [ -x /usr/local/bin/surreal ]",
             launchUrl = null
         ),
         LinuxPackage(
@@ -3215,8 +3298,8 @@ object PackageRepository {
             category = PackageCategory.DATABASES,
             version = "Latest",
             description = "Lightning-fast, ultra-relevant and typo-tolerant search engine API.",
-            installCommand = "curl -sSf https://install.meilisearch.com | sh",
-            checkInstalledCommand = "which meilisearch",
+            installCommand = "(which curl >/dev/null 2>&1 || sudo apt-get install -y --no-install-recommends curl ca-certificates) && (curl -sSf https://install.meilisearch.com | sh && sudo mv -f meilisearch /usr/local/bin/ 2>/dev/null || true)",
+            checkInstalledCommand = "which meilisearch || [ -x /usr/local/bin/meilisearch ]",
             launchUrl = "http://127.0.0.1:7700"
         )
         )
@@ -3320,7 +3403,7 @@ object PackageRepository {
             category = PackageCategory.UTILITIES,
             version = "Latest",
             description = "Command line interface for testing internet bandwidth using speedtest.net servers.",
-            installCommand = "(sudo apt-get install -y speedtest-cli || ((sudo apt-get update || true) && sudo apt-get install -y speedtest-cli)) || pip3 install --break-system-packages --no-cache-dir speedtest-cli",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python speedtest-cli speedtest-cli; else (sudo apt-get install -y speedtest-cli || ((sudo apt-get update || true) && sudo apt-get install -y speedtest-cli)) || pip3 install --break-system-packages --no-cache-dir speedtest-cli; fi",
             checkInstalledCommand = "which speedtest-cli || which speedtest",
             launchUrl = null
         ),
@@ -3380,7 +3463,7 @@ object PackageRepository {
             category = PackageCategory.UTILITIES,
             version = "Latest",
             description = "Cross-platform curses-based system monitoring tool with web interface and JSON API.",
-            installCommand = "(sudo apt-get install -y glances || ((sudo apt-get update || true) && sudo apt-get install -y glances)) || pip3 install --break-system-packages --no-cache-dir glances",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python glances glances; else (sudo apt-get install -y glances || ((sudo apt-get update || true) && sudo apt-get install -y glances)) || pip3 install --break-system-packages --no-cache-dir glances; fi",
             checkInstalledCommand = "which glances",
             launchUrl = null
         ),
@@ -3710,7 +3793,7 @@ object PackageRepository {
             category = PackageCategory.UTILITIES,
             version = "Latest",
             description = "Feature-rich command-line audio/video downloader from YouTube and thousands of video sites.",
-            installCommand = "(sudo apt-get install -y yt-dlp || ((sudo apt-get update || true) && sudo apt-get install -y yt-dlp)) || pip3 install --break-system-packages --no-cache-dir yt-dlp",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python yt-dlp yt-dlp; else (sudo apt-get install -y yt-dlp || ((sudo apt-get update || true) && sudo apt-get install -y yt-dlp)) || pip3 install --break-system-packages --no-cache-dir yt-dlp; fi",
             checkInstalledCommand = "which yt-dlp",
             launchUrl = null
         ),

@@ -5,11 +5,17 @@
 # Run this from INSIDE the Ubuntu environment (proot or chroot)
 # =============================================================================
 
-set -e
+# NOTE: Do NOT use 'set -e' here — in proot/mobile environments, many commands
+# return transient errors (DNS timeouts, lock files, missing caches). Each section
+# handles its own errors gracefully so a single failure doesn't abort everything.
 
 log() { echo -e "\033[0;36m[MobileLinux]\033[0m $1"; }
 log_ok() { echo -e "\033[0;32m[MobileLinux]\033[0m ✓ $1"; }
 log_err() { echo -e "\033[0;31m[MobileLinux]\033[0m ✗ $1"; }
+
+# Clean stale locks before starting (common in proot after interrupted installs)
+rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* /var/lib/dpkg/updates/* 2>/dev/null || true
+dpkg --configure -a 2>/dev/null || true
 
 log "Installing essential development packages..."
 log "This may take a few minutes..."
@@ -17,8 +23,11 @@ echo ""
 
 # Update package lists
 log "Updating package lists..."
-apt-get update -y 2>&1 | tail -3
-log_ok "Package lists updated"
+if apt-get update -y 2>&1 | tail -3; then
+    log_ok "Package lists updated"
+else
+    log_err "Package list update had warnings (continuing anyway)"
+fi
 
 # Core utilities
 log "Installing core utilities..."

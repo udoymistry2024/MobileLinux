@@ -272,7 +272,7 @@ alias install='apt-get install -y'
 export TERM=xterm-256color
 export LANG=C.UTF-8
 export LC_ALL=C.UTF-8
-export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games"
+export PATH="/home/ubuntu/.local/bin:/root/.local/bin:/home/ubuntu/go/bin:/root/go/bin:/home/ubuntu/.cargo/bin:/root/.cargo/bin:/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games"
 shopt -s checkwinsize
 BASHRC
 log "✓ .bashrc configured with custom prompt"
@@ -387,7 +387,7 @@ EOF
 cat > "$ROOTFS_DIR/etc/environment" << 'EOF'
 LANG=C.UTF-8
 LC_ALL=C.UTF-8
-PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games"
+PATH="/home/ubuntu/.local/bin:/root/.local/bin:/home/ubuntu/go/bin:/root/go/bin:/home/ubuntu/.cargo/bin:/root/.cargo/bin:/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games"
 EOF
 log "✓ Locale configured"
 

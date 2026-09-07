@@ -602,7 +602,7 @@ class UbuntuRuntime(private val context: Context) {
                 defaultLocale.setReadable(true, false)
 
                 val envFile = File(etcDir, "environment")
-                safeWriteFile(envFile, "LANG=C.UTF-8\nLC_ALL=C.UTF-8\nPATH=\"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games\"\n")
+                safeWriteFile(envFile, "LANG=C.UTF-8\nLC_ALL=C.UTF-8\nPATH=\"/home/ubuntu/.local/bin:/root/.local/bin:/home/ubuntu/go/bin:/root/go/bin:/home/ubuntu/.cargo/bin:/root/.cargo/bin:/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games\"\n")
                 envFile.setReadable(true, false)
 
                 val localeConf = File(etcDir, "locale.conf")
@@ -614,6 +614,10 @@ class UbuntuRuntime(private val context: Context) {
                 val localeProfile = File(profileD, "00-locale.sh")
                 safeWriteFile(localeProfile, "export LANG=C.UTF-8\nexport LC_ALL=C.UTF-8\n")
                 localeProfile.setReadable(true, false)
+
+                val pathsProfile = File(profileD, "01-paths.sh")
+                safeWriteFile(pathsProfile, "export PATH=\"/home/ubuntu/.local/bin:/root/.local/bin:/home/ubuntu/go/bin:/root/go/bin:/home/ubuntu/.cargo/bin:/root/.cargo/bin:\$PATH\"\n")
+                pathsProfile.setReadable(true, false)
             } catch (e: Exception) {
                 Log.w(TAG, "Locale config notice: ${e.message}")
             }
@@ -751,7 +755,7 @@ class UbuntuRuntime(private val context: Context) {
             "LANG=C.UTF-8",
             "LC_ALL=C.UTF-8",
             "TMPDIR=/tmp",
-            "PATH=/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/home/ubuntu/miniconda3/bin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "PATH=/home/ubuntu/.local/bin:/root/.local/bin:/home/ubuntu/go/bin:/root/go/bin:/home/ubuntu/.cargo/bin:/root/.cargo/bin:/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/home/ubuntu/miniconda3/bin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
             "SHELL=/usr/bin/bash",
             "USER=ubuntu",
             "LOGNAME=ubuntu",
@@ -787,7 +791,7 @@ class UbuntuRuntime(private val context: Context) {
                 append("HOME=/home/ubuntu ")
                 append("TERM=xterm-256color ")
                 append("LANG=C.UTF-8 ")
-                append("PATH=/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/home/ubuntu/miniconda3/bin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ")
+                append("PATH=/home/ubuntu/.local/bin:/root/.local/bin:/home/ubuntu/go/bin:/root/go/bin:/home/ubuntu/.cargo/bin:/root/.cargo/bin:/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/home/ubuntu/miniconda3/bin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ")
                 append("USER=ubuntu SHELL=/usr/bin/bash ANDROID_HOST=true MOBILELINUX_MODE=chroot TMPDIR=/tmp ")
                 if (execCmd != null) {
                     append("/usr/bin/bash -c '$execCmd'")
@@ -1176,6 +1180,7 @@ class UbuntuRuntime(private val context: Context) {
             ubuntuHome.setReadable(true, false)
             ubuntuHome.setExecutable(true, false)
 
+            ensureRealDirectory(File(ubuntuHome, ".local/bin"))
             val ubuntuBashrc = File(ubuntuHome, ".bashrc")
             if (!ubuntuBashrc.exists()) {
                 safeWriteFile(ubuntuBashrc, getUbuntuBashrc())
@@ -1196,6 +1201,14 @@ class UbuntuRuntime(private val context: Context) {
                         .replace("alias python='python3'", "")
                         .replace("alias pip='python3 -m pip'\n", "")
                         .replace("alias pip='python3 -m pip'", "")
+                    modified = true
+                }
+                // Ensure PATH includes user local bin (~/.local/bin, go/bin, cargo/bin)
+                if (!existing.contains("/home/ubuntu/.local/bin")) {
+                    val sb = StringBuilder(existing)
+                    if (!existing.endsWith("\n") && existing.isNotEmpty()) sb.append("\n")
+                    sb.append("export PATH=\"/home/ubuntu/.local/bin:/root/.local/bin:/home/ubuntu/go/bin:/root/go/bin:/home/ubuntu/.cargo/bin:/root/.cargo/bin:\$PATH\"\n")
+                    existing = sb.toString()
                     modified = true
                 }
                 // Ensure PATH includes conda/miniforge
@@ -1242,6 +1255,7 @@ class UbuntuRuntime(private val context: Context) {
 
             val rootHome = File(rootfsDir, "root")
             ensureRealDirectory(rootHome)
+            ensureRealDirectory(File(rootHome, ".local/bin"))
             rootHome.setWritable(true, false)
             rootHome.setReadable(true, false)
             rootHome.setExecutable(true, false)
@@ -1265,6 +1279,14 @@ class UbuntuRuntime(private val context: Context) {
                         .replace("alias python='python3'", "")
                         .replace("alias pip='python3 -m pip'\n", "")
                         .replace("alias pip='python3 -m pip'", "")
+                    modified = true
+                }
+                // Ensure PATH includes user local bin (~/.local/bin, go/bin, cargo/bin)
+                if (!existing.contains("/root/.local/bin")) {
+                    val sb = StringBuilder(existing)
+                    if (!existing.endsWith("\n") && existing.isNotEmpty()) sb.append("\n")
+                    sb.append("export PATH=\"/root/.local/bin:/home/ubuntu/.local/bin:/root/go/bin:/home/ubuntu/go/bin:/root/.cargo/bin:/home/ubuntu/.cargo/bin:\$PATH\"\n")
+                    existing = sb.toString()
                     modified = true
                 }
                 // Ensure PATH includes conda/miniforge
@@ -1831,7 +1853,7 @@ class UbuntuRuntime(private val context: Context) {
         "export LOGNAME=ubuntu",
         "export HOME=/home/ubuntu",
         "export TMPDIR=/tmp",
-        "export PATH=\"/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games\"",
+        "export PATH=\"/home/ubuntu/.local/bin:/root/.local/bin:/home/ubuntu/go/bin:/root/go/bin:/home/ubuntu/.cargo/bin:/root/.cargo/bin:/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games\"",
         "shopt -s checkwinsize",
         "",
         "# Aliases",
@@ -1865,7 +1887,7 @@ class UbuntuRuntime(private val context: Context) {
         "export LOGNAME=root",
         "export HOME=/root",
         "export TMPDIR=/tmp",
-        "export PATH=\"/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games\"",
+        "export PATH=\"/root/.local/bin:/home/ubuntu/.local/bin:/root/go/bin:/home/ubuntu/go/bin:/root/.cargo/bin:/home/ubuntu/.cargo/bin:/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games\"",
         "shopt -s checkwinsize",
         "",
         "# Aliases",
@@ -1902,7 +1924,7 @@ class UbuntuRuntime(private val context: Context) {
         "export HOME=/home/ubuntu",
         "export USER=ubuntu",
         "export LOGNAME=ubuntu",
-        "export PATH=\"/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\"",
+        "export PATH=\"/home/ubuntu/.local/bin:/root/.local/bin:/home/ubuntu/go/bin:/root/go/bin:/home/ubuntu/.cargo/bin:/root/.cargo/bin:/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\"",
         "export LANG=C.UTF-8",
         "export LC_ALL=C.UTF-8",
         "export TMPDIR=/tmp",

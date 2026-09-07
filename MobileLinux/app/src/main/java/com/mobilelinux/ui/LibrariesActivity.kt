@@ -422,11 +422,7 @@ class LibrariesActivity : AppCompatActivity() {
                 withContext(Dispatchers.Main) {
                     pkg.isInstalling = false
                     if (result.first == 0) {
-                        // Persist installed state in disk cache immediately
                         val prefs = getSharedPreferences("packages_state_cache", Context.MODE_PRIVATE)
-                        val currentSet = prefs.getStringSet("installed_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
-                        currentSet.add(pkg.id)
-                        prefs.edit().putStringSet("installed_ids", currentSet).apply()
 
                         if (pkg.id == "miniconda") {
                             val checkConda = withContext(Dispatchers.IO) {
@@ -439,7 +435,9 @@ class LibrariesActivity : AppCompatActivity() {
                                 pkg.isActivated = true
                                 pkg.progressPercent = 100
                                 pkg.statusText = "Active & Ready (base)"
-                                prefs.edit().putBoolean("conda_active", true).apply()
+                                val currentSet = prefs.getStringSet("installed_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
+                                currentSet.add(pkg.id)
+                                prefs.edit().putStringSet("installed_ids", currentSet).putBoolean("conda_active", true).apply()
                                 withContext(Dispatchers.IO) {
                                     runtime.configureCondaEnvironment()
                                 }
@@ -454,6 +452,9 @@ class LibrariesActivity : AppCompatActivity() {
                                 pkg.isActivated = false
                                 pkg.progressPercent = -1
                                 pkg.statusText = "Install completed but binary missing"
+                                val currentSet = prefs.getStringSet("installed_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
+                                currentSet.remove(pkg.id)
+                                prefs.edit().putStringSet("installed_ids", currentSet).apply()
                                 adapter.updateItem(pkg.id)
                                 Toast.makeText(
                                     this@LibrariesActivity,
@@ -462,15 +463,36 @@ class LibrariesActivity : AppCompatActivity() {
                                 ).show()
                             }
                         } else {
-                            pkg.isInstalled = true
-                            pkg.progressPercent = 100
-                            pkg.statusText = "Installed and ready"
-                            adapter.updateItem(pkg.id)
-                            Toast.makeText(
-                                this@LibrariesActivity,
-                                "${pkg.name} installed successfully.",
-                                Toast.LENGTH_LONG
-                            ).show()
+                            val checkResult = withContext(Dispatchers.IO) {
+                                runtime.runCommand(pkg.checkInstalledCommand)
+                            }
+                            if (checkResult.first == 0) {
+                                pkg.isInstalled = true
+                                pkg.progressPercent = 100
+                                pkg.statusText = "Installed and ready"
+                                val currentSet = prefs.getStringSet("installed_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
+                                currentSet.add(pkg.id)
+                                prefs.edit().putStringSet("installed_ids", currentSet).apply()
+                                adapter.updateItem(pkg.id)
+                                Toast.makeText(
+                                    this@LibrariesActivity,
+                                    "${pkg.name} installed successfully.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            } else {
+                                pkg.isInstalled = false
+                                pkg.progressPercent = -1
+                                pkg.statusText = "Install completed, check failed"
+                                val currentSet = prefs.getStringSet("installed_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
+                                currentSet.remove(pkg.id)
+                                prefs.edit().putStringSet("installed_ids", currentSet).apply()
+                                adapter.updateItem(pkg.id)
+                                Toast.makeText(
+                                    this@LibrariesActivity,
+                                    "${pkg.name} install process completed, but package check failed.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
                         }
                     } else {
                         android.util.Log.e("LibrariesActivity", "Install error for ${pkg.id} (code ${result.first}): ${result.second}")
@@ -582,29 +604,44 @@ class LibrariesActivity : AppCompatActivity() {
                 val result = runtime.runCommand(uninstallCmd)
                 android.util.Log.d("LibrariesActivity", "Uninstall result code: ${result.first}")
 
+                // Re-verify that the package is actually uninstalled
+                val verifyResult = runtime.runCommand(pkg.checkInstalledCommand)
+                val isStillInstalled = (verifyResult.first == 0)
+
                 withContext(Dispatchers.Main) {
                     pkg.isUninstalling = false
-                    pkg.isInstalled = false
-                    pkg.isActivated = false
-                    pkg.progressPercent = -1
-                    pkg.statusText = "Ready to install"
+                    if (!isStillInstalled) {
+                        pkg.isInstalled = false
+                        pkg.isActivated = false
+                        pkg.progressPercent = -1
+                        pkg.statusText = "Ready to install"
 
-                    // Remove from persistent disk cache
-                    val prefs = getSharedPreferences("packages_state_cache", Context.MODE_PRIVATE)
-                    val currentSet = prefs.getStringSet("installed_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
-                    currentSet.remove(pkg.id)
-                    val editor = prefs.edit().putStringSet("installed_ids", currentSet)
-                    if (pkg.id == "miniconda") {
-                        editor.putBoolean("conda_active", false)
+                        // Remove from persistent disk cache
+                        val prefs = getSharedPreferences("packages_state_cache", Context.MODE_PRIVATE)
+                        val currentSet = prefs.getStringSet("installed_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
+                        currentSet.remove(pkg.id)
+                        val editor = prefs.edit().putStringSet("installed_ids", currentSet)
+                        if (pkg.id == "miniconda") {
+                            editor.putBoolean("conda_active", false)
+                        }
+                        editor.apply()
+
+                        adapter.updateItem(pkg.id)
+                        Toast.makeText(
+                            this@LibrariesActivity,
+                            "${pkg.name} permanently uninstalled and cleaned.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    } else {
+                        pkg.isInstalled = true
+                        pkg.statusText = "Uninstall incomplete (still detected)"
+                        adapter.updateItem(pkg.id)
+                        Toast.makeText(
+                            this@LibrariesActivity,
+                            "Warning: ${pkg.name} could not be completely uninstalled.",
+                            Toast.LENGTH_LONG
+                        ).show()
                     }
-                    editor.apply()
-
-                    adapter.updateItem(pkg.id)
-                    Toast.makeText(
-                        this@LibrariesActivity,
-                        "${pkg.name} permanently uninstalled and cleaned.",
-                        Toast.LENGTH_LONG
-                    ).show()
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {

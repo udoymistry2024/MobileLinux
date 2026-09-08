@@ -424,6 +424,9 @@ class DevBrowserActivity : AppCompatActivity() {
         settings.javaScriptCanOpenWindowsAutomatically = true
         settings.setSupportMultipleWindows(true)
 
+        // Native System Clipboard Bridge for in-page Javascript
+        webView.addJavascriptInterface(BrowserClipboardBridge(this), "MobileLinuxClipboard")
+
         // Web Client
         webView.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
@@ -1151,6 +1154,38 @@ class DevBrowserActivity : AppCompatActivity() {
         }
 
         override fun getItemCount(): Int = items.size
+    }
+
+    inner class BrowserClipboardBridge(private val context: Context) {
+        @JavascriptInterface
+        fun copyText(text: String?) {
+            if (text.isNullOrEmpty()) return
+            runOnUiThread {
+                try {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    val clip = ClipData.newPlainText("MobileLinux Code", text)
+                    clipboard.setPrimaryClip(clip)
+                } catch (e: Exception) {
+                    Log.e("DevBrowser", "Failed to copy text to system clipboard", e)
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun pasteText(): String {
+            return try {
+                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clip = clipboard.primaryClip
+                if (clip != null && clip.itemCount > 0) {
+                    clip.getItemAt(0).coerceToText(context)?.toString() ?: ""
+                } else {
+                    ""
+                }
+            } catch (e: Exception) {
+                Log.e("DevBrowser", "Failed to paste text from system clipboard", e)
+                ""
+            }
+        }
     }
 
     companion object {

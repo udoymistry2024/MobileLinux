@@ -247,6 +247,113 @@
         window.visualViewport.addEventListener('scroll', updateFloatingToolbarPosition);
     }
 
+    // Track active selection text for reliable copy even after button touch
+    var lastSelectedText = '';
+    document.addEventListener('selectionchange', function() {
+        var sel = window.getSelection && window.getSelection();
+        if (sel && sel.toString()) {
+            lastSelectedText = sel.toString();
+        }
+    });
+
+    function copySelectedCode() {
+        var text = '';
+        var sel = window.getSelection && window.getSelection();
+        if (sel && sel.toString()) {
+            text = sel.toString();
+        } else if (lastSelectedText) {
+            text = lastSelectedText;
+        }
+
+        if (!text) {
+            var cell = getActiveCell();
+            var cm = cell && cell.querySelector('.cm-content');
+            if (cm) {
+                try { document.execCommand('copy'); } catch(e) {}
+            }
+        }
+
+        if (text) {
+            window.__ml_clipboard = text;
+            if (window.MobileLinuxClipboard && window.MobileLinuxClipboard.copyText) {
+                try { window.MobileLinuxClipboard.copyText(text); } catch(e) {}
+            }
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                try { navigator.clipboard.writeText(text); } catch(e) {}
+            }
+            try { document.execCommand('copy'); } catch(e) {}
+        }
+
+        var btn = document.getElementById('ml-k-copy');
+        if (btn) {
+            var orig = btn.innerHTML;
+            btn.innerHTML = '✓ Copied';
+            btn.classList.add('ml-k-done');
+            setTimeout(function() {
+                btn.innerHTML = orig;
+                btn.classList.remove('ml-k-done');
+            }, 1000);
+        }
+    }
+
+    function pasteCode() {
+        var pasted = false;
+        if (window.MobileLinuxClipboard && window.MobileLinuxClipboard.pasteText) {
+            try {
+                var sysText = window.MobileLinuxClipboard.pasteText();
+                if (sysText) {
+                    insertCodeText(sysText);
+                    pasted = true;
+                }
+            } catch(e) {}
+        }
+
+        if (!pasted) {
+            if (navigator.clipboard && navigator.clipboard.readText) {
+                navigator.clipboard.readText().then(function(t) {
+                    if (t) insertCodeText(t);
+                    else if (window.__ml_clipboard) insertCodeText(window.__ml_clipboard);
+                    else document.execCommand('paste');
+                }).catch(function() {
+                    if (window.__ml_clipboard) insertCodeText(window.__ml_clipboard);
+                    else document.execCommand('paste');
+                });
+            } else if (window.__ml_clipboard) {
+                insertCodeText(window.__ml_clipboard);
+            } else {
+                try { document.execCommand('paste'); } catch(e) {}
+            }
+        }
+
+        var btn = document.getElementById('ml-k-paste');
+        if (btn) {
+            var orig = btn.innerHTML;
+            btn.innerHTML = '✓ Pasted';
+            btn.classList.add('ml-k-done');
+            setTimeout(function() {
+                btn.innerHTML = orig;
+                btn.classList.remove('ml-k-done');
+            }, 800);
+        }
+    }
+
+    function moveCursor(dir) {
+        var sel = window.getSelection && window.getSelection();
+        if (sel && sel.modify) {
+            try {
+                sel.modify('move', dir === 'left' ? 'backward' : 'forward', 'character');
+                return;
+            } catch(e) {}
+        }
+        var cell = getActiveCell();
+        var target = (cell && cell.querySelector('.cm-content')) || document.activeElement;
+        if (target) {
+            var key = dir === 'left' ? 'ArrowLeft' : 'ArrowRight';
+            var code = dir === 'left' ? 37 : 39;
+            target.dispatchEvent(new KeyboardEvent('keydown', { key: key, code: key, keyCode: code, which: code, bubbles: true }));
+        }
+    }
+
     // 3. Floating Mobile Action Dock (Run, Add, Stop, Restart, Keys)
     function injectFloatingToolbar() {
         if (document.getElementById('ml-floating-toolbar')) return;
@@ -256,44 +363,101 @@
         var isNotebookPage = p.indexOf('/notebooks/') !== -1 || p.indexOf('/lab') !== -1 || document.querySelector('.jp-Notebook') !== null;
         if (!isNotebookPage) return;
 
-        // Create Keyboard Strip
+        // Create Keyboard Strip with Rich Keys
         var keyStrip = document.createElement('div');
         keyStrip.id = 'ml-keys-strip';
         keyStrip.innerHTML = [
+            '<button class="ml-key-btn ml-k-action" id="ml-k-copy" title="Copy Selected Text">📋 Copy</button>',
+            '<button class="ml-key-btn ml-k-action" id="ml-k-paste" title="Paste Code">📥 Paste</button>',
+            '<button class="ml-key-btn ml-k-tool" id="ml-k-undo" title="Undo">↩</button>',
+            '<button class="ml-key-btn ml-k-tool" id="ml-k-redo" title="Redo">↪</button>',
+            '<button class="ml-key-btn ml-k-nav" id="ml-k-left" title="Move Cursor Left">◀</button>',
+            '<button class="ml-key-btn ml-k-nav" id="ml-k-right" title="Move Cursor Right">▶</button>',
             '<button class="ml-key-btn" id="ml-k-tab" title="Indent 4 spaces">Tab</button>',
+            '<button class="ml-key-btn" id="ml-k-untab" title="Dedent / Unindent">Untab</button>',
+            '<button class="ml-key-btn ml-k-esc" id="ml-k-esc" title="Command Mode">Esc</button>',
             '<button class="ml-key-btn" id="ml-k-colon">:</button>',
+            '<button class="ml-key-btn" id="ml-k-equal">=</button>',
             '<button class="ml-key-btn" id="ml-k-paren">( )</button>',
             '<button class="ml-key-btn" id="ml-k-bracket">[ ]</button>',
             '<button class="ml-key-btn" id="ml-k-brace">{ }</button>',
-            '<button class="ml-key-btn" id="ml-k-quote">"</button>',
-            '<button class="ml-key-btn" id="ml-k-squote">\'</button>',
-            '<button class="ml-key-btn" id="ml-k-equal">=</button>',
+            '<button class="ml-key-btn" id="ml-k-quote">" "</button>',
+            '<button class="ml-key-btn" id="ml-k-squote">\' \'</button>',
+            '<button class="ml-key-btn" id="ml-k-plus">+</button>',
+            '<button class="ml-key-btn" id="ml-k-minus">-</button>',
+            '<button class="ml-key-btn" id="ml-k-star">*</button>',
+            '<button class="ml-key-btn" id="ml-k-slash">/</button>',
+            '<button class="ml-key-btn" id="ml-k-percent">%</button>',
+            '<button class="ml-key-btn" id="ml-k-lt">&lt;</button>',
+            '<button class="ml-key-btn" id="ml-k-gt">&gt;</button>',
+            '<button class="ml-key-btn" id="ml-k-comma">,</button>',
+            '<button class="ml-key-btn" id="ml-k-dot">.</button>',
             '<button class="ml-key-btn" id="ml-k-under">_</button>',
             '<button class="ml-key-btn" id="ml-k-hash">#</button>',
-            '<button class="ml-key-btn" id="ml-k-def">def </button>',
-            '<button class="ml-key-btn" id="ml-k-print">print()</button>',
-            '<button class="ml-key-btn ml-k-esc" id="ml-k-esc">Esc</button>'
+            '<button class="ml-key-btn" id="ml-k-excl">!</button>',
+            '<button class="ml-key-btn" id="ml-k-quest">?</button>',
+            '<button class="ml-key-btn" id="ml-k-pipe">|</button>',
+            '<button class="ml-key-btn" id="ml-k-amp">&amp;</button>',
+            '<button class="ml-key-btn ml-k-code" id="ml-k-def">def</button>',
+            '<button class="ml-key-btn ml-k-code" id="ml-k-import">import</button>',
+            '<button class="ml-key-btn ml-k-code" id="ml-k-return">return</button>',
+            '<button class="ml-key-btn ml-k-code" id="ml-k-if">if</button>',
+            '<button class="ml-key-btn ml-k-code" id="ml-k-for">for</button>',
+            '<button class="ml-key-btn ml-k-code" id="ml-k-in">in</button>',
+            '<button class="ml-key-btn ml-k-code" id="ml-k-print">print()</button>',
+            '<button class="ml-key-btn ml-k-code" id="ml-k-len">len()</button>'
         ].join('');
         document.body.appendChild(keyStrip);
 
+        // Prevent virtual keys from stealing editor focus or collapsing selection
+        keyStrip.querySelectorAll('.ml-key-btn').forEach(function(b) {
+            b.addEventListener('mousedown', function(e) { e.preventDefault(); });
+        });
+
         // Bind virtual key actions
+        document.getElementById('ml-k-copy').addEventListener('click', function(e) { e.preventDefault(); copySelectedCode(); });
+        document.getElementById('ml-k-paste').addEventListener('click', function(e) { e.preventDefault(); pasteCode(); });
+        document.getElementById('ml-k-undo').addEventListener('click', function(e) { e.preventDefault(); runJupyterCmd('notebook:undo-cell-action') || document.execCommand('undo'); });
+        document.getElementById('ml-k-redo').addEventListener('click', function(e) { e.preventDefault(); runJupyterCmd('notebook:redo-cell-action') || document.execCommand('redo'); });
+        document.getElementById('ml-k-left').addEventListener('click', function(e) { e.preventDefault(); moveCursor('left'); });
+        document.getElementById('ml-k-right').addEventListener('click', function(e) { e.preventDefault(); moveCursor('right'); });
         document.getElementById('ml-k-tab').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('    '); });
-        document.getElementById('ml-k-colon').addEventListener('click', function(e) { e.preventDefault(); insertCodeText(':'); });
-        document.getElementById('ml-k-paren').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('()', 1); });
-        document.getElementById('ml-k-bracket').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('[]', 1); });
-        document.getElementById('ml-k-brace').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('{}', 1); });
-        document.getElementById('ml-k-quote').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('""', 1); });
-        document.getElementById('ml-k-squote').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('\'\'', 1); });
-        document.getElementById('ml-k-equal').addEventListener('click', function(e) { e.preventDefault(); insertCodeText(' = '); });
-        document.getElementById('ml-k-under').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('_'); });
-        document.getElementById('ml-k-hash').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('# '); });
-        document.getElementById('ml-k-def').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('def '); });
-        document.getElementById('ml-k-print').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('print()', 1); });
+        document.getElementById('ml-k-untab').addEventListener('click', function(e) { e.preventDefault(); runJupyterCmd('notebook:outdent') || runJupyterCmd('notebook:dedent'); });
         document.getElementById('ml-k-esc').addEventListener('click', function(e) {
             e.preventDefault();
             var target = document.activeElement || document;
             target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true }));
         });
+        document.getElementById('ml-k-colon').addEventListener('click', function(e) { e.preventDefault(); insertCodeText(':'); });
+        document.getElementById('ml-k-equal').addEventListener('click', function(e) { e.preventDefault(); insertCodeText(' = '); });
+        document.getElementById('ml-k-paren').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('()', 1); });
+        document.getElementById('ml-k-bracket').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('[]', 1); });
+        document.getElementById('ml-k-brace').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('{}', 1); });
+        document.getElementById('ml-k-quote').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('""', 1); });
+        document.getElementById('ml-k-squote').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('\'\'', 1); });
+        document.getElementById('ml-k-plus').addEventListener('click', function(e) { e.preventDefault(); insertCodeText(' + '); });
+        document.getElementById('ml-k-minus').addEventListener('click', function(e) { e.preventDefault(); insertCodeText(' - '); });
+        document.getElementById('ml-k-star').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('*'); });
+        document.getElementById('ml-k-slash').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('/'); });
+        document.getElementById('ml-k-percent').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('%'); });
+        document.getElementById('ml-k-lt').addEventListener('click', function(e) { e.preventDefault(); insertCodeText(' < '); });
+        document.getElementById('ml-k-gt').addEventListener('click', function(e) { e.preventDefault(); insertCodeText(' > '); });
+        document.getElementById('ml-k-comma').addEventListener('click', function(e) { e.preventDefault(); insertCodeText(', '); });
+        document.getElementById('ml-k-dot').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('.'); });
+        document.getElementById('ml-k-under').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('_'); });
+        document.getElementById('ml-k-hash').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('# '); });
+        document.getElementById('ml-k-excl').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('!'); });
+        document.getElementById('ml-k-quest').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('?'); });
+        document.getElementById('ml-k-pipe').addEventListener('click', function(e) { e.preventDefault(); insertCodeText(' | '); });
+        document.getElementById('ml-k-amp').addEventListener('click', function(e) { e.preventDefault(); insertCodeText(' & '); });
+        document.getElementById('ml-k-def').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('def '); });
+        document.getElementById('ml-k-import').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('import '); });
+        document.getElementById('ml-k-return').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('return '); });
+        document.getElementById('ml-k-if').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('if '); });
+        document.getElementById('ml-k-for').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('for '); });
+        document.getElementById('ml-k-in').addEventListener('click', function(e) { e.preventDefault(); insertCodeText(' in '); });
+        document.getElementById('ml-k-print').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('print()', 1); });
+        document.getElementById('ml-k-len').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('len()', 1); });
 
         // Create Toolbar
         var bar = document.createElement('div');
@@ -808,6 +972,9 @@
         '    .ml-btn-collapse { background: #252526 !important; border-color: #444 !important; color: #f37626 !important; }',
         '    #ml-keys-strip { background: rgba(30, 30, 30, 0.98) !important; border-top-color: #444 !important; }',
         '    .ml-key-btn { background: #2d2d2d !important; color: #e5e7eb !important; border-color: #444 !important; }',
+        '    .ml-k-action { background: #0c4a6e !important; color: #7dd3fc !important; border-color: #0284c7 !important; }',
+        '    .ml-k-nav { background: #1e293b !important; color: #cbd5e1 !important; border-color: #334155 !important; }',
+        '    .ml-k-code { background: #3b0764 !important; color: #f0abfc !important; border-color: #701a75 !important; }',
         '}',
         '[data-jp-theme-light="false"] .ml-vdock-btn, .jp-theme-dark .ml-vdock-btn { background: #252526 !important; border-color: #3c3c3c !important; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4) !important; }',
         '[data-jp-theme-light="false"] .ml-vdock-btn svg, .jp-theme-dark .ml-vdock-btn svg { stroke: #d1d5db !important; }',
@@ -817,6 +984,9 @@
         '[data-jp-theme-light="false"] .ml-btn-collapse, .jp-theme-dark .ml-btn-collapse { background: #252526 !important; border-color: #444 !important; }',
         '[data-jp-theme-light="false"] #ml-keys-strip, .jp-theme-dark #ml-keys-strip { background: rgba(30, 30, 30, 0.98) !important; border-top-color: #444 !important; }',
         '[data-jp-theme-light="false"] .ml-key-btn, .jp-theme-dark .ml-key-btn { background: #2d2d2d !important; color: #e5e7eb !important; border-color: #444 !important; }',
+        '[data-jp-theme-light="false"] .ml-k-action, .jp-theme-dark .ml-k-action { background: #0c4a6e !important; color: #7dd3fc !important; border-color: #0284c7 !important; }',
+        '[data-jp-theme-light="false"] .ml-k-nav, .jp-theme-dark .ml-k-nav { background: #1e293b !important; color: #cbd5e1 !important; border-color: #334155 !important; }',
+        '[data-jp-theme-light="false"] .ml-k-code, .jp-theme-dark .ml-k-code { background: #3b0764 !important; color: #f0abfc !important; border-color: #701a75 !important; }',
 
         '/* Sleek Jupyter-Themed Floating Bar for Notebook View */',
         '#ml-floating-toolbar { position: fixed; bottom: 16px; right: 14px; z-index: 10000; display: flex; align-items: center; justify-content: flex-end; gap: 8px; pointer-events: none; transition: bottom 0.15s ease-out; }',
@@ -831,6 +1001,12 @@
         '#ml-keys-strip.ml-visible { display: flex; }',
         '.ml-key-btn { background: #f6f8fa; color: #1f2937; border: 1px solid #d0d7de; border-radius: 6px; padding: 5px 9px; font-family: monospace; font-size: 13px; cursor: pointer; white-space: nowrap; touch-action: manipulation; }',
         '.ml-key-btn:active { background: #e5e7eb; }',
+        '.ml-k-action { background: #e0f2fe !important; color: #0369a1 !important; border-color: #7dd3fc !important; font-weight: 600 !important; }',
+        '.ml-k-action:active { background: #bae6fd !important; }',
+        '.ml-k-done { background: #10b981 !important; color: #ffffff !important; border-color: #059669 !important; transition: background 0.15s ease; }',
+        '.ml-k-nav { background: #f1f5f9 !important; font-weight: 700 !important; color: #334155 !important; }',
+        '.ml-k-tool { font-weight: 600 !important; color: #4b5563 !important; }',
+        '.ml-k-code { background: #fdf4ff !important; color: #a21caf !important; border-color: #f0abfc !important; font-weight: 500 !important; }',
         '.ml-k-esc { background: #fee2e2 !important; color: #dc2626 !important; border-color: #fca5a5 !important; }'
     ].join('\n');
     document.head.appendChild(style);

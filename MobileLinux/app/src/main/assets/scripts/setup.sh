@@ -116,12 +116,31 @@ else
 fi
 EOF
 chmod +x "$ROOTFS_DIR/usr/local/bin/pip"
+ln -sf /usr/local/bin/pip "$ROOTFS_DIR/usr/local/bin/pip3"
 
-# Configure pip to allow package installation on Ubuntu 24.04 (PEP 668 override)
+# Configure pip to allow package installation on Ubuntu 24.04 (PEP 668 override + fast binary wheels)
 mkdir -p "$ROOTFS_DIR/etc"
 cat > "$ROOTFS_DIR/etc/pip.conf" << 'EOF'
 [global]
 break-system-packages = true
+prefer-binary = true
+no-compile = true
+EOF
+
+mkdir -p "$ROOTFS_DIR/etc/apt/apt.conf.d"
+cat > "$ROOTFS_DIR/etc/apt/apt.conf.d/99mobilelinux" << 'EOF'
+DPkg::Lock::Timeout "60";
+Acquire::ForceIPv4 "true";
+APT::Get::Assume-Yes "true";
+APT::Get::AllowUnauthenticated "false";
+APT::Sandbox::User "root";
+Acquire::http::Pipeline-Depth "0";
+Acquire::http::No-Cache "true";
+Acquire::Languages "none";
+Dpkg::Options {
+    "--force-confdef";
+    "--force-confold";
+};
 EOF
 
 cat > "$ROOTFS_DIR/usr/local/bin/pkg-install-python" << 'EOF'
@@ -488,11 +507,15 @@ c.ServerApp.token = ''
 c.NotebookApp.token = ''
 c.ServerApp.password = ''
 c.NotebookApp.password = ''
+c.IdentityProvider.token = ''
+c.IdentityProvider.password = ''
 c.ServerApp.disable_check_xsrf = True
 c.NotebookApp.disable_check_xsrf = True
 c.ServerApp.root_dir = '/home/ubuntu'
 c.NotebookApp.root_dir = '/home/ubuntu'
 c.IPKernelApp.ip = '127.0.0.1'
+c.JupyterNotebookApp.expose_app_in_browser = True
+c.JupyterNotebookApp.custom_css = True
 EOF
 
 cp "$ROOTFS_DIR/etc/jupyter/jupyter_server_config.py" "$ROOTFS_DIR/etc/jupyter/jupyter_notebook_config.py"
@@ -513,6 +536,17 @@ define(['base/js/namespace'], function(Jupyter) {
     }
 });
 EOF
+
+cat > "$ROOTFS_DIR/home/ubuntu/.jupyter/custom/custom.css" << 'EOF'
+/* MobileLinux Touch Optimization for Jupyter Notebook */
+.lm-Menu-item { min-height: 44px !important; padding: 10px 18px !important; font-size: 15px !important; touch-action: manipulation !important; }
+.lm-MenuBar-item { min-height: 38px !important; padding: 8px 14px !important; font-size: 14px !important; touch-action: manipulation !important; }
+EOF
+mkdir -p "$ROOTFS_DIR/root/.jupyter/custom"
+cp "$ROOTFS_DIR/home/ubuntu/.jupyter/custom/custom.css" "$ROOTFS_DIR/root/.jupyter/custom/custom.css"
+
+# Clean up obsolete Debian packages without RECORD to prevent pip collision
+rm -rf "$ROOTFS_DIR"/usr/lib/python3/dist-packages/jsonschema* "$ROOTFS_DIR"/usr/lib/python3/dist-packages/rpds* "$ROOTFS_DIR"/usr/lib/python3/dist-packages/referencing* 2>/dev/null || true
 
 log "✓ Built-in Jupyter & IPython configurations installed"
 

@@ -48,7 +48,7 @@ class PackageProgressParser(
         }
 
         if (foundPercent != null && foundPercent in 1..100) {
-            val isFinalLine = line.contains("complete", ignoreCase = true) || line.contains("successfully", ignoreCase = true)
+            val isFinalLine = line.contains("complete", ignoreCase = true) || line.contains("installed successfully", ignoreCase = true)
             val effectivePercent = if (foundPercent >= 98 && !isFinalLine) 95 else foundPercent
             currentPercent = maxOf(currentPercent, effectivePercent)
         }
@@ -73,28 +73,41 @@ class PackageProgressParser(
                 if (debName.isNotEmpty()) "Downloading $debName..." else "Downloading packages..."
             }
             lower.contains("collecting ") -> {
-                val target = line.substringAfter("collecting ").substringBefore(" ").trim()
-                currentPercent = maxOf(currentPercent, 25)
+                val target = extractTarget(line, "collecting ")
+                currentPercent = if (currentPercent >= 95) 30 else maxOf(currentPercent, 25)
                 if (target.isNotEmpty()) "Collecting $target..." else "Collecting dependencies..."
             }
             lower.contains("downloading ") -> {
-                currentPercent = maxOf(currentPercent, 40)
-                val target = line.substringAfter("downloading ").substringBefore(" ").trim()
-                if (target.isNotEmpty()) "Downloading $target..." else "Downloading dependencies..."
+                currentPercent = if (currentPercent >= 95) 45 else maxOf(currentPercent, 35)
+                when {
+                    lower.contains("conda") || lower.contains("miniforge") -> "Downloading Conda installer..."
+                    else -> {
+                        val target = extractTarget(line, "downloading ")
+                        if (target.isNotEmpty()) "Downloading $target..." else "Downloading dependencies..."
+                    }
+                }
             }
-            lower.contains("preparing to unpack") || lower.contains("unpacking ") -> {
-                currentPercent = maxOf(currentPercent, 70)
-                val target = line.substringAfter("unpacking ").substringBefore(" ").trim()
-                if (target.isNotEmpty()) "Unpacking $target..." else "Unpacking files..."
+            lower.contains("preparing to unpack") || lower.contains("unpacking ") || lower.contains("unpacking conda") || lower.contains("extracting conda") -> {
+                currentPercent = maxOf(currentPercent, 65)
+                if (lower.contains("conda") || lower.contains("miniforge")) {
+                    "Unpacking Conda packages (please wait)..."
+                } else {
+                    val target = extractTarget(line, "unpacking ")
+                    if (target.isNotEmpty()) "Unpacking $target..." else "Unpacking files..."
+                }
+            }
+            lower.contains("configuring conda") || lower.contains("initializing bash shell") || lower.contains("conda init") -> {
+                currentPercent = maxOf(currentPercent, 88)
+                "Configuring Conda & auto-activation..."
             }
             lower.contains("setting up ") -> {
                 currentPercent = maxOf(currentPercent, 85)
-                val target = line.substringAfter("setting up ").substringBefore(" ").trim()
+                val target = extractTarget(line, "setting up ")
                 if (target.isNotEmpty()) "Configuring $target..." else "Configuring package..."
             }
             lower.contains("installing collected packages") -> {
-                currentPercent = maxOf(currentPercent, 88)
-                "Installing collected packages..."
+                currentPercent = 88
+                "Installing & unpacking packages (please wait)..."
             }
             lower.contains("processing triggers") -> {
                 currentPercent = maxOf(currentPercent, 94)
@@ -116,9 +129,13 @@ class PackageProgressParser(
                 currentPercent = maxOf(currentPercent, 50)
                 "Fetching npm package..."
             }
-            (lower.contains("added ") && lower.contains("package")) || lower.contains("successfully installed") || lower.contains("installation complete") || lower.contains("sync complete") -> {
+            (lower.contains("added ") && lower.contains("package")) || lower.contains("installation complete") || lower.contains("sync complete") || lower.contains("installed successfully") || lower.contains("✓ jupyter") || lower.contains("✓ miniforge") || lower.contains("✓ conda") || lower.contains("conda successfully installed") || lower.contains("conda installed successfully") -> {
                 currentPercent = 100
                 "Installation complete"
+            }
+            lower.contains("successfully installed") -> {
+                currentPercent = 94
+                "Finishing installation..."
             }
             else -> {
                 lastStage
@@ -139,23 +156,23 @@ class PackageProgressParser(
         }
         val lower = line.lowercase()
         val stage: String = when {
-            lower.contains("purging") || lower.contains("removing apt") || lower.contains("removing package") -> {
+            lower.contains("deactivating and removing conda") || lower.contains("purging") || lower.contains("removing apt") || lower.contains("removing package") -> {
                 currentPercent = maxOf(currentPercent, 25)
-                "Removing package files..."
+                if (lower.contains("conda")) "Deactivating and removing Conda..." else "Removing package files..."
             }
-            lower.contains("removing from system pip") || lower.contains("pip uninstall") || lower.contains("uninstalling") -> {
+            lower.contains("removing conda directories") || lower.contains("removing from system pip") || lower.contains("pip uninstall") || lower.contains("uninstalling") -> {
                 currentPercent = maxOf(currentPercent, 50)
-                "Uninstalling Python modules..."
+                if (lower.contains("conda")) "Removing Conda directories..." else "Uninstalling Python modules..."
             }
-            lower.contains("cleaning python site-packages") || lower.contains("site-packages") -> {
+            lower.contains("cleaning shell") || lower.contains("cleaning python site-packages") || lower.contains("site-packages") -> {
                 currentPercent = maxOf(currentPercent, 70)
-                "Cleaning library directories..."
+                if (lower.contains("shell") || lower.contains("bashrc")) "Cleaning shell configuration..." else "Cleaning library directories..."
             }
             lower.contains("cleaning conda") || lower.contains("conda") -> {
                 currentPercent = maxOf(currentPercent, 85)
                 "Cleaning Conda environments..."
             }
-            lower.contains("permanently uninstalled") || lower.contains("successfully uninstalled") || lower.contains("purged from all environments") -> {
+            lower.contains("permanently uninstalled") || lower.contains("successfully uninstalled") || lower.contains("purged from all environments") || lower.contains("conda permanently uninstalled") || lower.contains("conda successfully removed") -> {
                 currentPercent = 100
                 "Uninstallation complete"
             }
@@ -165,10 +182,27 @@ class PackageProgressParser(
         return ProgressUpdate(currentPercent, stage)
     }
 
+    private fun extractTarget(line: String, prefix: String): String {
+        val clean = line.replace(Regex("""^\[MobileLinux\]\s*""", RegexOption.IGNORE_CASE), "")
+        val idx = clean.indexOf(prefix, ignoreCase = true)
+        if (idx == -1) return ""
+        val after = clean.substring(idx + prefix.length).trim()
+        val target = after.substringBefore(" ").trim()
+        return if (!target.startsWith("[")) target else ""
+    }
+
     private fun extractDebName(line: String): String {
-        val parts = line.split(" ")
+        val parts = line.split(" ").filter { it.isNotBlank() }
         val debPart = parts.firstOrNull { it.contains("python3-") || it.contains(packageName.lowercase()) }
-        return debPart ?: ""
+        if (debPart != null) return debPart
+        val archIdx = parts.indexOfFirst { it == "arm64" || it == "all" || it == "amd64" || it == "armhf" }
+        if (archIdx != -1 && archIdx + 1 < parts.size) {
+            val candidate = parts[archIdx + 1]
+            if (candidate.matches(Regex("[a-zA-Z0-9_.+-]+"))) {
+                return candidate
+            }
+        }
+        return ""
     }
 
     data class ProgressUpdate(

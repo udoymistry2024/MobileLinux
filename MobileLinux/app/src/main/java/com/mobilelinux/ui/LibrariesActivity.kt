@@ -241,14 +241,13 @@ class LibrariesActivity : AppCompatActivity() {
         // Instant Cache from SharedPreferences: shows installed status in 0ms on startup
         val prefs = getSharedPreferences("packages_state_cache", Context.MODE_PRIVATE)
         val savedInstalled = getCachedInstalledIds(prefs)
-        val isCondaActiveCached = prefs.getBoolean("conda_active", false)
 
         curated.forEach { pkg ->
             if (pkg.id == "miniconda") {
                 if (savedInstalled.contains("miniconda")) {
                     pkg.isInstalled = true
-                    pkg.isActivated = isCondaActiveCached
-                    pkg.statusText = if (isCondaActiveCached) "Active & Ready (base)" else "Installed. Click Activate to enable."
+                    pkg.isActivated = true
+                    pkg.statusText = "Active & Ready (base)"
                 }
             } else if (savedInstalled.contains(pkg.id)) {
                 pkg.isInstalled = true
@@ -309,9 +308,15 @@ class LibrariesActivity : AppCompatActivity() {
                 ).first == 0
 
                 // Check whether Conda is already activated in .bashrc and .condarc
-                val isCondaActivated = realCondaInstalled && runtime.runCommand(
+                var isCondaActivated = realCondaInstalled && runtime.runCommand(
                     "grep -q 'conda initialize' /home/ubuntu/.bashrc 2>/dev/null && [ -f /home/ubuntu/.condarc ]"
                 ).first == 0
+
+                // Auto-activate & auto-repair Conda if binary exists so user never has to manually init
+                if (realCondaInstalled && !isCondaActivated) {
+                    runtime.configureCondaEnvironment()
+                    isCondaActivated = true
+                }
 
                 val finalInstalledIds = installedIds.toMutableSet()
                 if (realCondaInstalled) {
@@ -335,7 +340,7 @@ class LibrariesActivity : AppCompatActivity() {
                         pkg.statusText = when {
                             !realCondaInstalled -> "Ready to install"
                             isCondaActivated -> "Active & Ready (base)"
-                            else -> "Installed. Click Activate to enable."
+                            else -> "Active & Ready (base)"
                         }
                     } else {
                         val isInst = finalInstalledIds.contains(pkg.id)

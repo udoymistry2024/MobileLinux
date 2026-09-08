@@ -25,7 +25,7 @@ object PackageRepository {
         val sb = java.lang.StringBuilder()
         sb.append("export PATH=\"/home/ubuntu/.local/bin:/root/.local/bin:/home/ubuntu/go/bin:/root/go/bin:/home/ubuntu/.cargo/bin:/root/.cargo/bin:/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:\$PATH\"\n")
         sb.append("ALL_PY=\"").append(d).append("(python3 -c \"import sys\n")
-        sb.append("for m in ['numpy','pandas','scipy','sklearn','torch','torchvision','torchaudio','tflite_runtime','onnxruntime','matplotlib','seaborn','plotly','bokeh','altair','cv2','PIL','skimage','nltk','spacy','transformers','tokenizers','datasets','gensim','networkx','sympy','statsmodels','xgboost','lightgbm','catboost','polars','dask','pyarrow','fastapi','uvicorn','streamlit','gradio','tqdm','joblib','h5py','zarr','librosa','soundfile','pydub','whisper','sentence_transformers','langchain','chromadb','faiss','optuna','Cython','numba','bs4','scrapy','requests','httpx','aiohttp','flask','django','sqlalchemy','alembic','psycopg2','pymysql','redis','celery','pydantic','pytest','hypothesis','locust','impacket','scapy','sherlock','chatdev','qwen_agent']:\n")
+        sb.append("for m in ['notebook','jupyterlab','numpy','pandas','scipy','sklearn','torch','torchvision','torchaudio','tflite_runtime','onnxruntime','matplotlib','seaborn','plotly','bokeh','altair','cv2','PIL','skimage','nltk','spacy','transformers','tokenizers','datasets','gensim','networkx','sympy','statsmodels','xgboost','lightgbm','catboost','polars','dask','pyarrow','fastapi','uvicorn','streamlit','gradio','tqdm','joblib','h5py','zarr','librosa','soundfile','pydub','whisper','sentence_transformers','langchain','chromadb','faiss','optuna','Cython','numba','bs4','scrapy','requests','httpx','aiohttp','flask','django','sqlalchemy','alembic','psycopg2','pymysql','redis','celery','pydantic','pytest','hypothesis','locust','impacket','scapy','sherlock','chatdev','qwen_agent']:\n")
         sb.append("    try:\n")
         sb.append("        __import__(m)\n")
         sb.append("        print('PY:' + m)\n")
@@ -34,7 +34,7 @@ object PackageRepository {
         sb.append("\" 2>/dev/null)\"\n")
         sb.append("if [ -x /home/ubuntu/miniforge3/bin/python ]; then\n")
         sb.append("    ALL_PY=\"").append(d).append("ALL_PY ").append(d).append("(/home/ubuntu/miniforge3/bin/python -c \"import sys\n")
-        sb.append("for m in ['numpy','pandas','scipy','sklearn','torch','torchvision','torchaudio','tflite_runtime','onnxruntime','matplotlib','seaborn','plotly','bokeh','altair','cv2','PIL','skimage','nltk','spacy','transformers','tokenizers','datasets','gensim','networkx','sympy','statsmodels','xgboost','lightgbm','catboost','polars','dask','pyarrow','fastapi','uvicorn','streamlit','gradio','tqdm','joblib','h5py','zarr','librosa','soundfile','pydub','whisper','sentence_transformers','langchain','chromadb','faiss','optuna','Cython','numba','bs4','scrapy','requests','httpx','aiohttp','flask','django','sqlalchemy','alembic','psycopg2','pymysql','redis','celery','pydantic','pytest','hypothesis','locust','impacket','scapy','sherlock','chatdev','qwen_agent']:\n")
+        sb.append("for m in ['notebook','jupyterlab','numpy','pandas','scipy','sklearn','torch','torchvision','torchaudio','tflite_runtime','onnxruntime','matplotlib','seaborn','plotly','bokeh','altair','cv2','PIL','skimage','nltk','spacy','transformers','tokenizers','datasets','gensim','networkx','sympy','statsmodels','xgboost','lightgbm','catboost','polars','dask','pyarrow','fastapi','uvicorn','streamlit','gradio','tqdm','joblib','h5py','zarr','librosa','soundfile','pydub','whisper','sentence_transformers','langchain','chromadb','faiss','optuna','Cython','numba','bs4','scrapy','requests','httpx','aiohttp','flask','django','sqlalchemy','alembic','psycopg2','pymysql','redis','celery','pydantic','pytest','hypothesis','locust','impacket','scapy','sherlock','chatdev','qwen_agent']:\n")
         sb.append("    try:\n")
         sb.append("        __import__(m)\n")
         sb.append("        print('PY:' + m)\n")
@@ -44,7 +44,7 @@ object PackageRepository {
         sb.append("fi\n")
         sb.append("if [ -n \"").append(d).append("CONDA_PREFIX\" ] && [ -x \"").append(d).append("CONDA_PREFIX/bin/python\" ]; then\n")
         sb.append("    ALL_PY=\"").append(d).append("ALL_PY ").append(d).append("(\"").append(d).append("CONDA_PREFIX/bin/python\" -c \"import sys\n")
-        sb.append("for m in ['numpy','pandas','scipy','sklearn','torch','torchvision','torchaudio','tflite_runtime','onnxruntime','matplotlib','seaborn','plotly','bokeh','altair','cv2','PIL','skimage','nltk','spacy','transformers','tokenizers','datasets','gensim','networkx','sympy','statsmodels','xgboost','lightgbm','catboost','polars','dask','pyarrow','fastapi','uvicorn','streamlit','gradio','tqdm','joblib','h5py','zarr','librosa','soundfile','pydub','whisper','sentence_transformers','langchain','chromadb','faiss','optuna','Cython','numba','bs4','scrapy','requests','httpx','aiohttp','flask','django','sqlalchemy','alembic','psycopg2','pymysql','redis','celery','pydantic','pytest','hypothesis','locust','impacket','scapy','sherlock','chatdev','qwen_agent']:\n")
+        sb.append("for m in ['notebook','jupyterlab','numpy','pandas','scipy','sklearn','torch','torchvision','torchaudio','tflite_runtime','onnxruntime','matplotlib','seaborn','plotly','bokeh','altair','cv2','PIL','skimage','nltk','spacy','transformers','tokenizers','datasets','gensim','networkx','sympy','statsmodels','xgboost','lightgbm','catboost','polars','dask','pyarrow','fastapi','uvicorn','streamlit','gradio','tqdm','joblib','h5py','zarr','librosa','soundfile','pydub','whisper','sentence_transformers','langchain','chromadb','faiss','optuna','Cython','numba','bs4','scrapy','requests','httpx','aiohttp','flask','django','sqlalchemy','alembic','psycopg2','pymysql','redis','celery','pydantic','pytest','hypothesis','locust','impacket','scapy','sherlock','chatdev','qwen_agent']:\n")
         sb.append("    try:\n")
         sb.append("        __import__(m)\n")
         sb.append("        print('PY:' + m)\n")
@@ -93,20 +93,27 @@ object PackageRepository {
         // 2. Specialized packages handling
         when (pkg.id) {
             "miniconda" -> {
-                return "echo '[MobileLinux] Deactivating and removing Conda...'; " +
+                return "echo '[MobileLinux] [ 20%] Deactivating and removing Conda...'; " +
                         "conda deactivate 2>/dev/null || true; " +
-                        "rm -rf /home/ubuntu/miniforge3 /home/ubuntu/miniconda3 /root/miniconda3 /root/miniforge3 /home/ubuntu/.conda /root/.conda /opt/conda 2>/dev/null || true; " +
-                        "sed -i '/miniforge3/d; /miniconda3/d; /conda/d' /home/ubuntu/.bashrc /root/.bashrc /etc/bash.bashrc 2>/dev/null || true; " +
-                        "rm -f /usr/local/bin/conda /usr/local/bin/mamba 2>/dev/null || true; " +
-                        "echo '[MobileLinux] Conda successfully removed!'"
+                        "echo '[MobileLinux] [ 50%] Removing Conda directories...'; " +
+                        "rm -rf /home/ubuntu/miniforge3 /home/ubuntu/miniconda3 /root/miniconda3 /root/miniforge3 /home/ubuntu/.conda /root/.conda /opt/conda /home/ubuntu/.condarc /root/.condarc 2>/dev/null || true; " +
+                        "echo '[MobileLinux] [ 75%] Cleaning shell configuration...'; " +
+                        "sed -i '/# >>> conda initialize >>>/,/# <<< conda initialize <<</d' /home/ubuntu/.bashrc /root/.bashrc /etc/bash.bashrc 2>/dev/null || true; " +
+                        "sed -i '/# MobileLinux: Auto-activate Conda environment/,/fi/d' /home/ubuntu/.bashrc /root/.bashrc /etc/bash.bashrc 2>/dev/null || true; " +
+                        "sed -i '/miniforge3/d; /miniconda3/d' /home/ubuntu/.bashrc /root/.bashrc /etc/bash.bashrc 2>/dev/null || true; " +
+                        "rm -f /usr/local/bin/conda /usr/local/bin/mamba /home/ubuntu/.local/bin/conda /root/.local/bin/conda 2>/dev/null || true; " +
+                        "echo '[MobileLinux] [100%] ✓ Conda permanently uninstalled and cleaned!'"
             }
             "jupyterlab" -> {
-                return "echo '[MobileLinux] Purging JupyterLab...'; " +
-                        "pip3 uninstall -y --break-system-packages jupyterlab notebook jupyter-core 2>&1 || true; " +
-                        "/home/ubuntu/miniforge3/bin/pip uninstall -y jupyterlab notebook jupyter-core 2>&1 || true; " +
-                        "sudo apt-get -o DPkg::Lock::Timeout=10 purge -y jupyter jupyter-core 2>&1 || true; " +
-                        "rm -f /usr/local/bin/jupyter /usr/local/bin/jupyter-lab /usr/local/bin/jupyter-notebook /home/ubuntu/.local/bin/jupyter* 2>/dev/null || true; " +
-                        "if command -v jupyter >/dev/null 2>&1; then echo '[MobileLinux] ✗ jupyter binary still found'; exit 1; else echo '[MobileLinux] ✓ JupyterLab successfully uninstalled!'; exit 0; fi"
+                return "echo '[MobileLinux] Purging JupyterLab & Notebook...'; " +
+                        "pip3 uninstall -y --break-system-packages jupyterlab notebook jupyter-core ipykernel 2>&1 || true; " +
+                        "pip uninstall -y --break-system-packages jupyterlab notebook jupyter-core ipykernel 2>&1 || true; " +
+                        "for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" uninstall -y jupyterlab notebook jupyter-core ipykernel 2>&1 || true; done; " +
+                        "sudo apt-get -o DPkg::Lock::Timeout=10 purge -y jupyter jupyter-core jupyter-notebook 2>&1 || true; " +
+                        "rm -rf /usr/local/lib/python3*/dist-packages/notebook* /usr/local/lib/python3*/dist-packages/jupyter* /usr/local/lib/python3*/dist-packages/nb* 2>/dev/null || true; " +
+                        "rm -rf /home/ubuntu/miniforge3/lib/python*/site-packages/notebook* /home/ubuntu/miniforge3/lib/python*/site-packages/jupyter* 2>/dev/null || true; " +
+                        "rm -f /usr/local/bin/jupyter-lab /usr/local/bin/jupyter-notebook /home/ubuntu/.local/bin/jupyter* 2>/dev/null || true; " +
+                        "if python3 -c 'import notebook' 2>/dev/null || python3 -c 'import jupyterlab' 2>/dev/null; then echo '[MobileLinux] ✗ Jupyter still found'; exit 1; else echo '[MobileLinux] ✓ JupyterLab successfully uninstalled!'; exit 0; fi"
             }
             "antigravity-cli" -> {
                 return "echo '[MobileLinux] Removing Antigravity CLI...'; " +
@@ -1114,13 +1121,15 @@ object PackageRepository {
             version = "Latest / Web IDE",
             description = "Interactive web-based notebooks, code cells, terminal, and visualization dashboard.",
             installCommand = "if [ -x /usr/local/bin/install-jupyter ]; then /usr/local/bin/install-jupyter; else " +
+                    "echo '[MobileLinux] Installing JupyterLab & Notebook...'; " +
                     "sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true; " +
-                    "if ! command -v pip3 >/dev/null 2>&1; then (sudo apt-get -o DPkg::Lock::Timeout=30 update 2>&1 || true) && sudo apt-get -o DPkg::Lock::Timeout=30 install -y --no-install-recommends python3-pip python3-dev 2>&1 || true; fi; " +
-                    "pip3 install --break-system-packages --prefer-binary --no-cache-dir jupyterlab notebook 2>&1; PIP_EXIT=\$?; " +
-                    "if [ -x /home/ubuntu/miniforge3/bin/pip ]; then /home/ubuntu/miniforge3/bin/pip install --prefer-binary --no-cache-dir jupyterlab notebook 2>&1 || true; fi; " +
-                    "if [ -x /root/miniconda3/bin/pip ]; then /root/miniconda3/bin/pip install --prefer-binary --no-cache-dir jupyterlab notebook 2>&1 || true; fi; " +
-                    "if command -v jupyter >/dev/null 2>&1 || [ -x /home/ubuntu/miniforge3/bin/jupyter ] || [ -x /root/miniconda3/bin/jupyter ] || [ -x /home/ubuntu/.local/bin/jupyter ] || [ \$PIP_EXIT -eq 0 ]; then exit 0; else exit 1; fi; fi",
-            checkInstalledCommand = "which jupyter || [ -x /home/ubuntu/miniforge3/bin/jupyter ] || [ -x /root/miniconda3/bin/jupyter ] || [ -x /home/ubuntu/.local/bin/jupyter ]",
+                    "if ! command -v pip3 >/dev/null 2>&1 && ! command -v pip >/dev/null 2>&1 && ! python3 -m pip --version >/dev/null 2>&1; then (sudo apt-get -o DPkg::Lock::Timeout=60 -o Acquire::ForceIPv4=true install -y --no-install-recommends python3-pip 2>&1 || ((sudo apt-get -o DPkg::Lock::Timeout=60 -o Acquire::ForceIPv4=true update 2>&1 || true) && sudo apt-get -o DPkg::Lock::Timeout=60 -o Acquire::ForceIPv4=true install -y --no-install-recommends python3-pip 2>&1 || true)); fi; " +
+                    "sudo rm -rf /usr/lib/python3/dist-packages/jsonschema* /usr/lib/python3/dist-packages/rpds* /usr/lib/python3/dist-packages/referencing* 2>/dev/null || true; " +
+                    "(pip3 install --break-system-packages --ignore-installed --prefer-binary --no-compile notebook jupyterlab ipykernel 2>&1 || pip install --break-system-packages --ignore-installed --prefer-binary --no-compile notebook jupyterlab ipykernel 2>&1 || python3 -m pip install --break-system-packages --ignore-installed --prefer-binary --no-compile notebook jupyterlab ipykernel 2>&1); PIP_EXIT=\$?; " +
+                    "if [ -x /home/ubuntu/miniforge3/bin/python ]; then /home/ubuntu/miniforge3/bin/python -m ipykernel install --user --name conda_base --display-name 'Python (Conda)' 2>/dev/null || true; fi; " +
+                    "if [ -x /usr/local/bin/fix-jupyter-mobile ]; then /usr/local/bin/fix-jupyter-mobile >/dev/null 2>&1 || true; fi; " +
+                    "if [ \$PIP_EXIT -eq 0 ] || python3 -c 'import notebook' 2>/dev/null || python3 -c 'import jupyterlab' 2>/dev/null; then echo '[MobileLinux] ✓ JupyterLab & Notebook installed successfully!'; exit 0; else echo '[MobileLinux] ✗ Installation failed'; exit 1; fi; fi",
+            checkInstalledCommand = "python3 -c 'import notebook' 2>/dev/null || python3 -c 'import jupyterlab' 2>/dev/null || (/home/ubuntu/miniforge3/bin/python -c 'import notebook' 2>/dev/null) || (/root/miniconda3/bin/python -c 'import notebook' 2>/dev/null)",
             launchUrl = "http://127.0.0.1:8888/lab"
         ),
         LinuxPackage(

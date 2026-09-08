@@ -1080,6 +1080,40 @@ class UbuntuRuntime(private val context: Context) {
             pipFile.setExecutable(true, false)
             pipFile.setReadable(true, false)
 
+            val pip3File = File(usrLocalBin, "pip3")
+            safeWriteFile(pip3File, getPipWrapperScript())
+            pip3File.setExecutable(true, false)
+            pip3File.setReadable(true, false)
+
+            // Configure pip default optimizations for mobile PRoot
+            try {
+                val etcDir = File(rootfsDir, "etc")
+                etcDir.mkdirs()
+                val pipConf = File(etcDir, "pip.conf")
+                safeWriteFile(pipConf, "[global]\nbreak-system-packages = true\nprefer-binary = true\nno-compile = true\n")
+                pipConf.setReadable(true, false)
+
+                val aptConfD = File(rootfsDir, "etc/apt/apt.conf.d")
+                aptConfD.mkdirs()
+                val mlAptConf = File(aptConfD, "99mobilelinux")
+                safeWriteFile(
+                    mlAptConf,
+                    "DPkg::Lock::Timeout \"60\";\n" +
+                    "Acquire::ForceIPv4 \"true\";\n" +
+                    "APT::Get::Assume-Yes \"true\";\n" +
+                    "APT::Get::AllowUnauthenticated \"false\";\n" +
+                    "APT::Sandbox::User \"root\";\n" +
+                    "Acquire::http::Pipeline-Depth \"0\";\n" +
+                    "Acquire::http::No-Cache \"true\";\n" +
+                    "Acquire::Languages \"none\";\n" +
+                    "Dpkg::Options {\n" +
+                    "    \"--force-confdef\";\n" +
+                    "    \"--force-confold\";\n" +
+                    "};\n"
+                )
+                mlAptConf.setReadable(true, false)
+            } catch (ignored: Exception) {}
+
             // Conda and Mamba CLI wrappers
             val condaWrapperFile = File(usrLocalBin, "conda")
             safeWriteFile(condaWrapperFile, getCondaWrapperScript())
@@ -1196,6 +1230,32 @@ class UbuntuRuntime(private val context: Context) {
             installJupyterFile.setExecutable(true, false)
             installJupyterFile.setReadable(true, false)
 
+            val jupyterWrapper = File(usrLocalBin, "jupyter")
+            if (!jupyterWrapper.exists() || (jupyterWrapper.isFile && jupyterWrapper.readText().contains("MobileLinux Smart Jupyter Dispatcher"))) {
+                safeWriteFile(jupyterWrapper, getJupyterDispatcherScript())
+                jupyterWrapper.setExecutable(true, false)
+                jupyterWrapper.setReadable(true, false)
+            }
+
+            val jupyterNotebookWrapper = File(usrLocalBin, "jupyter-notebook")
+            if (!jupyterNotebookWrapper.exists() || (jupyterNotebookWrapper.isFile && jupyterNotebookWrapper.readText().contains("MobileLinux Smart Jupyter Notebook Dispatcher"))) {
+                safeWriteFile(jupyterNotebookWrapper, getJupyterNotebookDispatcherScript())
+                jupyterNotebookWrapper.setExecutable(true, false)
+                jupyterNotebookWrapper.setReadable(true, false)
+            }
+
+            val jupyterLabWrapper = File(usrLocalBin, "jupyter-lab")
+            if (!jupyterLabWrapper.exists() || (jupyterLabWrapper.isFile && jupyterLabWrapper.readText().contains("MobileLinux Smart JupyterLab Dispatcher"))) {
+                safeWriteFile(jupyterLabWrapper, getJupyterLabDispatcherScript())
+                jupyterLabWrapper.setExecutable(true, false)
+                jupyterLabWrapper.setReadable(true, false)
+            }
+
+            val fixJupyterMobileFile = File(usrLocalBin, "fix-jupyter-mobile")
+            safeWriteFile(fixJupyterMobileFile, getFixJupyterMobileScript())
+            fixJupyterMobileFile.setExecutable(true, false)
+            fixJupyterMobileFile.setReadable(true, false)
+
             // Install Smart Python CLI Utilities in /usr/local/bin
             for (cfg in pythonCliConfigs) {
                 try {
@@ -1229,7 +1289,7 @@ class UbuntuRuntime(private val context: Context) {
                     }
                 }
 
-                val toolsToLink = listOf("pkg-install-python", "pkg-uninstall-python", "conda-sync-packages", "conda-sync", "conda-manager", "install-jupyter") + pythonCliConfigs.map { it.cmdName }
+                val toolsToLink = listOf("pkg-install-python", "pkg-uninstall-python", "conda-sync-packages", "conda-sync", "conda-manager", "install-jupyter", "jupyter-start", "jupyter-notebook", "jupyter-lab") + pythonCliConfigs.map { it.cmdName }
                 for (cBin in condaBins) {
                     for (tool in toolsToLink) {
                         val targetLink = File(cBin, tool)
@@ -1563,7 +1623,23 @@ class UbuntuRuntime(private val context: Context) {
                 configureBashrcForConda(rootBashrc, rootCondaDir, "$rootCondaDir/bin/conda")
             }
 
-            // 4. Mirror wrappers into discovered Conda bin directories
+            // 4. Create direct global wrappers for conda and mamba in /usr/local/bin
+            val usrLocalBin = File(rootfsDir, "usr/local/bin")
+            ensureRealDirectory(usrLocalBin)
+            val condaWrapper = File(usrLocalBin, "conda")
+            safeWriteFile(condaWrapper, "#!/bin/sh\nexec $condaBinPath \"\$@\"\n")
+            condaWrapper.setExecutable(true, false)
+            condaWrapper.setReadable(true, false)
+
+            val mambaBin = File(rootfsDir, "${detectedContainerDir.removePrefix("/")}/bin/mamba")
+            if (mambaBin.exists()) {
+                val mambaWrapper = File(usrLocalBin, "mamba")
+                safeWriteFile(mambaWrapper, "#!/bin/sh\nexec $detectedContainerDir/bin/mamba \"\$@\"\n")
+                mambaWrapper.setExecutable(true, false)
+                mambaWrapper.setReadable(true, false)
+            }
+
+            // 5. Mirror wrappers into discovered Conda bin directories
             installCommandWrappers()
 
             Log.d(TAG, "Conda environment configured & auto-activated for: $detectedContainerDir")
@@ -1713,11 +1789,15 @@ class UbuntuRuntime(private val context: Context) {
                 "c.NotebookApp.token = ''",
                 "c.ServerApp.password = ''",
                 "c.NotebookApp.password = ''",
+                "c.IdentityProvider.token = ''",
+                "c.IdentityProvider.password = ''",
                 "c.ServerApp.disable_check_xsrf = True",
                 "c.NotebookApp.disable_check_xsrf = True",
                 "c.ServerApp.root_dir = '/home/ubuntu'",
                 "c.NotebookApp.root_dir = '/home/ubuntu'",
-                "c.IPKernelApp.ip = '127.0.0.1'\n"
+                "c.IPKernelApp.ip = '127.0.0.1'",
+                "c.JupyterNotebookApp.expose_app_in_browser = True",
+                "c.JupyterNotebookApp.custom_css = True\n"
             ).joinToString("\n")
 
             safeWriteFile(File(jupyterDir, "jupyter_server_config.py"), jupyterConfigContent)
@@ -1741,11 +1821,32 @@ class UbuntuRuntime(private val context: Context) {
 
             // Custom.js to open notebooks in same tab on mobile
             val customDir = File(ubuntuJupyterDir, "custom")
+            val rootCustomDir = File(rootJupyterDir, "custom")
             ensureRealDirectory(customDir)
+            ensureRealDirectory(rootCustomDir)
             safeWriteFile(
                 File(customDir, "custom.js"),
                 "define(['base/js/namespace'], function(Jupyter) { if (Jupyter) { Jupyter._target = '_self'; } });\n"
             )
+
+            // Mobile-optimized touch CSS for menus and toolbar
+            val customCss = listOf(
+                "/* MobileLinux Touch Optimization for Jupyter Notebook */",
+                ".lm-Menu-item { min-height: 44px !important; padding: 10px 18px !important; font-size: 15px !important; touch-action: manipulation !important; }",
+                ".lm-MenuBar-item { min-height: 38px !important; padding: 8px 14px !important; font-size: 14px !important; touch-action: manipulation !important; }\n"
+            ).joinToString("\n")
+            safeWriteFile(File(customDir, "custom.css"), customCss)
+            safeWriteFile(File(rootCustomDir, "custom.css"), customCss)
+
+            // Install fix-jupyter-mobile script and patch existing HTML templates
+            val usrLocalBin = File(rootfsDir, "usr/local/bin")
+            ensureRealDirectory(usrLocalBin)
+            val fixJupyterMobileFile = File(usrLocalBin, "fix-jupyter-mobile")
+            safeWriteFile(fixJupyterMobileFile, getFixJupyterMobileScript())
+            fixJupyterMobileFile.setExecutable(true, false)
+            fixJupyterMobileFile.setReadable(true, false)
+
+            patchJupyterTemplatesForMobile(rootfsDir)
 
             // Conda always_copy mode — use FULL .condarc content (must match installBashEnvironments)
             // BUG FIX: Previously this wrote only "always_copy: true" which overwrote the
@@ -1758,6 +1859,20 @@ class UbuntuRuntime(private val context: Context) {
             val rootCondarcFile = File(rootHome, ".condarc")
             if (!rootCondarcFile.exists() || !rootCondarcFile.readText().contains("auto_activate_base")) {
                 safeWriteFile(rootCondarcFile, fullCondarcContent)
+            }
+
+            // Clean up obsolete Debian jsonschema dist-packages that lack pip RECORD files
+            try {
+                val debianDistDir = File(rootfsDir, "usr/lib/python3/dist-packages")
+                if (debianDistDir.exists() && debianDistDir.isDirectory) {
+                    debianDistDir.listFiles()?.forEach { file ->
+                        if (file.name.startsWith("jsonschema")) {
+                            file.deleteRecursively()
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Notice: cleanDebianDistPackages: ${e.message}")
             }
         } catch (e: Exception) {
             Log.w(TAG, "Notice: installJupyterAndNetlinkFixes: ${e.message}")
@@ -1773,22 +1888,44 @@ class UbuntuRuntime(private val context: Context) {
         "echo -e \"\\033[1;36m│\\033[0m \\033[1;32mNotebook URL:\\033[0m   http://127.0.0.1:8888/tree\"",
         "echo -e \"\\033[1;36m└──────────────────────────────────────────────\\033[0m\"",
         "",
-        "JUPYTER_BIN=\"\"",
-        "if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/jupyter\" ]; then",
-        "    JUPYTER_BIN=\"\$CONDA_PREFIX/bin/jupyter\"",
-        "elif [ -x /home/ubuntu/miniforge3/bin/jupyter ]; then",
-        "    JUPYTER_BIN=\"/home/ubuntu/miniforge3/bin/jupyter\"",
-        "elif which jupyter >/dev/null 2>&1; then",
-        "    JUPYTER_BIN=\"\$(which jupyter)\"",
+        "JUPYTER_CMD=\"\"",
+        "HAS_NOTEBOOK=0",
+        "HAS_LAB=0",
+        "if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/python\" ] && \"\$CONDA_PREFIX/bin/python\" -c \"import notebook\" 2>/dev/null; then",
+        "    HAS_NOTEBOOK=1",
+        "    JUPYTER_CMD=\"\$CONDA_PREFIX/bin/python -m\"",
+        "elif [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/python\" ] && \"\$CONDA_PREFIX/bin/python\" -c \"import jupyterlab\" 2>/dev/null; then",
+        "    HAS_LAB=1",
+        "    JUPYTER_CMD=\"\$CONDA_PREFIX/bin/python -m\"",
+        "elif python3 -c \"import notebook\" 2>/dev/null; then",
+        "    HAS_NOTEBOOK=1",
+        "    JUPYTER_CMD=\"python3 -m\"",
+        "elif python3 -c \"import jupyterlab\" 2>/dev/null; then",
+        "    HAS_LAB=1",
+        "    JUPYTER_CMD=\"python3 -m\"",
+        "elif [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c \"import notebook\" 2>/dev/null; then",
+        "    HAS_NOTEBOOK=1",
+        "    JUPYTER_CMD=\"/home/ubuntu/miniforge3/bin/python -m\"",
+        "elif [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c \"import jupyterlab\" 2>/dev/null; then",
+        "    HAS_LAB=1",
+        "    JUPYTER_CMD=\"/home/ubuntu/miniforge3/bin/python -m\"",
         "fi",
         "",
-        "if [ -z \"\$JUPYTER_BIN\" ]; then",
-        "    echo -e \"\\033[1;31m[MobileLinux]\\033[0m jupyter is not installed yet.\"",
-        "    echo -e \"Run: \\033[1;33mconda install notebook -y\\033[0m OR \\033[1;33mpip install notebook jupyterlab\\033[0m\"",
+        "if [ \$HAS_LAB -eq 0 ] && [ \$HAS_NOTEBOOK -eq 0 ]; then",
+        "    echo -e \"\\033[1;31m[MobileLinux]\\033[0m Neither JupyterLab nor Jupyter Notebook is installed yet.\"",
+        "    echo -e \"Run \\033[1;33minstall-jupyter\\033[0m in terminal or install from 'Libraries & Packages' in the app.\"",
         "    exit 1",
         "fi",
         "",
-        "exec \"\$JUPYTER_BIN\" notebook --allow-root --no-browser --ip=127.0.0.1 \"\$@\"\n"
+        "if [ -x /usr/local/bin/fix-jupyter-mobile ]; then",
+        "    /usr/local/bin/fix-jupyter-mobile >/dev/null 2>&1 || true",
+        "fi",
+        "",
+        "if [ \$HAS_NOTEBOOK -eq 1 ]; then",
+        "    exec \$JUPYTER_CMD notebook --allow-root --no-browser --ip=127.0.0.1 \"\$@\"",
+        "else",
+        "    exec \$JUPYTER_CMD lab --allow-root --no-browser --ip=127.0.0.1 \"\$@\"",
+        "fi\n"
     ).joinToString("\n")
 
     private fun getCondaWrapperScript(): String = listOf(
@@ -2304,7 +2441,9 @@ class UbuntuRuntime(private val context: Context) {
     private fun getPipWrapperScript(): String = listOf(
         "#!/bin/bash",
         "export PATH=\"/home/ubuntu/.local/bin:/root/.local/bin:/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:\$PATH\"",
-        "if [ -x /home/ubuntu/miniforge3/bin/pip ]; then",
+        "if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then",
+        "    exec \"\$CONDA_PREFIX/bin/pip\" \"\$@\"",
+        "elif [ -x /home/ubuntu/miniforge3/bin/pip ]; then",
         "    exec /home/ubuntu/miniforge3/bin/pip \"\$@\"",
         "elif [ -x /home/ubuntu/.local/bin/pip ]; then",
         "    exec /home/ubuntu/.local/bin/pip \"\$@\"",
@@ -2315,8 +2454,8 @@ class UbuntuRuntime(private val context: Context) {
         "fi",
         "echo -e \"\\033[1;36m[MobileLinux]\\033[0m pip is not installed yet. Installing python3-pip...\"",
         "export DEBIAN_FRONTEND=noninteractive",
-        "sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true",
-        "(sudo apt-get install -y --no-install-recommends python3-pip || ((sudo apt-get update || true) && sudo apt-get install -y --no-install-recommends python3-pip))",
+        "sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* /var/lib/dpkg/updates/* 2>/dev/null || true",
+        "(sudo apt-get -o DPkg::Lock::Timeout=60 -o Acquire::ForceIPv4=true install -y --no-install-recommends python3-pip || ((sudo apt-get -o DPkg::Lock::Timeout=60 -o Acquire::ForceIPv4=true update || true) && sudo apt-get -o DPkg::Lock::Timeout=60 -o Acquire::ForceIPv4=true install -y --no-install-recommends python3-pip))",
         "if /usr/bin/python3 -m pip --version >/dev/null 2>&1; then",
         "    exec /usr/bin/python3 -m pip \"\$@\"",
         "elif [ -x /usr/bin/pip3 ]; then",
@@ -2707,105 +2846,212 @@ class UbuntuRuntime(private val context: Context) {
         "CONDA_BIN=\"\$INSTALL_DIR/bin/conda\"",
         "TMP_INSTALLER=\"/home/ubuntu/.miniforge_installer.sh\"",
         "",
-        "echo -e \"\\033[1;36m[MobileLinux]\\033[0m Starting Miniforge3 / Conda ARM64 installation...\"",
+        "echo -e \"\\033[1;36m[MobileLinux] [  5%] Preparing Miniforge3 / Conda installer...\\033[0m\"",
         "",
-        "# 1. If already installed, just configure and activate",
-        "if [ -x \"\$CONDA_BIN\" ]; then",
-        "    echo -e \"\\033[1;32m[MobileLinux]\\033[0m Conda already exists at \$INSTALL_DIR.\"",
+        "# 1. Fast Path: If already installed, immediately configure, auto-activate and exit successfully",
+        "if [ -x \"\$CONDA_BIN\" ] || [ -x \"/root/miniconda3/bin/conda\" ] || [ -x \"/opt/conda/bin/conda\" ]; then",
+        "    if [ ! -x \"\$CONDA_BIN\" ] && [ -x \"/root/miniconda3/bin/conda\" ]; then",
+        "        INSTALL_DIR=\"/root/miniconda3\"",
+        "        CONDA_BIN=\"\$INSTALL_DIR/bin/conda\"",
+        "    elif [ ! -x \"\$CONDA_BIN\" ] && [ -x \"/opt/conda/bin/conda\" ]; then",
+        "        INSTALL_DIR=\"/opt/conda\"",
+        "        CONDA_BIN=\"\$INSTALL_DIR/bin/conda\"",
+        "    fi",
+        "    echo -e \"\\033[1;32m[MobileLinux] [ 80%] Conda already installed at \$INSTALL_DIR. Configuring...\\033[0m\"",
+        "    mkdir -p /usr/local/bin",
+        "    cat > /usr/local/bin/conda << 'EOF_WRAP'",
+        "#!/bin/sh",
+        "exec /home/ubuntu/miniforge3/bin/conda \"\$@\"",
+        "EOF_WRAP",
+        "    chmod +x /usr/local/bin/conda 2>/dev/null || true",
+        "    if [ -x \"\$INSTALL_DIR/bin/mamba\" ]; then",
+        "        cat > /usr/local/bin/mamba << 'EOF_MAMBA'",
+        "#!/bin/sh",
+        "exec /home/ubuntu/miniforge3/bin/mamba \"\$@\"",
+        "EOF_MAMBA",
+        "        chmod +x /usr/local/bin/mamba 2>/dev/null || true",
+        "    fi",
+        "    mkdir -p /home/ubuntu /root",
+        "    cat << 'EOF_RC' > /home/ubuntu/.condarc",
+        "always_copy: true",
+        "auto_activate_base: true",
+        "notify_outdated_conda: false",
+        "EOF_RC",
+        "    cp -f /home/ubuntu/.condarc /root/.condarc 2>/dev/null || true",
         "    \"\$CONDA_BIN\" init bash 2>/dev/null || true",
-        "    \"\$CONDA_BIN\" config --set always_copy true 2>/dev/null || true",
-        "    \"\$CONDA_BIN\" config --set auto_activate_base true 2>/dev/null || true",
-        "    echo -e \"\\033[1;32m[MobileLinux]\\033[0m ✓ Conda is configured and ready!\"",
+        "    echo -e \"\\033[1;32m[MobileLinux] [100%] ✓ Miniforge3 / Conda installed successfully and activated!\\033[0m\"",
         "    exit 0",
         "fi",
         "",
-        "# 2. Ensure downloader exists (curl or wget)",
-        "if ! which curl >/dev/null 2>&1 && ! which wget >/dev/null 2>&1; then",
-        "    echo -e \"\\033[1;33m[MobileLinux]\\033[0m Network tools missing. Installing curl & certificates...\"",
+        "# 2. Ensure downloader exists",
+        "if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then",
+        "    echo -e \"\\033[1;33m[MobileLinux] [  8%] Installing network tools...\\033[0m\"",
         "    export DEBIAN_FRONTEND=noninteractive",
         "    sudo apt-get -o DPkg::Lock::Timeout=60 -o Acquire::ForceIPv4=true update -y || true",
         "    sudo apt-get -o DPkg::Lock::Timeout=60 -o Acquire::ForceIPv4=true install -y --no-install-recommends curl ca-certificates || true",
         "fi",
         "",
-        "# 3. Clean up any leftover previous incomplete download",
+        "# 3. Clean previous incomplete downloads",
         "rm -f \"\$TMP_INSTALLER\" /tmp/miniforge.sh /tmp/Miniforge3-Linux-aarch64.sh",
         "",
-        "# 4. Download Miniforge3 ARM64 installer",
+        "# 4. Download with live percentage reporting",
         "URL1=\"https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh\"",
         "URL2=\"https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh\"",
         "DOWNLOAD_OK=0",
         "",
-        "echo -e \"\\033[1;36m[MobileLinux]\\033[0m Downloading Miniforge3 installer (ARM64)...\"",
-        "if which curl >/dev/null 2>&1; then",
-        "    if curl -fSL --retry 3 --connect-timeout 20 \"\$URL1\" -o \"\$TMP_INSTALLER\"; then",
-        "        DOWNLOAD_OK=1",
-        "    elif curl -fSL --retry 3 --connect-timeout 20 -k \"\$URL1\" -o \"\$TMP_INSTALLER\"; then",
-        "        DOWNLOAD_OK=1",
-        "    elif curl -fSL --retry 3 --connect-timeout 20 \"\$URL2\" -o \"\$TMP_INSTALLER\"; then",
-        "        DOWNLOAD_OK=1",
-        "    fi",
-        "elif which wget >/dev/null 2>&1; then",
-        "    if wget --tries=3 --timeout=20 -O \"\$TMP_INSTALLER\" \"\$URL1\"; then",
-        "        DOWNLOAD_OK=1",
-        "    elif wget --tries=3 --timeout=20 --no-check-certificate -O \"\$TMP_INSTALLER\" \"\$URL1\"; then",
-        "        DOWNLOAD_OK=1",
-        "    elif wget --tries=3 --timeout=20 -O \"\$TMP_INSTALLER\" \"\$URL2\"; then",
-        "        DOWNLOAD_OK=1",
+        "echo -e \"\\033[1;36m[MobileLinux] [ 10%] Downloading Conda installer (ARM64)...\\033[0m\"",
+        "",
+        "# Try Python 3 streaming downloader for clean, live percentage feedback",
+        "if command -v python3 >/dev/null 2>&1; then",
+        "    python3 -c \"",
+        "import sys, time, urllib.request",
+        "urls = ['\\\$URL1', '\\\$URL2']",
+        "dst = '\\\$TMP_INSTALLER'",
+        "done = False",
+        "for url in urls:",
+        "    try:",
+        "        print(f'[MobileLinux] [ 12%] Connecting to mirror: {url.split(\\\"/\\\")[2]}...', flush=True)",
+        "        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Linux; Android)'})",
+        "        with urllib.request.urlopen(req, timeout=30) as resp, open(dst, 'wb') as out:",
+        "            total = int(resp.headers.get('content-length', 0))",
+        "            downloaded = 0",
+        "            last_pct = 12",
+        "            last_t = time.time()",
+        "            while True:",
+        "                chunk = resp.read(1048576)",
+        "                if not chunk: break",
+        "                out.write(chunk)",
+        "                downloaded += len(chunk)",
+        "                now = time.time()",
+        "                if total > 0:",
+        "                    pct = int(12 + (downloaded / total) * 46)",
+        "                    if pct >= last_pct + 4 or (now - last_t) >= 2.0:",
+        "                        mb = downloaded // 1048576",
+        "                        tot_mb = total // 1048576",
+        "                        print(f'[MobileLinux] [ {pct}%] Downloading Conda installer: {mb}MB / {tot_mb}MB ({pct}%)...', flush=True)",
+        "                        last_pct = pct",
+        "                        last_t = now",
+        "            done = True",
+        "            break",
+        "    except Exception as e:",
+        "        print(f'[MobileLinux] Mirror download notice: {e}', flush=True)",
+        "        continue",
+        "if not done:",
+        "    sys.exit(1)",
+        "\" && DOWNLOAD_OK=1",
+        "fi",
+        "",
+        "# Fallback to curl or wget if Python downloader was not used or failed",
+        "if [ \"\$DOWNLOAD_OK\" -ne 1 ]; then",
+        "    if command -v curl >/dev/null 2>&1; then",
+        "        echo -e \"\\033[1;36m[MobileLinux] [ 20%] Downloading installer via curl...\\033[0m\"",
+        "        if curl -# -fL --retry 3 --connect-timeout 20 \"\$URL1\" -o \"\$TMP_INSTALLER\" 2>&1; then",
+        "            DOWNLOAD_OK=1",
+        "        elif curl -# -fL --retry 3 --connect-timeout 20 -k \"\$URL1\" -o \"\$TMP_INSTALLER\" 2>&1; then",
+        "            DOWNLOAD_OK=1",
+        "        elif curl -# -fL --retry 3 --connect-timeout 20 \"\$URL2\" -o \"\$TMP_INSTALLER\" 2>&1; then",
+        "            DOWNLOAD_OK=1",
+        "        fi",
+        "    elif command -v wget >/dev/null 2>&1; then",
+        "        echo -e \"\\033[1;36m[MobileLinux] [ 20%] Downloading installer via wget...\\033[0m\"",
+        "        if wget --tries=3 --timeout=20 -O \"\$TMP_INSTALLER\" \"\$URL1\" 2>&1; then",
+        "            DOWNLOAD_OK=1",
+        "        elif wget --tries=3 --timeout=20 -O \"\$TMP_INSTALLER\" \"\$URL2\" 2>&1; then",
+        "            DOWNLOAD_OK=1",
+        "        fi",
         "    fi",
         "fi",
         "",
         "if [ \"\$DOWNLOAD_OK\" -ne 1 ] || [ ! -f \"\$TMP_INSTALLER\" ]; then",
-        "    echo -e \"\\033[1;31m[MobileLinux]\\033[0m Failed to download Conda installer. Check network connection.\"",
+        "    echo -e \"\\033[1;31m[MobileLinux] Failed to download Conda installer. Check network connection.\\033[0m\"",
         "    exit 1",
         "fi",
         "",
-        "# Verify downloaded size (must be > 20MB)",
-        "FILE_SIZE=$(wc -c < \"\$TMP_INSTALLER\" 2>/dev/null || echo 0)",
+        "FILE_SIZE=\$(wc -c < \"\$TMP_INSTALLER\" 2>/dev/null || echo 0)",
         "if [ \"\$FILE_SIZE\" -lt 20000000 ]; then",
-        "    echo -e \"\\033[1;31m[MobileLinux]\\033[0m Downloaded installer file is incomplete (\$FILE_SIZE bytes).\"",
+        "    echo -e \"\\033[1;31m[MobileLinux] Downloaded installer is incomplete (\$FILE_SIZE bytes).\\033[0m\"",
         "    rm -f \"\$TMP_INSTALLER\"",
         "    exit 1",
         "fi",
         "",
+        "echo -e \"\\033[1;36m[MobileLinux] [ 60%] Installer downloaded successfully (\$((FILE_SIZE / 1048576))MB).\\033[0m\"",
+        "",
         "# 5. Run the installer",
-        "echo -e \"\\033[1;36m[MobileLinux]\\033[0m Unpacking & installing Miniforge3 into \$INSTALL_DIR...\"",
+        "echo -e \"\\033[1;36m[MobileLinux] [ 65%] Unpacking Conda packages into \$INSTALL_DIR (this may take 1-2 minutes)...\\033[0m\"",
         "bash \"\$TMP_INSTALLER\" -b -p \"\$INSTALL_DIR\" -u",
         "rm -f \"\$TMP_INSTALLER\"",
         "",
         "# 6. Verify installation",
         "if [ ! -x \"\$CONDA_BIN\" ]; then",
-        "    echo -e \"\\033[1;31m[MobileLinux]\\033[0m Installation finished but \$CONDA_BIN not found.\"",
+        "    echo -e \"\\033[1;31m[MobileLinux] Installation finished but \$CONDA_BIN not found.\\033[0m\"",
         "    exit 1",
         "fi",
         "",
         "chmod -R u+rx \"\$INSTALL_DIR/bin\" 2>/dev/null || true",
+        "echo -e \"\\033[1;36m[MobileLinux] [ 85%] Extracting Conda package binaries complete.\\033[0m\"",
         "",
-        "# 7. Configure Conda",
-        "echo -e \"\\033[1;36m[MobileLinux]\\033[0m Configuring Conda environment...\"",
-        "\"\$CONDA_BIN\" init bash 2>/dev/null || true",
-        "\"\$CONDA_BIN\" config --set always_copy true 2>/dev/null || true",
-        "\"\$CONDA_BIN\" config --set auto_activate_base true 2>/dev/null || true",
-        "",
-        "# Write ~/.condarc",
-        "if [ ! -f /home/ubuntu/.condarc ]; then",
-        "    cat << 'EOF' > /home/ubuntu/.condarc",
+        "# 7. Configure Conda & Auto-activation",
+        "echo -e \"\\033[1;36m[MobileLinux] [ 88%] Configuring Conda & auto-activation...\\033[0m\"",
+        "mkdir -p /home/ubuntu /root",
+        "cat << 'EOF' > /home/ubuntu/.condarc",
         "always_copy: true",
         "auto_activate_base: true",
         "notify_outdated_conda: false",
         "EOF",
+        "cp -f /home/ubuntu/.condarc /root/.condarc 2>/dev/null || true",
+        "",
+        "# Global command symlinks in /usr/local/bin",
+        "mkdir -p /usr/local/bin",
+        "cat > /usr/local/bin/conda << 'EOF_WRAP'",
+        "#!/bin/sh",
+        "exec /home/ubuntu/miniforge3/bin/conda \"\$@\"",
+        "EOF_WRAP",
+        "chmod +x /usr/local/bin/conda 2>/dev/null || true",
+        "",
+        "if [ -x \"\$INSTALL_DIR/bin/mamba\" ]; then",
+        "    cat > /usr/local/bin/mamba << 'EOF_MAMBA'",
+        "#!/bin/sh",
+        "exec /home/ubuntu/miniforge3/bin/mamba \"\$@\"",
+        "EOF_MAMBA",
+        "    chmod +x /usr/local/bin/mamba 2>/dev/null || true",
         "fi",
         "",
-        "# Root condarc as well",
-        "if [ -d /root ]; then",
-        "    cp -f /home/ubuntu/.condarc /root/.condarc 2>/dev/null || true",
+        "# Run conda init",
+        "\"\$CONDA_BIN\" init bash 2>/dev/null || true",
+        "",
+        "# Inject conda initialize block into /home/ubuntu/.bashrc if missing",
+        "if ! grep -q \"conda initialize\" /home/ubuntu/.bashrc 2>/dev/null; then",
+        "    cat >> /home/ubuntu/.bashrc << 'BASHRC_EOF'",
+        "",
+        "# >>> conda initialize >>>",
+        "# !! Contents within this block are managed by 'conda init' !!",
+        "__conda_setup=\"\$('/home/ubuntu/miniforge3/bin/conda' 'shell.bash' 'hook' 2> /dev/null)\"",
+        "if [ \$? -eq 0 ]; then",
+        "    eval \"\$__conda_setup\"",
+        "else",
+        "    if [ -f \"/home/ubuntu/miniforge3/etc/profile.d/conda.sh\" ]; then",
+        "        . \"/home/ubuntu/miniforge3/etc/profile.d/conda.sh\"",
+        "    else",
+        "        export PATH=\"/home/ubuntu/miniforge3/bin:\$PATH\"",
+        "    fi",
+        "fi",
+        "unset __conda_setup",
+        "# <<< conda initialize <<<",
+        "",
+        "# MobileLinux: Auto-activate Conda environment",
+        "if [ -z \"\$CONDA_DEFAULT_ENV\" ] && type conda >/dev/null 2>&1; then",
+        "    conda activate base 2>/dev/null || true",
+        "fi",
+        "BASHRC_EOF",
         "fi",
         "",
-        "# Run conda-sync-packages if present",
-        "if [ -x /usr/local/bin/conda-sync-packages ]; then",
-        "    /usr/local/bin/conda-sync-packages 2>/dev/null || true",
+        "# Inject into /root/.bashrc as well",
+        "if ! grep -q \"conda initialize\" /root/.bashrc 2>/dev/null; then",
+        "    cp -f /home/ubuntu/.bashrc /root/.bashrc 2>/dev/null || true",
         "fi",
         "",
-        "echo -e \"\\033[1;32m[MobileLinux]\\033[0m ✓ Miniforge3 / Conda successfully installed and activated!\\n\"\n"
+        "echo -e \"\\033[1;36m[MobileLinux] [ 95%] Finalizing Conda setup...\\033[0m\"",
+        "echo -e \"\\033[1;32m[MobileLinux] [100%] ✓ Miniforge3 / Conda installed successfully and activated!\\033[0m\\n\"\n"
     ).joinToString("\n")
 
     private fun getInstallJupyterScript(): String = listOf(
@@ -2814,28 +3060,111 @@ class UbuntuRuntime(private val context: Context) {
         "echo -e \"\\033[1;36m[MobileLinux]\\033[0m Installing JupyterLab & Notebook...\"",
         "sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* /var/lib/dpkg/updates/* /var/cache/debconf/*.lock 2>/dev/null || true",
         "export DEBIAN_FRONTEND=noninteractive",
+        "if ! command -v pip3 >/dev/null 2>&1 && ! command -v pip >/dev/null 2>&1 && ! python3 -m pip --version >/dev/null 2>&1; then",
+        "    echo -e \"\\033[1;34m[MobileLinux]\\033[0m Installing python3-pip...\"",
+        "    sudo apt-get -o DPkg::Lock::Timeout=60 -o Acquire::ForceIPv4=true install -y --no-install-recommends python3-pip 2>&1 || {",
+        "        sudo apt-get -o DPkg::Lock::Timeout=60 -o Acquire::ForceIPv4=true update -y 2>&1 || true",
+        "        sudo apt-get -o DPkg::Lock::Timeout=60 -o Acquire::ForceIPv4=true install -y --no-install-recommends python3-pip 2>&1 || true",
+        "    }",
+        "fi",
+        "# 1. Clean up conflicting Debian system packages lacking pip RECORD files (prevents jsonschema collision)",
+        "sudo rm -rf /usr/lib/python3/dist-packages/jsonschema* /usr/lib/python3/dist-packages/rpds* /usr/lib/python3/dist-packages/referencing* 2>/dev/null || true",
+        "# 2. Single-pass fast install with pre-compiled wheels & bytecode skip for mobile flash speed",
+        "echo -e \"\\033[1;34m[MobileLinux]\\033[0m Installing Notebook, JupyterLab & IPykernel via Pip...\"",
+        "PIP_CMD=\"pip3\"",
         "if ! command -v pip3 >/dev/null 2>&1; then",
-        "    echo -e \"\\033[1;34m[MobileLinux]\\033[0m Installing Python PIP...\"",
-        "    sudo apt-get -o DPkg::Lock::Timeout=30 update -y 2>&1 || true",
-        "    sudo apt-get -o DPkg::Lock::Timeout=30 install -y --no-install-recommends python3-pip python3-dev 2>&1 || true",
+        "    if command -v pip >/dev/null 2>&1; then",
+        "        PIP_CMD=\"pip\"",
+        "    else",
+        "        PIP_CMD=\"python3 -m pip\"",
+        "    fi",
         "fi",
-        "if [ -x /home/ubuntu/miniforge3/bin/pip ]; then",
-        "    echo -e \"\\033[1;34m[MobileLinux]\\033[0m Installing in Miniforge3 environment...\"",
-        "    /home/ubuntu/miniforge3/bin/pip install --prefer-binary --no-cache-dir jupyterlab notebook 2>&1 || true",
-        "fi",
-        "if [ -x /root/miniconda3/bin/pip ]; then",
-        "    /root/miniconda3/bin/pip install --prefer-binary --no-cache-dir jupyterlab notebook 2>&1 || true",
-        "fi",
-        "echo -e \"\\033[1;34m[MobileLinux]\\033[0m Installing in system Python...\"",
-        "pip3 install --break-system-packages --prefer-binary --no-cache-dir jupyterlab notebook 2>&1",
+        "\$PIP_CMD install --break-system-packages --ignore-installed --prefer-binary --no-compile notebook jupyterlab ipykernel 2>&1",
         "PIP_EXIT=\$?",
-        "if command -v jupyter >/dev/null 2>&1 || [ -x /home/ubuntu/miniforge3/bin/jupyter ] || [ -x /root/miniconda3/bin/jupyter ] || [ -x /home/ubuntu/.local/bin/jupyter ] || [ \$PIP_EXIT -eq 0 ]; then",
+        "# 3. If Conda / Miniforge is present, register the Conda Python kernel",
+        "if [ -x /home/ubuntu/miniforge3/bin/python ]; then",
+        "    echo -e \"\\033[1;34m[MobileLinux]\\033[0m Registering Conda base kernel...\"",
+        "    /home/ubuntu/miniforge3/bin/python -m ipykernel install --user --name conda_base --display-name \"Python (Conda)\" 2>/dev/null || true",
+        "fi",
+        "# 4. Apply MobileLinux touch & menu fix for Jupyter Notebook 7",
+        "if [ -x /usr/local/bin/fix-jupyter-mobile ]; then",
+        "    /usr/local/bin/fix-jupyter-mobile >/dev/null 2>&1 || true",
+        "fi",
+        "# 5. Verification: ensure notebook is actually functional",
+        "if [ \$PIP_EXIT -eq 0 ] || python3 -c \"import notebook\" 2>/dev/null || python3 -c \"import jupyterlab\" 2>/dev/null; then",
         "    echo -e \"\\033[1;32m[MobileLinux]\\033[0m ✓ JupyterLab & Notebook installed successfully!\"",
+        "    echo -e \"\\033[1;36m[MobileLinux]\\033[0m Run \\033[1;33mjupyter notebook\\033[0m or \\033[1;33mjupyter-start\\033[0m in terminal to launch.\"",
         "    exit 0",
         "else",
         "    echo -e \"\\033[1;31m[MobileLinux]\\033[0m ✗ Jupyter installation failed.\"",
-        "    exit \$PIP_EXIT",
+        "    exit 1",
         "fi\n"
+    ).joinToString("\n")
+
+    private fun getJupyterNotebookDispatcherScript(): String = listOf(
+        "#!/bin/bash",
+        "# MobileLinux Smart Jupyter Notebook Dispatcher",
+        "if [ -x /usr/local/bin/fix-jupyter-mobile ]; then",
+        "    /usr/local/bin/fix-jupyter-mobile >/dev/null 2>&1 || true",
+        "fi",
+        "if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/python\" ] && \"\$CONDA_PREFIX/bin/python\" -c \"import notebook\" 2>/dev/null; then",
+        "    exec \"\$CONDA_PREFIX/bin/python\" -m notebook \"\$@\"",
+        "elif [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c \"import notebook\" 2>/dev/null; then",
+        "    exec /home/ubuntu/miniforge3/bin/python -m notebook \"\$@\"",
+        "elif [ -x /root/miniconda3/bin/python ] && /root/miniconda3/bin/python -c \"import notebook\" 2>/dev/null; then",
+        "    exec /root/miniconda3/bin/python -m notebook \"\$@\"",
+        "fi",
+        "if python3 -c \"import notebook\" 2>/dev/null; then",
+        "    exec python3 -m notebook \"\$@\"",
+        "elif python3 -c \"import jupyterlab\" 2>/dev/null; then",
+        "    exec python3 -m jupyterlab \"\$@\"",
+        "fi",
+        "echo -e \"\\033[1;31m[MobileLinux]\\033[0m Jupyter Notebook is not installed yet.\"",
+        "echo -e \"Run \\033[1;33minstall-jupyter\\033[0m in terminal or install 'JupyterLab & Notebook' from 'Libraries & Packages' in the app.\"",
+        "exit 1\n"
+    ).joinToString("\n")
+
+    private fun getJupyterLabDispatcherScript(): String = listOf(
+        "#!/bin/bash",
+        "# MobileLinux Smart JupyterLab Dispatcher",
+        "if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/python\" ] && \"\$CONDA_PREFIX/bin/python\" -c \"import jupyterlab\" 2>/dev/null; then",
+        "    exec \"\$CONDA_PREFIX/bin/python\" -m jupyterlab \"\$@\"",
+        "elif [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c \"import jupyterlab\" 2>/dev/null; then",
+        "    exec /home/ubuntu/miniforge3/bin/python -m jupyterlab \"\$@\"",
+        "elif [ -x /root/miniconda3/bin/python ] && /root/miniconda3/bin/python -c \"import jupyterlab\" 2>/dev/null; then",
+        "    exec /root/miniconda3/bin/python -m jupyterlab \"\$@\"",
+        "fi",
+        "if python3 -c \"import jupyterlab\" 2>/dev/null; then",
+        "    exec python3 -m jupyterlab \"\$@\"",
+        "elif python3 -c \"import notebook\" 2>/dev/null; then",
+        "    exec python3 -m notebook \"\$@\"",
+        "fi",
+        "echo -e \"\\033[1;31m[MobileLinux]\\033[0m JupyterLab is not installed yet.\"",
+        "echo -e \"Run \\033[1;33minstall-jupyter\\033[0m in terminal or install 'JupyterLab & Notebook' from 'Libraries & Packages' in the app.\"",
+        "exit 1\n"
+    ).joinToString("\n")
+
+    private fun getJupyterDispatcherScript(): String = listOf(
+        "#!/bin/bash",
+        "# MobileLinux Smart Jupyter Dispatcher",
+        "SUB=\"\$1\"",
+        "if [ \"\$SUB\" = \"notebook\" ]; then",
+        "    shift",
+        "    exec /usr/local/bin/jupyter-notebook \"\$@\"",
+        "elif [ \"\$SUB\" = \"lab\" ]; then",
+        "    shift",
+        "    exec /usr/local/bin/jupyter-lab \"\$@\"",
+        "fi",
+        "if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/python\" ] && \"\$CONDA_PREFIX/bin/python\" -c \"import jupyter_core\" 2>/dev/null; then",
+        "    exec \"\$CONDA_PREFIX/bin/python\" -m jupyter \"\$@\"",
+        "elif [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c \"import jupyter_core\" 2>/dev/null; then",
+        "    exec /home/ubuntu/miniforge3/bin/python -m jupyter \"\$@\"",
+        "elif python3 -c \"import jupyter_core\" 2>/dev/null; then",
+        "    exec python3 -m jupyter \"\$@\"",
+        "fi",
+        "echo -e \"\\033[1;31m[MobileLinux]\\033[0m Jupyter is not installed yet.\"",
+        "echo -e \"Run \\033[1;33minstall-jupyter\\033[0m in terminal or install 'JupyterLab & Notebook' from 'Libraries & Packages' in the app.\"",
+        "exit 1\n"
     ).joinToString("\n")
 
     data class PythonCliConfig(
@@ -3143,6 +3472,314 @@ class UbuntuRuntime(private val context: Context) {
             } finally {
                 isInstallingTools = false
             }
+        }
+    }
+
+    /**
+     * MobileLinux touch & menu interaction script for Jupyter Notebook 7.
+     * Fixes Lumino menu pointer event loss, bypasses mobile popup blockers,
+     * and adds convenient touch-friendly quick action buttons.
+     */
+    private fun getMobileJupyterTouchScript(): String = listOf(
+        "<script id=\"mobilelinux-touch-patch\">",
+        "/* MobileLinux Touch & Menu Fix for Jupyter Notebook 7 */",
+        "(function() {",
+        "    if (window.__ml_touch_init) return;",
+        "    window.__ml_touch_init = true;",
+        "",
+        "    // 1. Polyfill window.open to bypass mobile popup blockers",
+        "    var origOpen = window.open;",
+        "    window.open = function(url, target, features) {",
+        "        if (!url) {",
+        "            var fakeWin = {",
+        "                opener: null,",
+        "                location: {",
+        "                    set href(val) { if (val) window.location.href = val; },",
+        "                    get href() { return window.location.href; }",
+        "                },",
+        "                focus: function() {},",
+        "                close: function() {}",
+        "            };",
+        "            try {",
+        "                var w = origOpen ? origOpen.call(window, '', target, features) : null;",
+        "                if (w) return w;",
+        "            } catch(e) {}",
+        "            return fakeWin;",
+        "        }",
+        "        try {",
+        "            var w = origOpen ? origOpen.call(window, url, target, features) : null;",
+        "            if (!w) { window.location.href = url; }",
+        "            return w;",
+        "        } catch(e) {",
+        "            window.location.href = url;",
+        "            return null;",
+        "        }",
+        "    };",
+        "",
+        "    function runJupyterCmd(cmd, args) {",
+        "        if (window.jupyterapp && window.jupyterapp.commands) {",
+        "            try {",
+        "                return window.jupyterapp.commands.execute(cmd, args);",
+        "            } catch(e) {",
+        "                console.warn('[MobileLinux] Command failed:', cmd, e);",
+        "            }",
+        "        }",
+        "        return null;",
+        "    }",
+        "",
+        "    function createNotebookFallback() {",
+        "        var base = (window.jupyterConfigData && window.jupyterConfigData.baseUrl) || '/';",
+        "        if (!base.endsWith('/')) base += '/';",
+        "        fetch(base + 'api/contents/', {",
+        "            method: 'POST',",
+        "            headers: { 'Content-Type': 'application/json' },",
+        "            body: JSON.stringify({ type: 'notebook' })",
+        "        })",
+        "        .then(function(r) { return r.json(); })",
+        "        .then(function(data) {",
+        "            if (data && data.path) {",
+        "                window.location.href = base + 'notebooks/' + encodeURI(data.path);",
+        "            }",
+        "        })",
+        "        .catch(function(err) {",
+        "            console.error('[MobileLinux] Failed to create notebook via API:', err);",
+        "        });",
+        "    }",
+        "",
+        "    function createFolderFallback() {",
+        "        var base = (window.jupyterConfigData && window.jupyterConfigData.baseUrl) || '/';",
+        "        if (!base.endsWith('/')) base += '/';",
+        "        fetch(base + 'api/contents/', {",
+        "            method: 'POST',",
+        "            headers: { 'Content-Type': 'application/json' },",
+        "            body: JSON.stringify({ type: 'directory' })",
+        "        })",
+        "        .then(function() {",
+        "            if (window.jupyterapp && window.jupyterapp.commands) {",
+        "                window.jupyterapp.commands.execute('filebrowser:refresh');",
+        "            } else {",
+        "                window.location.reload();",
+        "            }",
+        "        })",
+        "        .catch(function(err) {",
+        "            console.error('[MobileLinux] Failed to create folder via API:', err);",
+        "        });",
+        "    }",
+        "",
+        "    // 2. Touch interaction handler for Lumino Menus & MenuBars",
+        "    var startX = 0, startY = 0;",
+        "",
+        "    document.addEventListener('touchstart', function(e) {",
+        "        if (e.touches && e.touches.length === 1) {",
+        "            startX = e.touches[0].clientX;",
+        "            startY = e.touches[0].clientY;",
+        "        }",
+        "    }, { capture: true, passive: true });",
+        "",
+        "    document.addEventListener('touchend', function(e) {",
+        "        var touch = e.changedTouches && e.changedTouches[0];",
+        "        if (!touch) return;",
+        "        var dx = Math.abs(touch.clientX - startX);",
+        "        var dy = Math.abs(touch.clientY - startY);",
+        "        if (dx > 15 || dy > 15) return;",
+        "",
+        "        var target = e.target;",
+        "        if (!target) return;",
+        "",
+        "        var menuItem = target.closest('.lm-Menu-item');",
+        "        if (menuItem) {",
+        "            e.preventDefault();",
+        "            e.stopPropagation();",
+        "",
+        "            var rect = menuItem.getBoundingClientRect();",
+        "            var cx = rect.left + rect.width / 2;",
+        "            var cy = rect.top + rect.height / 2;",
+        "",
+        "            menuItem.dispatchEvent(new MouseEvent('mousemove', {",
+        "                bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy",
+        "            }));",
+        "",
+        "            setTimeout(function() {",
+        "                menuItem.dispatchEvent(new MouseEvent('mouseup', {",
+        "                    bubbles: true, cancelable: true, view: window, button: 0, clientX: cx, clientY: cy",
+        "                }));",
+        "                menuItem.dispatchEvent(new MouseEvent('click', {",
+        "                    bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy",
+        "                }));",
+        "",
+        "                var labelElem = menuItem.querySelector('.lm-Menu-itemLabel');",
+        "                var text = (labelElem ? labelElem.textContent : menuItem.textContent || '').trim().toLowerCase();",
+        "                var cmd = menuItem.getAttribute('data-command');",
+        "",
+        "                if (cmd) {",
+        "                    runJupyterCmd(cmd);",
+        "                } else if (text.indexOf('python 3') !== -1 || text.indexOf('ipykernel') !== -1 || text === 'notebook') {",
+        "                    if (!runJupyterCmd('notebook:create-new', { isLauncher: true })) {",
+        "                        createNotebookFallback();",
+        "                    }",
+        "                } else if (text.indexOf('folder') !== -1) {",
+        "                    if (!runJupyterCmd('filebrowser:create-new-directory')) {",
+        "                        createFolderFallback();",
+        "                    }",
+        "                } else if (text.indexOf('terminal') !== -1) {",
+        "                    runJupyterCmd('terminal:create-new');",
+        "                } else if (text.indexOf('console') !== -1) {",
+        "                    runJupyterCmd('console:create');",
+        "                } else if (text.indexOf('file') !== -1) {",
+        "                    runJupyterCmd('filebrowser:create-new-file');",
+        "                }",
+        "            }, 40);",
+        "            return;",
+        "        }",
+        "",
+        "        var menuBarItem = target.closest('.lm-MenuBar-item');",
+        "        if (menuBarItem) {",
+        "            var rectB = menuBarItem.getBoundingClientRect();",
+        "            var bx = rectB.left + rectB.width / 2;",
+        "            var by = rectB.top + rectB.height / 2;",
+        "            menuBarItem.dispatchEvent(new MouseEvent('mousedown', {",
+        "                bubbles: true, cancelable: true, view: window, button: 0, clientX: bx, clientY: by",
+        "            }));",
+        "            return;",
+        "        }",
+        "    }, { capture: true, passive: false });",
+        "",
+        "    // 3. Inject Touch-Friendly Action Toolbar for Mobile on Dashboard/Tree",
+        "    function addMobileActionToolbar() {",
+        "        if (document.getElementById('mobilelinux-touch-bar')) return;",
+        "        if (!document.body) return;",
+        "        var p = window.location.pathname || '';",
+        "        if (p.indexOf('/tree') === -1 && p !== '/' && !p.endsWith('/')) return;",
+        "",
+        "        var bar = document.createElement('div');",
+        "        bar.id = 'mobilelinux-touch-bar';",
+        "        bar.innerHTML = [",
+        "            '<style>',",
+        "            '#mobilelinux-touch-bar { position: fixed; bottom: 24px; right: 18px; display: flex; flex-direction: column; gap: 10px; z-index: 10000; }',",
+        "            '.ml-touch-btn { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 11px 18px; border-radius: 24px; font-size: 14px; font-weight: 600; font-family: system-ui, -apple-system, sans-serif; box-shadow: 0 4px 14px rgba(0,0,0,0.35); border: none; cursor: pointer; transition: transform 0.15s ease; user-select: none; -webkit-user-select: none; touch-action: manipulation; }',",
+        "            '.ml-touch-btn:active { transform: scale(0.93); }',",
+        "            '.ml-btn-nb { background: #1976d2; color: #fff; }',",
+        "            '.ml-btn-folder { background: #388e3c; color: #fff; }',",
+        "            '.ml-btn-lab { background: #f57c00; color: #fff; font-size: 12px; padding: 7px 14px; }',",
+        "            '.lm-Menu-item { min-height: 44px !important; padding: 10px 18px !important; font-size: 15px !important; touch-action: manipulation !important; }',",
+        "            '.lm-MenuBar-item { min-height: 38px !important; padding: 8px 14px !important; font-size: 14px !important; touch-action: manipulation !important; }',",
+        "            '</style>',",
+        "            '<button class=\"ml-touch-btn ml-btn-nb\" id=\"ml-action-new-nb\">＋ Notebook</button>',",
+        "            '<button class=\"ml-touch-btn ml-btn-folder\" id=\"ml-action-new-folder\">＋ Folder</button>',",
+        "            '<button class=\"ml-touch-btn ml-btn-lab\" id=\"ml-action-open-lab\">⚡ Open Lab</button>'",
+        "        ].join('\\n');",
+        "",
+        "        document.body.appendChild(bar);",
+        "",
+        "        document.getElementById('ml-action-new-nb').addEventListener('click', function(ev) {",
+        "            ev.preventDefault(); ev.stopPropagation();",
+        "            if (!runJupyterCmd('notebook:create-new', { isLauncher: true })) {",
+        "                createNotebookFallback();",
+        "            }",
+        "        });",
+        "",
+        "        document.getElementById('ml-action-new-folder').addEventListener('click', function(ev) {",
+        "            ev.preventDefault(); ev.stopPropagation();",
+        "            if (!runJupyterCmd('filebrowser:create-new-directory')) {",
+        "                createFolderFallback();",
+        "            }",
+        "        });",
+        "",
+        "        document.getElementById('ml-action-open-lab').addEventListener('click', function(ev) {",
+        "            ev.preventDefault(); ev.stopPropagation();",
+        "            var base = (window.jupyterConfigData && window.jupyterConfigData.baseUrl) || '/';",
+        "            if (!base.endsWith('/')) base += '/';",
+        "            window.location.href = base + 'lab';",
+        "        });",
+        "    }",
+        "",
+        "    if (document.readyState === 'loading') {",
+        "        document.addEventListener('DOMContentLoaded', addMobileActionToolbar);",
+        "    } else {",
+        "        addMobileActionToolbar();",
+        "    }",
+        "    setTimeout(addMobileActionToolbar, 1000);",
+        "    setTimeout(addMobileActionToolbar, 2500);",
+        "})();",
+        "</script>"
+    ).joinToString("\n")
+
+    /**
+     * Generates /usr/local/bin/fix-jupyter-mobile script that patches Jupyter templates in PRoot.
+     */
+    private fun getFixJupyterMobileScript(): String {
+        val touchScript = getMobileJupyterTouchScript()
+        return listOf(
+            "#!/bin/bash",
+            "# MobileLinux - Fix Jupyter Notebook 7 Touch & Menu Interaction on Android",
+            "python3 -c '",
+            "import os, glob",
+            "",
+            "PATCH = \"\"\"" + touchScript.replace("\"", "\\\"").replace("\$", "\\\$") + "\"\"\"",
+            "",
+            "search_dirs = [",
+            "    \"/usr/local/lib/python3*/dist-packages/notebook/templates\",",
+            "    \"/usr/lib/python3*/dist-packages/notebook/templates\",",
+            "    \"/home/ubuntu/miniforge3/lib/python3*/site-packages/notebook/templates\",",
+            "    \"/root/miniconda3/lib/python3*/site-packages/notebook/templates\"",
+            "]",
+            "",
+            "count = 0",
+            "for pattern in search_dirs:",
+            "    for tdir in glob.glob(pattern):",
+            "        if os.path.isdir(tdir):",
+            "            for tfile in glob.glob(os.path.join(tdir, \"*.html\")):",
+            "                try:",
+            "                    with open(tfile, \"r\", encoding=\"utf-8\") as f:",
+            "                        content = f.read()",
+            "                    if \"mobilelinux-touch-patch\" not in content and \"</body>\" in content:",
+            "                        new_content = content.replace(\"</body>\", PATCH + \"\\n</body>\")",
+            "                        with open(tfile, \"w\", encoding=\"utf-8\") as f:",
+            "                            f.write(new_content)",
+            "                        count += 1",
+            "                        print(f\"[MobileLinux] Patched: {tfile}\")",
+            "                except Exception as e:",
+            "                    print(f\"[MobileLinux] Error patching {tfile}: {e}\")",
+            "",
+            "print(f\"[MobileLinux] Mobile touch patch completed: {count} templates patched.\")",
+            "'\n"
+        ).joinToString("\n")
+    }
+
+    /**
+     * Patches Jupyter Notebook 7 templates (tree.html, notebooks.html, etc.) to include
+     * the MobileLinux touch and menu event fix, window.open polyfill, and mobile quick action toolbar.
+     */
+    private fun patchJupyterTemplatesForMobile(rootfsDir: File) {
+        try {
+            val patchMarker = "mobilelinux-touch-patch"
+            val patchScript = getMobileJupyterTouchScript()
+            val candidateBases = listOf(
+                File(rootfsDir, "usr/local/lib"),
+                File(rootfsDir, "usr/lib"),
+                File(rootfsDir, "home/ubuntu/miniforge3/lib"),
+                File(rootfsDir, "root/miniconda3/lib")
+            )
+            for (base in candidateBases) {
+                if (!base.exists() || !base.isDirectory) continue
+                base.walkTopDown()
+                    .maxDepth(8)
+                    .filter { it.isFile && it.name.endsWith(".html") && it.parentFile?.name == "templates" && it.parentFile?.parentFile?.name == "notebook" }
+                    .forEach { htmlFile ->
+                        try {
+                            val content = htmlFile.readText()
+                            if (!content.contains(patchMarker) && content.contains("</body>")) {
+                                val patched = content.replace("</body>", "$patchScript\n</body>")
+                                safeWriteFile(htmlFile, patched)
+                                Log.i(TAG, "Patched Jupyter Notebook mobile template: ${htmlFile.path}")
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Notice: could not patch ${htmlFile.path}: ${e.message}")
+                        }
+                    }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Notice: patchJupyterTemplatesForMobile: ${e.message}")
         }
     }
 

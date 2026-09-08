@@ -90,6 +90,30 @@ class DevBrowserActivity : AppCompatActivity() {
     private lateinit var historyDb: BrowserHistoryDbHelper
 
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
+    private var jupyterPatchScript: String? = null
+
+    private fun getJupyterPatchScript(): String {
+        if (jupyterPatchScript == null) {
+            jupyterPatchScript = try {
+                assets.open("scripts/jupyter-mobile-patch.js").bufferedReader().use { it.readText() }
+            } catch (e: Exception) {
+                Log.e("DevBrowser", "Failed to load jupyter-mobile-patch.js", e)
+                ""
+            }
+        }
+        return jupyterPatchScript ?: ""
+    }
+
+    private fun injectJupyterMobilePatchIfNeeded(view: WebView?, url: String?) {
+        if (view == null || url == null) return
+        val lower = url.lowercase()
+        if (lower.contains(":8888") || lower.contains("/tree") || lower.contains("/notebooks/") || lower.contains("/lab") || lower.contains("jupyter")) {
+            val script = getJupyterPatchScript()
+            if (script.isNotEmpty()) {
+                view.evaluateJavascript(script, null)
+            }
+        }
+    }
     private val fileChooserLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -430,6 +454,9 @@ class DevBrowserActivity : AppCompatActivity() {
 
                     // Save to local private history
                     historyDb.addHistory(tab.title, it)
+
+                    // Auto-inject touch and mobile enhancements for Jupyter Notebook / JupyterLab
+                    injectJupyterMobilePatchIfNeeded(view, it)
                 }
             }
 
@@ -500,6 +527,9 @@ class DevBrowserActivity : AppCompatActivity() {
                         progressBar.visibility = View.GONE
                     }
                 }
+                if (newProgress >= 65) {
+                    injectJupyterMobilePatchIfNeeded(view, view?.url)
+                }
             }
 
             override fun onReceivedTitle(view: WebView?, title: String?) {
@@ -524,14 +554,14 @@ class DevBrowserActivity : AppCompatActivity() {
                 return true
             }
 
-            // Support target="_blank" links opening in a new tab
+            // Support target="_blank" links opening in a new tab without collision
             override fun onCreateWindow(
                 view: WebView?,
                 isDialog: Boolean,
                 isUserGesture: Boolean,
                 resultMsg: Message?
             ): Boolean {
-                val newTab = createNewTab(DEFAULT_HOME_URL, select = true)
+                val newTab = createNewTab("about:blank", select = true)
                 val transport = resultMsg?.obj as? WebView.WebViewTransport
                 transport?.webView = newTab.webView
                 resultMsg?.sendToTarget()
@@ -747,6 +777,7 @@ class DevBrowserActivity : AppCompatActivity() {
     private fun loadTargetUrlInTab(tab: BrowserTab, input: String) {
         val trimmed = input.trim()
         val finalUrl = when {
+            trimmed.isEmpty() || trimmed == "about:blank" -> "about:blank"
             trimmed.startsWith("http://") || trimmed.startsWith("https://") -> trimmed
             trimmed.startsWith("localhost") || trimmed.startsWith("127.0.0.1") || trimmed.startsWith("0.0.0.0") -> "http://$trimmed"
             trimmed.contains(".") && !trimmed.contains(" ") -> "https://$trimmed"
@@ -756,10 +787,12 @@ class DevBrowserActivity : AppCompatActivity() {
         tab.url = finalUrl
         if (isTabActive(tab)) {
             layoutError.visibility = View.GONE
-            etUrl.setText(finalUrl)
+            etUrl.setText(if (finalUrl == "about:blank") "" else finalUrl)
             etUrl.clearFocus()
         }
-        tab.webView.loadUrl(finalUrl)
+        if (finalUrl != "about:blank") {
+            tab.webView.loadUrl(finalUrl)
+        }
     }
 
     private fun updateSslIndicator(url: String) {

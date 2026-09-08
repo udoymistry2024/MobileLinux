@@ -82,17 +82,26 @@ class BrowserUrlTriggerObserver(
     private fun handleTriggerFile(file: File) {
         try {
             if (!file.exists()) return
-            val url = file.readText().trim()
+            var url = file.readText().trim()
+            if (url.isEmpty()) {
+                // File may have just been created by shell; wait a brief moment for write to finish
+                Thread.sleep(60)
+                if (file.exists()) {
+                    url = file.readText().trim()
+                }
+            }
+            if (url.isEmpty()) {
+                // Still empty, do NOT delete yet; let CLOSE_WRITE, MOVED_TO or poll handle it when bytes arrive
+                return
+            }
             file.delete()
 
-            if (url.isNotEmpty()) {
-                Log.i(TAG, "Detected URL trigger from terminal: $url")
-                mainHandler.post {
-                    try {
-                        DevBrowserActivity.openUrl(context, url)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to launch browser for $url", e)
-                    }
+            Log.i(TAG, "Detected URL trigger from terminal: $url")
+            mainHandler.post {
+                try {
+                    DevBrowserActivity.openUrl(context, url)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to launch browser for $url", e)
                 }
             }
         } catch (e: Exception) {

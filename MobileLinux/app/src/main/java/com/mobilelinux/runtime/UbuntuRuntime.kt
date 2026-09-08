@@ -1331,12 +1331,19 @@ class UbuntuRuntime(private val context: Context) {
                     }
                 }
 
+                val targetBins = mutableListOf<File>()
+                val ubuntuLocalBin = File(rootfsDir, "home/ubuntu/.local/bin")
+                if (ubuntuLocalBin.exists() || ubuntuLocalBin.mkdirs()) targetBins.add(ubuntuLocalBin)
+                val rootLocalBin = File(rootfsDir, "root/.local/bin")
+                if (rootLocalBin.exists() || rootLocalBin.mkdirs()) targetBins.add(rootLocalBin)
+                targetBins.addAll(condaBins)
+
                 val toolsToLink = listOf(
                     "pkg-install-python", "pkg-uninstall-python", "conda-sync-packages", "conda-sync",
-                    "conda-manager", "install-jupyter", "jupyter-start", "jupyter-notebook", "jupyter-lab",
-                    "xdg-open", "x-www-browser", "sensible-browser", "www-browser"
+                    "conda-manager", "install-jupyter", "jupyter", "jupyter-start", "jupyter-notebook", "jupyter-lab",
+                    "fix-jupyter-mobile", "xdg-open", "x-www-browser", "sensible-browser", "www-browser"
                 ) + pythonCliConfigs.map { it.cmdName }
-                for (cBin in condaBins) {
+                for (cBin in targetBins) {
                     for (tool in toolsToLink) {
                         val targetLink = File(cBin, tool)
                         safeWriteFile(targetLink, "#!/bin/sh\nexec /usr/local/bin/$tool \"\$@\"\n")
@@ -2012,7 +2019,17 @@ class UbuntuRuntime(private val context: Context) {
         "    /usr/local/bin/fix-jupyter-mobile >/dev/null 2>&1 || true",
         "fi",
         "",
-        "(sleep 2 && /usr/local/bin/xdg-open \"http://127.0.0.1:8888/tree\" >/dev/null 2>&1) &",
+        "(",
+        "    TARGET_URL=\"http://127.0.0.1:8888/tree\"",
+        "    for i in \$(seq 1 50); do",
+        "        sleep 0.3",
+        "        if grep -q \":22B8\" /proc/net/tcp /proc/net/tcp6 2>/dev/null || curl -s -I \"http://127.0.0.1:8888\" >/dev/null 2>&1; then",
+        "            /usr/local/bin/xdg-open \"\$TARGET_URL\" >/dev/null 2>&1",
+        "            exit 0",
+        "        fi",
+        "    done",
+        "    /usr/local/bin/xdg-open \"\$TARGET_URL\" >/dev/null 2>&1",
+        ") &",
         "if [ \$HAS_NOTEBOOK -eq 1 ]; then",
         "    exec \$JUPYTER_CMD notebook --allow-root --no-browser --ip=127.0.0.1 --JupyterNotebookApp.expose_app_in_browser=True --LabApp.expose_app_in_browser=True \"\$@\"",
         "else",
@@ -2036,11 +2053,11 @@ class UbuntuRuntime(private val context: Context) {
         "    TARGET=\"file://\$REAL_P\"",
         "fi",
         "",
-        "# Broadcast to all IPC trigger locations",
+        "# Broadcast to all IPC trigger locations with atomic write",
         "for trig in /dev/shm/.open_url /run/shm/.open_url /tmp/.open_url /home/ubuntu/.open_url /sdcard/Download/.open_url; do",
         "    dir=\$(dirname \"\$trig\")",
-        "    if [ -d \"\$dir\" ] && [ -w \"\$dir\" ]; then",
-        "        printf \"%s\\n\" \"\$TARGET\" > \"\$trig\" 2>/dev/null || true",
+        "    if [ -d \"\$dir\" ]; then",
+        "        (printf \"%s\\n\" \"\$TARGET\" > \"\${trig}.tmp\" 2>/dev/null && mv -f \"\${trig}.tmp\" \"\$trig\" 2>/dev/null) || printf \"%s\\n\" \"\$TARGET\" > \"\$trig\" 2>/dev/null || true",
         "        chmod 666 \"\$trig\" 2>/dev/null || true",
         "    fi",
         "done",
@@ -3246,7 +3263,17 @@ class UbuntuRuntime(private val context: Context) {
         "if [ -x /usr/local/bin/fix-jupyter-mobile ]; then",
         "    /usr/local/bin/fix-jupyter-mobile >/dev/null 2>&1 || true",
         "fi",
-        "(sleep 2 && /usr/local/bin/xdg-open \"http://127.0.0.1:8888/tree\" >/dev/null 2>&1) &",
+        "(",
+        "    TARGET_URL=\"http://127.0.0.1:8888/tree\"",
+        "    for i in \$(seq 1 50); do",
+        "        sleep 0.3",
+        "        if grep -q \":22B8\" /proc/net/tcp /proc/net/tcp6 2>/dev/null || curl -s -I \"http://127.0.0.1:8888\" >/dev/null 2>&1; then",
+        "            /usr/local/bin/xdg-open \"\$TARGET_URL\" >/dev/null 2>&1",
+        "            exit 0",
+        "        fi",
+        "    done",
+        "    /usr/local/bin/xdg-open \"\$TARGET_URL\" >/dev/null 2>&1",
+        ") &",
         "if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/python\" ] && \"\$CONDA_PREFIX/bin/python\" -c \"import notebook\" 2>/dev/null; then",
         "    exec \"\$CONDA_PREFIX/bin/python\" -m notebook --allow-root --no-browser --ip=127.0.0.1 --JupyterNotebookApp.expose_app_in_browser=True --LabApp.expose_app_in_browser=True \"\$@\"",
         "elif [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c \"import notebook\" 2>/dev/null; then",
@@ -3275,7 +3302,17 @@ class UbuntuRuntime(private val context: Context) {
         "if [ -x /usr/local/bin/fix-jupyter-mobile ]; then",
         "    /usr/local/bin/fix-jupyter-mobile >/dev/null 2>&1 || true",
         "fi",
-        "(sleep 2 && /usr/local/bin/xdg-open \"http://127.0.0.1:8888/lab\" >/dev/null 2>&1) &",
+        "(",
+        "    TARGET_URL=\"http://127.0.0.1:8888/lab\"",
+        "    for i in \$(seq 1 50); do",
+        "        sleep 0.3",
+        "        if grep -q \":22B8\" /proc/net/tcp /proc/net/tcp6 2>/dev/null || curl -s -I \"http://127.0.0.1:8888\" >/dev/null 2>&1; then",
+        "            /usr/local/bin/xdg-open \"\$TARGET_URL\" >/dev/null 2>&1",
+        "            exit 0",
+        "        fi",
+        "    done",
+        "    /usr/local/bin/xdg-open \"\$TARGET_URL\" >/dev/null 2>&1",
+        ") &",
         "if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/python\" ] && \"\$CONDA_PREFIX/bin/python\" -c \"import jupyterlab\" 2>/dev/null; then",
         "    exec \"\$CONDA_PREFIX/bin/python\" -m jupyterlab --allow-root --no-browser --ip=127.0.0.1 --LabApp.expose_app_in_browser=True --JupyterNotebookApp.expose_app_in_browser=True \"\$@\"",
         "elif [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c \"import jupyterlab\" 2>/dev/null; then",

@@ -5,9 +5,11 @@ import android.net.ConnectivityManager
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.nio.file.Files
 
@@ -908,6 +910,11 @@ class UbuntuRuntime(private val context: Context) {
         if (netlinkShim.exists()) {
             containerEnv.add("LD_PRELOAD=/usr/local/lib/libfixgetifaddrs.so")
         }
+        if (execCmd != null) {
+            containerEnv.add("DEBIAN_FRONTEND=noninteractive")
+            containerEnv.add("NEEDRESTART_MODE=a")
+            containerEnv.add("PIP_NO_INPUT=1")
+        }
         cmd.addAll(containerEnv)
 
         if (execCmd != null) {
@@ -995,50 +1002,66 @@ class UbuntuRuntime(private val context: Context) {
         timeoutSeconds: Long = COMMAND_TIMEOUT_SECONDS,
         onOutputLine: ((String) -> Unit)? = null
     ): Pair<Int, String> = withContext(Dispatchers.IO) {
-        try {
-            val process = createSessionProcess(
+        val fullCmd = "export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a UCF_FORCE_CONFFOLD=1 PIP_NO_INPUT=1; $command"
+        val process = try {
+            createSessionProcess(
                 sessionId = "cmd_${System.currentTimeMillis()}",
-                execCommand = command
+                execCommand = fullCmd
             )
-            try {
-                process.outputStream.close()
-            } catch (ignored: Exception) {}
-            val fullOutput = java.lang.StringBuilder()
-            val reader = process.inputStream.bufferedReader()
-            val sb = java.lang.StringBuilder()
-            var ch: Int
-            while (reader.read().also { ch = it } != -1) {
-                val c = ch.toChar()
-                fullOutput.append(c)
-                if (c == '\n' || c == '\r') {
-                    if (sb.isNotEmpty()) {
-                        val segment = sb.toString().trim()
-                        if (segment.isNotEmpty()) {
-                            onOutputLine?.invoke(segment)
-                        }
-                        sb.setLength(0)
-                    }
-                } else {
-                    sb.append(c)
-                }
-            }
-            if (sb.isNotEmpty()) {
-                val segment = sb.toString().trim()
-                if (segment.isNotEmpty()) {
-                    onOutputLine?.invoke(segment)
-                }
-            }
-            val completed = process.waitFor(timeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)
-            if (!completed) {
-                Log.w(TAG, "Command timed out after ${timeoutSeconds}s: ${command.take(80)}")
-                process.destroyForcibly()
-                Pair(-2, fullOutput.toString() + "\n[MobileLinux] Command timed out after ${timeoutSeconds}s")
-            } else {
-                Pair(process.exitValue(), fullOutput.toString())
-            }
         } catch (e: Exception) {
-            Log.e(TAG, "Command failed: $command", e)
-            Pair(-1, e.message ?: "Unknown error")
+            Log.e(TAG, "Failed to spawn process for command: $command", e)
+            return@withContext Pair(-1, e.message ?: "Failed to spawn process")
+        }
+
+        try {
+            process.outputStream.close()
+        } catch (ignored: Exception) {}
+
+        val fullOutput = java.lang.StringBuilder()
+        val readerJob = async(Dispatchers.IO) {
+            try {
+                val reader = process.inputStream.bufferedReader()
+                val sb = java.lang.StringBuilder()
+                var ch: Int
+                while (reader.read().also { ch = it } != -1) {
+                    val c = ch.toChar()
+                    synchronized(fullOutput) { fullOutput.append(c) }
+                    if (c == '\n' || c == '\r') {
+                        if (sb.isNotEmpty()) {
+                            val segment = sb.toString().trim()
+                            if (segment.isNotEmpty()) {
+                                onOutputLine?.invoke(segment)
+                            }
+                            sb.setLength(0)
+                        }
+                    } else {
+                        sb.append(c)
+                    }
+                }
+                if (sb.isNotEmpty()) {
+                    val segment = sb.toString().trim()
+                    if (segment.isNotEmpty()) {
+                        onOutputLine?.invoke(segment)
+                    }
+                }
+            } catch (ignored: Exception) {}
+        }
+
+        val completed = process.waitFor(timeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)
+        if (!completed) {
+            Log.w(TAG, "Command timed out after ${timeoutSeconds}s: ${command.take(80)}")
+            process.destroyForcibly()
+            try { process.inputStream.close() } catch (ignored: Exception) {}
+            readerJob.cancel()
+            val out = synchronized(fullOutput) { fullOutput.toString() }
+            Pair(-2, out + "\n[MobileLinux] Command timed out after ${timeoutSeconds}s")
+        } else {
+            withTimeoutOrNull(1000L) {
+                readerJob.await()
+            }
+            try { process.inputStream.close() } catch (ignored: Exception) {}
+            val out = synchronized(fullOutput) { fullOutput.toString() }
+            Pair(process.exitValue(), out)
         }
     }
 
@@ -3187,12 +3210,22 @@ class UbuntuRuntime(private val context: Context) {
         "#!/bin/bash",
         "# MobileLinux Smart Jupyter Dispatcher",
         "SUB=\"\$1\"",
-        "if [ \"\$SUB\" = \"notebook\" ]; then",
-        "    shift",
-        "    exec /usr/local/bin/jupyter-notebook \"\$@\"",
-        "elif [ \"\$SUB\" = \"lab\" ]; then",
-        "    shift",
-        "    exec /usr/local/bin/jupyter-lab \"\$@\"",
+        "case \"\$SUB\" in",
+        "    notebook|notevook|notbook|notebuk|notenook|notebok|nb)",
+        "        shift",
+        "        exec /usr/local/bin/jupyter-notebook \"\$@\"",
+        "        ;;",
+        "    lab|jupyterlab|jlab)",
+        "        shift",
+        "        exec /usr/local/bin/jupyter-lab \"\$@\"",
+        "        ;;",
+        "esac",
+        "if [ \$# -eq 0 ] || [ \"\$1\" = \"-h\" ] || [ \"\$1\" = \"--help\" ]; then",
+        "    echo -e \"\\033[1;36m[MobileLinux] Jupyter Utility\\033[0m\"",
+        "    echo -e \"  Launch Notebook:  \\033[1;33mjupyter notebook\\033[0m\"",
+        "    echo -e \"  Launch Lab:       \\033[1;33mjupyter lab\\033[0m\"",
+        "    echo -e \"  Display version:  \\033[1;33mjupyter --version\\033[0m\"",
+        "    echo \"\"",
         "fi",
         "if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/python\" ] && \"\$CONDA_PREFIX/bin/python\" -c \"import jupyter_core\" 2>/dev/null; then",
         "    exec \"\$CONDA_PREFIX/bin/python\" -m jupyter \"\$@\"",

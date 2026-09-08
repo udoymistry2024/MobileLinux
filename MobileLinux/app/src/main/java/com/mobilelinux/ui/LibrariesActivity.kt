@@ -665,16 +665,19 @@ class LibrariesActivity : AppCompatActivity() {
             var lastUpdateMs = 0L
 
             try {
-                // Safety: Clean leftover locks + fix dpkg in single atomic command
+                // Safety: Clean leftover locks for apt packages only
                 runtime.cleanupAptLocks()
-                runtime.runCommand(
-                    "sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* /var/lib/dpkg/updates/* /var/cache/debconf/*.lock /var/cache/debconf/*-lock 2>/dev/null; " +
-                    "sudo dpkg --configure -a 2>/dev/null || true"
-                )
+                if (pkg.id != "jupyterlab" && pkg.id != "miniconda") {
+                    runtime.runCommand(
+                        "sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* /var/lib/dpkg/updates/* /var/cache/debconf/*.lock /var/cache/debconf/*-lock 2>/dev/null; " +
+                        "sudo dpkg --configure -a 2>/dev/null || true",
+                        timeoutSeconds = 15L
+                    )
+                }
 
                 val uninstallCmd = PackageRepository.getUninstallCommand(pkg)
                 android.util.Log.d("LibrariesActivity", "Executing uninstall: $uninstallCmd")
-                val result = runtime.runCommand(uninstallCmd) { line ->
+                val result = runtime.runCommand(uninstallCmd, timeoutSeconds = 90L) { line ->
                     val update = parser.parseUninstallLine(line)
                     val now = System.currentTimeMillis()
                     if (update.percent != pkg.progressPercent || now - lastUpdateMs > 150) {
@@ -692,11 +695,9 @@ class LibrariesActivity : AppCompatActivity() {
                 }
                 android.util.Log.d("LibrariesActivity", "Uninstall result code: ${result.first}")
 
-                // BUG FIX: ALWAYS verify via checkInstalledCommand after uninstall,
-                // regardless of exit code. This catches cases where the uninstall command
-                // reports success but the binary/module is still present.
+                // Verify via checkInstalledCommand with timeout
                 val verifyResult = withContext(Dispatchers.IO) {
-                    runtime.runCommand(pkg.checkInstalledCommand)
+                    runtime.runCommand(pkg.checkInstalledCommand, timeoutSeconds = 15L)
                 }
                 val isStillInstalled = verifyResult.first == 0
 
@@ -727,11 +728,11 @@ class LibrariesActivity : AppCompatActivity() {
                     } else {
                         pkg.isInstalled = true
                         pkg.progressPercent = -1
-                        pkg.statusText = "Uninstall incomplete (still detected)"
+                        pkg.statusText = if (result.first == -2) "Uninstall timed out" else "Uninstall incomplete (still detected)"
                         adapter.updateItem(pkg.id)
                         Toast.makeText(
                             this@LibrariesActivity,
-                            "Warning: ${pkg.name} could not be completely uninstalled.",
+                            "Warning: ${pkg.name} uninstall incomplete.",
                             Toast.LENGTH_LONG
                         ).show()
                     }

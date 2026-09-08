@@ -116,13 +116,14 @@ object PackageRepository {
             }
             "jupyterlab" -> {
                 return "echo '[MobileLinux] Purging JupyterLab & Notebook...'; " +
-                        "pip3 uninstall -y --break-system-packages jupyterlab notebook jupyter-core ipykernel 2>&1 || true; " +
-                        "pip uninstall -y --break-system-packages jupyterlab notebook jupyter-core ipykernel 2>&1 || true; " +
-                        "for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" uninstall -y jupyterlab notebook jupyter-core ipykernel 2>&1 || true; done; " +
-                        "sudo apt-get -o DPkg::Lock::Timeout=10 purge -y jupyter jupyter-core jupyter-notebook 2>&1 || true; " +
+                        "pip3 uninstall -y --break-system-packages --no-input jupyterlab notebook jupyter-core ipykernel nbclassic jupyter-server 2>&1 || true; " +
+                        "pip uninstall -y --break-system-packages --no-input jupyterlab notebook jupyter-core ipykernel nbclassic jupyter-server 2>&1 || true; " +
+                        "for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" uninstall -y --no-input jupyterlab notebook jupyter-core ipykernel nbclassic jupyter-server 2>&1 || true; done; " +
                         "rm -rf /usr/local/lib/python3*/dist-packages/notebook* /usr/local/lib/python3*/dist-packages/jupyter* /usr/local/lib/python3*/dist-packages/nb* 2>/dev/null || true; " +
+                        "rm -rf /usr/local/share/jupyter /home/ubuntu/.local/share/jupyter /root/.local/share/jupyter /home/ubuntu/.jupyter /root/.jupyter /etc/jupyter 2>/dev/null || true; " +
                         "rm -rf /home/ubuntu/miniforge3/lib/python*/site-packages/notebook* /home/ubuntu/miniforge3/lib/python*/site-packages/jupyter* 2>/dev/null || true; " +
-                        "rm -f /usr/local/bin/jupyter-lab /usr/local/bin/jupyter-notebook /home/ubuntu/.local/bin/jupyter* 2>/dev/null || true; " +
+                        "for ed in /home/ubuntu/miniforge3/envs/* /root/miniconda3/envs/*; do rm -rf \"\$ed\"/lib/python*/site-packages/notebook* \"\$ed\"/lib/python*/site-packages/jupyter* 2>/dev/null || true; done; " +
+                        "rm -f /usr/local/bin/jupyter-lab /usr/local/bin/jupyter-notebook /home/ubuntu/.local/bin/jupyter* /root/.local/bin/jupyter* 2>/dev/null || true; " +
                         "if python3 -c 'import notebook' 2>/dev/null || python3 -c 'import jupyterlab' 2>/dev/null; then echo '[MobileLinux] ✗ Jupyter still found'; exit 1; else echo '[MobileLinux] ✓ JupyterLab successfully uninstalled!'; exit 0; fi"
             }
             "antigravity-cli" -> {

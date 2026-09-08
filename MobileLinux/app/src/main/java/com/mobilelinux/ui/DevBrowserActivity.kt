@@ -12,6 +12,7 @@ import android.net.http.SslError
 import android.os.Bundle
 import android.os.Environment
 import android.os.Message
+import android.util.Log
 import android.text.Editable
 import android.text.TextWatcher
 import android.text.format.DateUtils
@@ -152,6 +153,10 @@ class DevBrowserActivity : AppCompatActivity() {
         setContentView(R.layout.activity_dev_browser)
 
         historyDb = BrowserHistoryDbHelper.getInstance(this)
+
+        try {
+            WebView.setWebContentsDebuggingEnabled(true)
+        } catch (ignored: Exception) {}
 
         initViews()
         initWindowInsets()
@@ -458,6 +463,9 @@ class DevBrowserActivity : AppCompatActivity() {
                 super.onReceivedError(view, request, error)
                 if (request?.isForMainFrame == true && isTabActive(tab)) {
                     val failingUrl = request.url.toString()
+                    val errCode = error?.errorCode ?: -1
+                    val errDesc = error?.description ?: "Unknown error"
+                    Log.e("DevBrowser", "onReceivedError ($errCode): $errDesc for $failingUrl")
                     progressBar.visibility = View.GONE
                     layoutError.visibility = View.VISIBLE
                     tvErrorDesc.text = "Could not connect to:\n$failingUrl\n\nEnsure your local server (e.g. Jupyter, Node.js, Flask) is actively running in the terminal."
@@ -808,6 +816,10 @@ class DevBrowserActivity : AppCompatActivity() {
                     }
                     true
                 }
+                R.id.menu_inspect_element -> {
+                    toggleInspectElement(tab)
+                    true
+                }
                 R.id.menu_view_console -> {
                     showConsoleLogsDialog()
                     true
@@ -846,6 +858,54 @@ class DevBrowserActivity : AppCompatActivity() {
             }
         }
         popup.show()
+    }
+
+    private var erudaScriptCache: String? = null
+
+    private fun toggleInspectElement(tab: BrowserTab?) {
+        val wv = tab?.webView ?: return
+        try {
+            wv.evaluateJavascript("typeof window.eruda !== 'undefined'") { result ->
+                if (result == "true") {
+                    val toggleJs = """
+                        (function() {
+                            if (window._erudaActive) {
+                                try { eruda.hide(); } catch(e) {}
+                                window._erudaActive = false;
+                            } else {
+                                try { eruda.show(); eruda.show('elements'); } catch(e) {}
+                                window._erudaActive = true;
+                            }
+                        })();
+                    """.trimIndent()
+                    wv.evaluateJavascript(toggleJs, null)
+                    Toast.makeText(this, "DevTools toggled", Toast.LENGTH_SHORT).show()
+                } else {
+                    if (erudaScriptCache == null) {
+                        erudaScriptCache = assets.open("scripts/eruda.min.js").bufferedReader().use { it.readText() }
+                    }
+                    erudaScriptCache?.let { script ->
+                        wv.evaluateJavascript(script) {
+                            val initJs = """
+                                (function() {
+                                    try {
+                                        eruda.init();
+                                        eruda.show('elements');
+                                        window._erudaActive = true;
+                                    } catch(e) {
+                                        console.error('Eruda init error', e);
+                                    }
+                                })();
+                            """.trimIndent()
+                            wv.evaluateJavascript(initJs, null)
+                            Toast.makeText(this, "Inspect Element (DevTools) active", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Toast.makeText(this, "Could not load DevTools: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun showHistoryBottomSheet() {

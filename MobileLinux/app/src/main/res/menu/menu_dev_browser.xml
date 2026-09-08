@@ -27,6 +27,11 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/menu_inspect_element"
+        android:title="Inspect Element (DevTools)"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/menu_view_console"
         android:title="Console Logs"
         app:showAsAction="never" />

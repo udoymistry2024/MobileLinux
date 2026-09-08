@@ -23,6 +23,27 @@ class BrowserUrlTriggerObserver(
     private val observers = mutableListOf<FileObserver>()
     @Volatile private var isRunning = false
 
+    private val pollRunnable = object : Runnable {
+        override fun run() {
+            if (!isRunning) return
+            for (dir in watchDirs) {
+                try {
+                    val trigger1 = File(dir, ".open_url")
+                    if (trigger1.exists() && trigger1.length() > 0) {
+                        handleTriggerFile(trigger1)
+                    }
+                    val trigger2 = File(dir, "open_url")
+                    if (trigger2.exists() && trigger2.length() > 0) {
+                        handleTriggerFile(trigger2)
+                    }
+                } catch (ignored: Exception) {}
+            }
+            if (isRunning) {
+                mainHandler.postDelayed(this, 1200L)
+            }
+        }
+    }
+
     fun start() {
         if (isRunning) return
         isRunning = true
@@ -32,7 +53,13 @@ class BrowserUrlTriggerObserver(
                 if (!dir.exists()) {
                     dir.mkdirs()
                 }
-                val observer = @Suppress("DEPRECATION") object : FileObserver(dir.absolutePath, CLOSE_WRITE or MOVED_TO) {
+                val mask = @Suppress("DEPRECATION") (
+                    FileObserver.CLOSE_WRITE or
+                    FileObserver.MOVED_TO or
+                    FileObserver.CREATE or
+                    FileObserver.MODIFY
+                )
+                val observer = @Suppress("DEPRECATION") object : FileObserver(dir.absolutePath, mask) {
                     override fun onEvent(event: Int, path: String?) {
                         if (path == ".open_url" || path == "open_url") {
                             val triggerFile = File(dir, path)
@@ -47,6 +74,9 @@ class BrowserUrlTriggerObserver(
                 Log.w(TAG, "Could not start FileObserver for ${dir.absolutePath}: ${e.message}")
             }
         }
+
+        // Start fallback polling check every 1.2s
+        mainHandler.postDelayed(pollRunnable, 1200L)
     }
 
     private fun handleTriggerFile(file: File) {
@@ -72,6 +102,7 @@ class BrowserUrlTriggerObserver(
 
     fun stop() {
         isRunning = false
+        mainHandler.removeCallbacks(pollRunnable)
         for (observer in observers) {
             try {
                 observer.stopWatching()

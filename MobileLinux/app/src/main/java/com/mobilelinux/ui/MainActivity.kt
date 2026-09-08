@@ -29,6 +29,7 @@ import androidx.lifecycle.lifecycleScope
 import com.mobilelinux.R
 import com.mobilelinux.service.LinuxService
 import com.mobilelinux.terminal.TerminalSession
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -103,12 +104,23 @@ class MainActivity : AppCompatActivity() {
         }
         hasCreatedInitialSession = true
 
+        // Asynchronously synchronize command wrappers and xdg-open dispatchers on startup
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val runtime = com.mobilelinux.runtime.UbuntuRuntime.getInstance(this@MainActivity)
+                runtime.installCommandWrappers()
+            } catch (e: Exception) {
+                android.util.Log.w("MainActivity", "Startup wrappers install: ${e.message}")
+            }
+        }
+
         // Initialize terminal browser trigger observer
         try {
             val runtime = com.mobilelinux.runtime.UbuntuRuntime.getInstance(this)
             val shmDir = runtime.ensureSharedMemoryReady()
             val tmpDir = java.io.File(runtime.rootfsDir, "tmp")
-            browserUrlObserver = com.mobilelinux.util.BrowserUrlTriggerObserver(this, listOf(shmDir, tmpDir)).apply {
+            val ubuntuHome = java.io.File(runtime.rootfsDir, "home/ubuntu")
+            browserUrlObserver = com.mobilelinux.util.BrowserUrlTriggerObserver(this, listOf(shmDir, tmpDir, ubuntuHome)).apply {
                 start()
             }
         } catch (ignored: Exception) {}

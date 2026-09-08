@@ -1270,25 +1270,19 @@ class UbuntuRuntime(private val context: Context) {
             installJupyterFile.setReadable(true, false)
 
             val jupyterWrapper = File(usrLocalBin, "jupyter")
-            if (!jupyterWrapper.exists() || (jupyterWrapper.isFile && jupyterWrapper.readText().contains("MobileLinux Smart Jupyter Dispatcher"))) {
-                safeWriteFile(jupyterWrapper, getJupyterDispatcherScript())
-                jupyterWrapper.setExecutable(true, false)
-                jupyterWrapper.setReadable(true, false)
-            }
+            safeWriteFile(jupyterWrapper, getJupyterDispatcherScript())
+            jupyterWrapper.setExecutable(true, false)
+            jupyterWrapper.setReadable(true, false)
 
             val jupyterNotebookWrapper = File(usrLocalBin, "jupyter-notebook")
-            if (!jupyterNotebookWrapper.exists() || (jupyterNotebookWrapper.isFile && jupyterNotebookWrapper.readText().contains("MobileLinux Smart Jupyter Notebook Dispatcher"))) {
-                safeWriteFile(jupyterNotebookWrapper, getJupyterNotebookDispatcherScript())
-                jupyterNotebookWrapper.setExecutable(true, false)
-                jupyterNotebookWrapper.setReadable(true, false)
-            }
+            safeWriteFile(jupyterNotebookWrapper, getJupyterNotebookDispatcherScript())
+            jupyterNotebookWrapper.setExecutable(true, false)
+            jupyterNotebookWrapper.setReadable(true, false)
 
             val jupyterLabWrapper = File(usrLocalBin, "jupyter-lab")
-            if (!jupyterLabWrapper.exists() || (jupyterLabWrapper.isFile && jupyterLabWrapper.readText().contains("MobileLinux Smart JupyterLab Dispatcher"))) {
-                safeWriteFile(jupyterLabWrapper, getJupyterLabDispatcherScript())
-                jupyterLabWrapper.setExecutable(true, false)
-                jupyterLabWrapper.setReadable(true, false)
-            }
+            safeWriteFile(jupyterLabWrapper, getJupyterLabDispatcherScript())
+            jupyterLabWrapper.setExecutable(true, false)
+            jupyterLabWrapper.setReadable(true, false)
 
             val fixJupyterMobileFile = File(usrLocalBin, "fix-jupyter-mobile")
             safeWriteFile(fixJupyterMobileFile, getFixJupyterMobileScript())
@@ -1351,6 +1345,14 @@ class UbuntuRuntime(private val context: Context) {
                     }
                 }
             } catch (ignored: Exception) {}
+
+            // Synchronize Jupyter mobile configs, netlink shims, and shell environments
+            try {
+                installJupyterAndNetlinkFixes()
+                installBashEnvironments()
+            } catch (e: Exception) {
+                Log.w(TAG, "Notice: sync configs in installCommandWrappers: ${e.message}")
+            }
 
             Log.d(TAG, "Command wrappers installed ✓")
         } catch (e: Exception) {
@@ -1867,8 +1869,10 @@ class UbuntuRuntime(private val context: Context) {
                 "c.NotebookApp.ip = '127.0.0.1'",
                 "c.ServerApp.port = 8888",
                 "c.NotebookApp.port = 8888",
-                "c.ServerApp.open_browser = False",
-                "c.NotebookApp.open_browser = False",
+                "c.ServerApp.open_browser = True",
+                "c.NotebookApp.open_browser = True",
+                "c.ServerApp.browser = '/usr/local/bin/xdg-open %s'",
+                "c.NotebookApp.browser = '/usr/local/bin/xdg-open %s'",
                 "c.ServerApp.token = ''",
                 "c.NotebookApp.token = ''",
                 "c.ServerApp.password = ''",
@@ -2008,7 +2012,7 @@ class UbuntuRuntime(private val context: Context) {
         "    /usr/local/bin/fix-jupyter-mobile >/dev/null 2>&1 || true",
         "fi",
         "",
-        "(sleep 2 && /usr/local/bin/xdg-open \"http://127.0.0.1:8888\" >/dev/null 2>&1) &",
+        "(sleep 2 && /usr/local/bin/xdg-open \"http://127.0.0.1:8888/tree\" >/dev/null 2>&1) &",
         "if [ \$HAS_NOTEBOOK -eq 1 ]; then",
         "    exec \$JUPYTER_CMD notebook --allow-root --no-browser --ip=127.0.0.1 --JupyterNotebookApp.expose_app_in_browser=True --LabApp.expose_app_in_browser=True \"\$@\"",
         "else",
@@ -2032,24 +2036,16 @@ class UbuntuRuntime(private val context: Context) {
         "    TARGET=\"file://\$REAL_P\"",
         "fi",
         "",
-        "# 1. Primary IPC trigger: /dev/shm/.open_url",
-        "NOTIFIED=0",
-        "if [ -d \"/dev/shm\" ]; then",
-        "    if printf \"%s\\n\" \"\$TARGET\" > /dev/shm/.open_url 2>/dev/null; then",
-        "        chmod 666 /dev/shm/.open_url 2>/dev/null || true",
-        "        NOTIFIED=1",
+        "# Broadcast to all IPC trigger locations",
+        "for trig in /dev/shm/.open_url /run/shm/.open_url /tmp/.open_url /home/ubuntu/.open_url /sdcard/Download/.open_url; do",
+        "    dir=\$(dirname \"\$trig\")",
+        "    if [ -d \"\$dir\" ] && [ -w \"\$dir\" ]; then",
+        "        printf \"%s\\n\" \"\$TARGET\" > \"\$trig\" 2>/dev/null || true",
+        "        chmod 666 \"\$trig\" 2>/dev/null || true",
         "    fi",
-        "fi",
+        "done",
         "",
-        "# 2. Fallback IPC trigger: /tmp/.open_url",
-        "if [ \$NOTIFIED -eq 0 ]; then",
-        "    if printf \"%s\\n\" \"\$TARGET\" > /tmp/.open_url 2>/dev/null; then",
-        "        chmod 666 /tmp/.open_url 2>/dev/null || true",
-        "        NOTIFIED=1",
-        "    fi",
-        "fi",
-        "",
-        "# 3. Fallback: Android am start (if available)",
+        "# Fallback: Android am start (if available)",
         "if [ -x /system/bin/am ]; then",
         "    /system/bin/am start -a android.intent.action.VIEW -d \"\$TARGET\" >/dev/null 2>&1 || true",
         "fi",
@@ -3250,7 +3246,7 @@ class UbuntuRuntime(private val context: Context) {
         "if [ -x /usr/local/bin/fix-jupyter-mobile ]; then",
         "    /usr/local/bin/fix-jupyter-mobile >/dev/null 2>&1 || true",
         "fi",
-        "(sleep 2 && /usr/local/bin/xdg-open \"http://127.0.0.1:8888\" >/dev/null 2>&1) &",
+        "(sleep 2 && /usr/local/bin/xdg-open \"http://127.0.0.1:8888/tree\" >/dev/null 2>&1) &",
         "if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/python\" ] && \"\$CONDA_PREFIX/bin/python\" -c \"import notebook\" 2>/dev/null; then",
         "    exec \"\$CONDA_PREFIX/bin/python\" -m notebook --allow-root --no-browser --ip=127.0.0.1 --JupyterNotebookApp.expose_app_in_browser=True --LabApp.expose_app_in_browser=True \"\$@\"",
         "elif [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c \"import notebook\" 2>/dev/null; then",
@@ -3279,7 +3275,7 @@ class UbuntuRuntime(private val context: Context) {
         "if [ -x /usr/local/bin/fix-jupyter-mobile ]; then",
         "    /usr/local/bin/fix-jupyter-mobile >/dev/null 2>&1 || true",
         "fi",
-        "(sleep 2 && /usr/local/bin/xdg-open \"http://127.0.0.1:8888\" >/dev/null 2>&1) &",
+        "(sleep 2 && /usr/local/bin/xdg-open \"http://127.0.0.1:8888/lab\" >/dev/null 2>&1) &",
         "if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/python\" ] && \"\$CONDA_PREFIX/bin/python\" -c \"import jupyterlab\" 2>/dev/null; then",
         "    exec \"\$CONDA_PREFIX/bin/python\" -m jupyterlab --allow-root --no-browser --ip=127.0.0.1 --LabApp.expose_app_in_browser=True --JupyterNotebookApp.expose_app_in_browser=True \"\$@\"",
         "elif [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c \"import jupyterlab\" 2>/dev/null; then",

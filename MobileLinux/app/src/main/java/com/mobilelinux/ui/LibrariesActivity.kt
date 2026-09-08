@@ -523,9 +523,10 @@ class LibrariesActivity : AppCompatActivity() {
                                 val currentSet = getCachedInstalledIds(prefs)
                                 currentSet.add(pkg.id)
                                 prefs.edit().putStringSet("installed_ids", currentSet).apply()
-                                if (pkg.id == "jupyterlab") {
+                                if (pkg.id == "jupyterlab" || pkg.id == "jupyter") {
                                     withContext(Dispatchers.IO) {
                                         try {
+                                            runtime.installCommandWrappers()
                                             runtime.patchJupyterTemplatesForMobile()
                                         } catch (ignored: Exception) {}
                                     }

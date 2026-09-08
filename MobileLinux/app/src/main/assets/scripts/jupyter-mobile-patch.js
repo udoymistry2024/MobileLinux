@@ -203,9 +203,9 @@
             if (cell.querySelector('.ml-cell-play-btn')) continue;
 
             var promptElem = cell.querySelector('.jp-InputPrompt') || cell.querySelector('.prompt.input_prompt');
-            var inputWrapper = cell.querySelector('.jp-Cell-inputWrapper') || cell.querySelector('.input_area') || cell.querySelector('.jp-InputArea');
+            var inputArea = cell.querySelector('.jp-InputArea') || cell.querySelector('.input_area') || cell.querySelector('.jp-Cell-inputWrapper');
 
-            if (!promptElem && !inputWrapper) continue;
+            if (!promptElem && !inputArea) continue;
 
             var btn = document.createElement('div');
             btn.className = 'ml-cell-play-btn';
@@ -222,8 +222,8 @@
                 b.addEventListener('touchend', onRun);
             })(cell, btn);
 
-            // Mount at top-right of cell input area
-            var host = inputWrapper || cell;
+            // Mount above editor border, aligned with prompt row
+            var host = inputArea || cell;
             host.appendChild(btn);
         }
     }
@@ -953,6 +953,25 @@
         }
     }, { capture: true });
 
+    // Helper: Force Dark Theme on JupyterLab / Notebook 7
+    function forceJupyterDarkTheme() {
+        var app = window.jupyterapp || window.jupyterlab;
+        if (app && app.commands) {
+            try {
+                app.commands.execute('apputils:change-theme', { theme: 'JupyterLab Dark' });
+            } catch(e) {}
+        }
+        try {
+            document.documentElement.setAttribute('data-jp-theme-light', 'false');
+            document.documentElement.setAttribute('data-jp-theme-name', 'JupyterLab Dark');
+            if (document.body) {
+                document.body.setAttribute('data-jp-theme-light', 'false');
+                document.body.classList.remove('jp-theme-light');
+                document.body.classList.add('jp-theme-dark');
+            }
+        } catch(e) {}
+    }
+
     // Inject mobile CSS tokens
     var style = document.createElement('style');
     style.id = 'mobilelinux-touch-styles';
@@ -963,11 +982,12 @@
         '.lm-Menu-item:active { background: #f37626 !important; color: #fff !important; }',
         '.lm-MenuBar-item { min-height: 38px !important; padding: 8px 12px !important; font-size: 14px !important; touch-action: manipulation !important; cursor: pointer !important; }',
 
-        '/* Per-Cell Run Button (Positioned at Top-Right Corner of Cell) */',
+        '/* Per-Cell Run Button (Positioned Outside & Above Editor Border, Aligned with Prompt) */',
         '.jp-Cell, .jp-CodeCell, .cell.code_cell { position: relative !important; }',
-        '.jp-Cell-inputWrapper, .input_area, .jp-InputArea { position: relative !important; }',
-        '.jp-Cell-inputWrapper .cm-editor, .jp-Cell-inputWrapper .CodeMirror, .jp-InputArea .cm-editor { padding-right: 38px !important; }',
-        '.ml-cell-play-btn { position: absolute !important; top: 6px !important; right: 8px !important; z-index: 25 !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; width: 28px !important; height: 28px !important; min-width: 28px !important; border-radius: 6px !important; background: #238636 !important; border: 1px solid #2ea043 !important; color: #ffffff !important; cursor: pointer !important; box-shadow: 0 2px 6px rgba(0,0,0,0.35) !important; touch-action: manipulation !important; -webkit-user-select: none !important; user-select: none !important; transition: transform 0.1s ease, background 0.15s ease !important; }',
+        '.jp-InputArea, .jp-Cell-inputWrapper, .input_area { position: relative !important; padding-top: 4px !important; }',
+        '.jp-InputPrompt { min-height: 28px !important; line-height: 28px !important; padding-top: 0 !important; padding-bottom: 0 !important; display: flex !important; align-items: center !important; }',
+        '.jp-InputArea-editor { margin-top: 6px !important; }',
+        '.ml-cell-play-btn { position: absolute !important; top: 4px !important; right: 8px !important; z-index: 30 !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; width: 26px !important; height: 26px !important; min-width: 26px !important; min-height: 26px !important; border-radius: 6px !important; background: #238636 !important; border: 1px solid #2ea043 !important; color: #ffffff !important; cursor: pointer !important; box-shadow: 0 2px 5px rgba(0,0,0,0.35) !important; touch-action: manipulation !important; -webkit-user-select: none !important; user-select: none !important; transition: transform 0.1s ease, background 0.15s ease !important; }',
         '.ml-cell-play-btn:active { transform: scale(0.92) !important; background: #2ea043 !important; }',
         '.ml-cell-play-btn.ml-running { background: #d29922 !important; border-color: #bb8009 !important; }',
         '.ml-cell-play-btn.ml-success { background: #238636 !important; border-color: #2ea043 !important; }',
@@ -1008,25 +1028,16 @@
         '.ml-k-code { color: #d2a8ff !important; font-weight: 500 !important; }',
         '.ml-k-esc { color: #ff7b72 !important; }',
 
-        '/* Light Theme Dynamic Overrides (Active when notebook explicitly runs light theme) */',
-        '[data-jp-theme-light="true"] #ml-bar-inner, .jp-theme-light #ml-bar-inner { background: rgba(255, 255, 255, 0.98) !important; border-color: #d0d7de !important; box-shadow: 0 4px 14px rgba(0,0,0,0.12) !important; }',
-        '[data-jp-theme-light="true"] .ml-bar-btn, .jp-theme-light .ml-bar-btn { background: #f6f8fa !important; color: #24292f !important; border-color: #d0d7de !important; }',
-        '[data-jp-theme-light="true"] .ml-bar-btn:active, .jp-theme-light .ml-bar-btn:active { background: #eaeef2 !important; }',
-        '[data-jp-theme-light="true"] .ml-btn-run, .jp-theme-light .ml-btn-run { background: #1f883d !important; color: #fff !important; border-color: #1a7f37 !important; }',
-        '[data-jp-theme-light="true"] .ml-btn-collapse, .jp-theme-light .ml-btn-collapse { background: #ffffff !important; border-color: #d0d7de !important; color: #57609a !important; }',
-        '[data-jp-theme-light="true"] #ml-keys-strip, .jp-theme-light #ml-keys-strip { background: rgba(255, 255, 255, 0.98) !important; border-top-color: #d0d7de !important; box-shadow: 0 -2px 8px rgba(0,0,0,0.08) !important; }',
-        '[data-jp-theme-light="true"] .ml-key-btn, .jp-theme-light .ml-key-btn { background: #f6f8fa !important; color: #24292f !important; border-color: #d0d7de !important; }',
-        '[data-jp-theme-light="true"] .ml-key-btn:active, .jp-theme-light .ml-key-btn:active { background: #eaeef2 !important; }',
-        '[data-jp-theme-light="true"] .ml-k-action, .jp-theme-light .ml-k-action { border-color: #0969da !important; color: #0969da !important; }',
-        '[data-jp-theme-light="true"] .ml-k-code, .jp-theme-light .ml-k-code { color: #8250df !important; }',
-        '[data-jp-theme-light="true"] .ml-k-esc, .jp-theme-light .ml-k-esc { color: #cf222e !important; }',
-        '[data-jp-theme-light="true"] .ml-vdock-btn, .jp-theme-light .ml-vdock-btn { background: #ffffff !important; border-color: #d0d7de !important; }',
-        '[data-jp-theme-light="true"] .ml-vdock-btn svg, .jp-theme-light .ml-vdock-btn svg { stroke: #4b5563 !important; }'
+        '/* Enforce Dark Theme on Jupyter */',
+        ':root { color-scheme: dark !important; }',
+        'html, body { background-color: #181c24 !important; color: #eceff1 !important; }',
+        '#main, .jp-NotebookPanel, .jp-Notebook, #jp-main-content-panel { background: #181c24 !important; }'
     ].join('\n');
     document.head.appendChild(style);
 
     // Continuous poll and attach
     setInterval(function() {
+        forceJupyterDarkTheme();
         attachPlayButtons();
         addMobileDashboardToolbar();
         injectFloatingToolbar();
@@ -1034,6 +1045,7 @@
     }, 1000);
 
     // Initial run
+    forceJupyterDarkTheme();
     attachPlayButtons();
     addMobileDashboardToolbar();
     injectFloatingToolbar();

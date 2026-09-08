@@ -28,9 +28,12 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.appcompat.widget.PopupMenu
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.webkit.WebSettingsCompat
+import androidx.webkit.WebViewFeature
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -119,6 +122,27 @@ class DevBrowserActivity : AppCompatActivity() {
             }
         }
     }
+
+    private fun injectForceDarkUniversal(view: WebView?) {
+        if (view == null) return
+        val darkScript = """
+            (function() {
+                try {
+                    var meta = document.querySelector('meta[name="color-scheme"]');
+                    if (!meta) {
+                        meta = document.createElement('meta');
+                        meta.name = 'color-scheme';
+                        (document.head || document.documentElement).appendChild(meta);
+                    }
+                    meta.content = 'dark';
+                    if (document.documentElement) {
+                        document.documentElement.style.colorScheme = 'dark';
+                    }
+                } catch(e) {}
+            })();
+        """.trimIndent()
+        view.evaluateJavascript(darkScript, null)
+    }
     private val fileChooserLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -177,6 +201,7 @@ class DevBrowserActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        delegate.localNightMode = AppCompatDelegate.MODE_NIGHT_YES
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_dev_browser)
@@ -493,10 +518,42 @@ class DevBrowserActivity : AppCompatActivity() {
         // Native System Clipboard Bridge for in-page Javascript
         webView.addJavascriptInterface(BrowserClipboardBridge(this), "MobileLinuxClipboard")
 
+        // Force Dark Mode & Algorithmic Darkening for all websites and localhost servers
+        webView.setBackgroundColor(android.graphics.Color.parseColor("#121212"))
+        try {
+            if (WebViewFeature.isFeatureSupported(WebViewFeature.FORCE_DARK)) {
+                WebSettingsCompat.setForceDark(settings, WebSettingsCompat.FORCE_DARK_ON)
+            }
+            if (WebViewFeature.isFeatureSupported(WebViewFeature.FORCE_DARK_STRATEGY)) {
+                WebSettingsCompat.setForceDarkStrategy(
+                    settings,
+                    WebSettingsCompat.DARK_STRATEGY_PREFER_WEB_THEME_OVER_USER_AGENT_DARKENING
+                )
+            }
+            if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
+                WebSettingsCompat.setAlgorithmicDarkeningAllowed(settings, true)
+            }
+        } catch (e: Throwable) {
+            Log.w("DevBrowser", "AndroidX WebKit Force Dark setup: ${e.message}")
+        }
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            try {
+                @Suppress("DEPRECATION")
+                settings.forceDark = WebSettings.FORCE_DARK_ON
+            } catch (ignored: Throwable) {}
+        }
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            try {
+                settings.isAlgorithmicDarkeningAllowed = true
+            } catch (ignored: Throwable) {}
+        }
+
         // Web Client
         webView.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                 super.onPageStarted(view, url, favicon)
+                injectForceDarkUniversal(view)
                 url?.let {
                     tab.url = it
                     if (isTabActive(tab)) {
@@ -512,6 +569,7 @@ class DevBrowserActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
+                injectForceDarkUniversal(view)
                 url?.let {
                     tab.url = it
                     val pageTitle = view?.title ?: tab.title

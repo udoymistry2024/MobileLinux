@@ -10,7 +10,7 @@
   [![Platform](https://img.shields.io/badge/Platform-Android%208.0%2B-3DDC84.svg?logo=android&logoColor=white)](https://github.com/udoymistry2024/MobileLinux/releases)
   [![OS: Ubuntu 24.04 LTS](https://img.shields.io/badge/Ubuntu-24.04%20LTS-E95420.svg?logo=ubuntu&logoColor=white)](https://ubuntu.com)
   [![Architecture](https://img.shields.io/badge/Arch-ARM64%20%7C%20ARMv7-007ACC.svg)](#architecture)
-  [![Version](https://img.shields.io/badge/Version-1.5.1-blueviolet.svg)](https://github.com/udoymistry2024/MobileLinux/releases)
+  [![Version](https://img.shields.io/badge/Version-1.5.5--Stable-blueviolet.svg)](https://github.com/udoymistry2024/MobileLinux/releases)
 
   <p align="center">
     <a href="#key-features">Key Features</a> •
@@ -92,7 +92,7 @@ Whether you are compiling C/C++ projects with `gcc`, running a **Miniforge / Con
 
 ### 1. Download & Install
 Download the latest signed release APK from [**GitHub Releases**](https://github.com/udoymistry2024/MobileLinux/releases):
-- **`MobileLinux-v1.5.1-beta.apk`** (or `MobileLinux-latest.apk`)
+- **`MobileLinux-v1.5.5.apk`** (or `MobileLinux-latest.apk`)
 
 Install the APK on any device running **Android 8.0 (Oreo) or higher** (Targeting Android 15 / API 35).
 
@@ -138,6 +138,18 @@ bash Miniforge3-Linux-aarch64.sh
 
 <a name="whats-new"></a>
 ## 🆕 What's New
+
+### v1.5.5 (Stable - Browser Edition)
+- 🌐 **Integrated Developer Browser & Jupyter Notebook Workstation:**
+  - Built-in multi-tab developer browser with universal force dark mode for comfortable mobile development.
+  - Full-featured mobile Jupyter Notebook & JupyterLab integration:
+    - CodeMirror 6 virtual programmer keys (`()`, `[]`, `{}`, `""`, `:`, `;`, `$`, `_`, `=`, etc.) with auto-focus preservation.
+    - Native clipboard Copy & Paste integration directly into active notebook cells.
+    - Quick touch cell execution (top-right per-cell run buttons and floating dock).
+    - Multi-tab lifecycle management: Close All Tabs action and clean startup without blank or duplicate tabs.
+- 🖥️ **Terminal Screen Fitting & Contrast Polish:**
+  - Auto screen fitting and high-contrast color palette for CLI tools (such as Antigravity, Htop, Tmux).
+  - Improved readability and high-contrast styling across VT100/xterm emulator buffers.
 
 ### v1.5.1 (Beta)
 - 🎨 **Setup Wizard Modernization & Visual Polish:** Redesigned initial setup, live progress, and completion screens with GitHub dark cards, system spec badges (`ARM64`, `Rootless PRoot`, `Noble 24.04`), and thumb-friendly bottom-anchored buttons.

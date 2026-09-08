@@ -2084,6 +2084,34 @@ class UbuntuRuntime(private val context: Context) {
         "exec /usr/local/bin/jupyter-start \"\$@\"\n"
     ).joinToString("\n")
 
+    /**
+     * Checks if XFCE4 Desktop and TigerVNC binaries are installed.
+     * Accounts for symlinks (/usr/bin/vncserver -> /etc/alternatives/vncserver)
+     * that cannot be followed by standard Java File.exists() from the Android host JVM.
+     */
+    fun isDesktopInstalled(): Boolean {
+        fun existsNoFollow(relPath: String): Boolean {
+            val f = File(rootfsDir, relPath)
+            if (f.exists()) return true
+            return try {
+                java.nio.file.Files.exists(f.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS)
+            } catch (e: Exception) {
+                false
+            }
+        }
+
+        val hasXfce = existsNoFollow("usr/bin/startxfce4") ||
+                      existsNoFollow("usr/bin/xfce4-session") ||
+                      existsNoFollow("usr/bin/xfwm4")
+
+        val hasVnc = existsNoFollow("usr/bin/tigervncserver") ||
+                     existsNoFollow("usr/bin/Xtigervnc") ||
+                     existsNoFollow("usr/bin/vncserver") ||
+                     existsNoFollow("usr/bin/Xvnc")
+
+        return hasXfce && hasVnc
+    }
+
     private fun getDesktopStartScript(): String = listOf(
         "#!/bin/bash",
         "# MobileLinux - XFCE4 Graphical Desktop Environment Launcher",
@@ -2091,14 +2119,18 @@ class UbuntuRuntime(private val context: Context) {
         "echo -e \"\\033[1;36m│\\033[0m Starting XFCE4 Desktop on \\033[1;33m:1 (127.0.0.1:5901)\\033[0m...\"",
         "echo -e \"\\033[1;36m└──────────────────────────────────────────────\\033[0m\"",
         "",
-        "if ! command -v vncserver >/dev/null 2>&1 || ! command -v startxfce4 >/dev/null 2>&1; then",
+        "if ! command -v vncserver >/dev/null 2>&1 && ! command -v tigervncserver >/dev/null 2>&1; then",
         "    echo -e \"\\033[1;31m[MobileLinux]\\033[0m Desktop environment not installed.\"",
         "    echo -e \"Run \\033[1;33msudo apt update && sudo apt install -y --no-install-recommends xfce4 xfce4-terminal tigervnc-standalone-server tigervnc-common dbus-x11\\033[0m to install.\"",
         "    exit 1",
         "fi",
         "",
+        "# Ensure /tmp/.X11-unix exists with proper permissions",
+        "mkdir -p /tmp/.X11-unix 2>/dev/null || true",
+        "chmod 1777 /tmp/.X11-unix 2>/dev/null || true",
+        "",
         "# Cleanup stale locks and sockets from prior sessions",
-        "vncserver -kill :1 >/dev/null 2>&1 || true",
+        "vncserver -kill :1 >/dev/null 2>&1 || tigervncserver -kill :1 >/dev/null 2>&1 || true",
         "pkill -9 -f Xvnc >/dev/null 2>&1 || true",
         "pkill -9 -f xfce4 >/dev/null 2>&1 || true",
         "rm -rf /tmp/.X11-unix/X1 /tmp/.X1-lock ~/.vnc/*.pid ~/.vnc/*.log 2>/dev/null || true",
@@ -2122,13 +2154,14 @@ class UbuntuRuntime(private val context: Context) {
         "RES=\"\${1:-1280x720}\"",
         "",
         "# Start TigerVNC standalone server on display :1",
-        "vncserver :1 -geometry \"\$RES\" -depth 24 -SecurityTypes None -localhost no > ~/.vnc/desktop.log 2>&1 &",
+        "VNC_CMD=\"\$(command -v vncserver || command -v tigervncserver)\"",
+        "\"\$VNC_CMD\" :1 -geometry \"\$RES\" -depth 24 -SecurityTypes None -localhost no > ~/.vnc/desktop.log 2>&1 &",
         "",
         "# Verify startup (poll for up to 6 seconds)",
         "STARTED=0",
         "for i in $(seq 1 20); do",
         "    sleep 0.3",
-        "    if pgrep -f Xvnc >/dev/null 2>&1 || [ -e /tmp/.X11-unix/X1 ]; then",
+        "    if [ -e /tmp/.X11-unix/X1 ] || [ -e /tmp/.X1-lock ] || pgrep -f Xvnc >/dev/null 2>&1 || (echo > /dev/tcp/127.0.0.1/5901) 2>/dev/null; then",
         "        STARTED=1",
         "        break",
         "    fi",

@@ -243,7 +243,7 @@ class LibrariesActivity : AppCompatActivity() {
         val prefs = getSharedPreferences("packages_state_cache", Context.MODE_PRIVATE)
         val savedInstalled = getCachedInstalledIds(prefs)
         val hasExplicitCache = prefs.contains("installed_ids")
-        val isDesktopBinaryPresent = java.io.File(runtime.rootfsDir, "usr/bin/startxfce4").exists() || java.io.File(runtime.rootfsDir, "usr/bin/vncserver").exists()
+        val isDesktopBinaryPresent = runtime.isDesktopInstalled()
 
         curated.forEach { pkg ->
             if (pkg.id == "miniconda") {

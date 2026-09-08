@@ -60,9 +60,13 @@ class MainActivity : AppCompatActivity() {
     private var hasCreatedInitialSession = false
     private var browserUrlObserver: com.mobilelinux.util.BrowserUrlTriggerObserver? = null
 
-    // Runtime permissions request for notifications, camera & microphone
+    // Runtime permissions request for storage, notifications, camera & microphone
     private val appPermissionsLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+            // After standard permissions dialogs, check and request All Files Access on Android 11+ if not granted
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !com.mobilelinux.util.StorageHelper.hasAllFilesAccess()) {
+                com.mobilelinux.util.StorageHelper.requestAllFilesAccess(this)
+            }
             // Proceed to start Linux background service regardless of individual permissions
             startLinuxService()
         }
@@ -162,10 +166,23 @@ class MainActivity : AppCompatActivity() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             permissionsToRequest.add(Manifest.permission.RECORD_AUDIO)
         }
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+            }
+        }
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            }
+        }
 
         if (permissionsToRequest.isNotEmpty()) {
             appPermissionsLauncher.launch(permissionsToRequest.toTypedArray())
         } else {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !com.mobilelinux.util.StorageHelper.hasAllFilesAccess()) {
+                com.mobilelinux.util.StorageHelper.requestAllFilesAccess(this)
+            }
             startLinuxService()
         }
     }
@@ -327,11 +344,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun launchDesktopMode() {
         val runtime = com.mobilelinux.runtime.UbuntuRuntime.getInstance(this)
-        val rootfs = runtime.rootfsDir
-        val hasXfce = File(rootfs, "usr/bin/startxfce4").exists() || File(rootfs, "usr/bin/xfce4-session").exists()
-        val hasVnc = File(rootfs, "usr/bin/vncserver").exists() || File(rootfs, "usr/bin/Xvnc").exists()
-
-        if (hasXfce && hasVnc) {
+        if (runtime.isDesktopInstalled()) {
             startActivity(Intent(this, DesktopActivity::class.java))
         } else {
             showInstallDesktopPrompt()
@@ -397,11 +410,7 @@ class MainActivity : AppCompatActivity() {
 
             withContext(Dispatchers.Main) {
                 dialog.dismiss()
-                val rootfs = runtime.rootfsDir
-                val hasXfce = File(rootfs, "usr/bin/startxfce4").exists() || File(rootfs, "usr/bin/xfce4-session").exists()
-                val hasVnc = File(rootfs, "usr/bin/vncserver").exists() || File(rootfs, "usr/bin/Xvnc").exists()
-
-                if (hasXfce && hasVnc) {
+                if (runtime.isDesktopInstalled()) {
                     try {
                         val prefs = getSharedPreferences("packages_state_cache", Context.MODE_PRIVATE)
                         val set = (prefs.getStringSet("installed_ids", emptySet()) ?: emptySet()).toMutableSet()

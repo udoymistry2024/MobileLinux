@@ -1323,7 +1323,7 @@ class DevBrowserActivity : AppCompatActivity() {
                 }
             }
             try {
-                latch.await(350, java.util.concurrent.TimeUnit.MILLISECONDS)
+                latch.await(600, java.util.concurrent.TimeUnit.MILLISECONDS)
             } catch (ignored: Exception) {}
             return result
         }

@@ -159,25 +159,83 @@
         }
     }
 
+    // ------------------------------------------------------------------
+    // Robust CodeMirror 6 EditorView resolver.
+    // Tries every known path to obtain a CM6 EditorView from a .cm-content
+    // element (or its ancestor .cm-editor). Returns null if unavailable.
+    // ------------------------------------------------------------------
+    function getCM6ViewForElem(contentElem) {
+        if (!contentElem) return null;
+        // Path A: CM6 attaches the view to the .cm-editor root as ._codemirror (some versions)
+        var editor = contentElem.closest('.cm-editor');
+        if (editor) {
+            if (editor._codemirror && editor._codemirror.dispatch) return editor._codemirror;
+            if (editor.codemirrorView && editor.codemirrorView.dispatch) return editor.codemirrorView;
+            // Path B: Jupyter Lab ≥4 wraps the CM6 view inside a Lumino widget stored on the
+            // jp-InputArea > jp-Editor element. Walk up and check .editorView
+            var jpEd = contentElem.closest('.jp-Editor') || contentElem.closest('.jp-InputArea');
+            if (jpEd && jpEd.editorView && jpEd.editorView.dispatch) return jpEd.editorView;
+            // Path C: Some JupyterLab builds expose the view via editor.view on the host
+            if (jpEd && jpEd.editor && jpEd.editor.editor && jpEd.editor.editor.dispatch) return jpEd.editor.editor;
+        }
+        // Path D: The .cm-content element itself may carry .cmView (older CM6 snapshots)
+        if (contentElem.cmView && contentElem.cmView.dispatch) return contentElem.cmView;
+        // Path E: Look for a CM6 view on the global registry via jupyterapp widget tracker
+        try {
+            var app = window.jupyterapp || window.jupyterlab;
+            if (app && app.shell) {
+                var widget = app.shell.currentWidget;
+                if (widget && widget.content && widget.content.activeCell) {
+                    var activeEditor = widget.content.activeCell.editor;
+                    if (activeEditor && activeEditor.editor && activeEditor.editor.dispatch) return activeEditor.editor;
+                }
+            }
+        } catch(ex) {}
+        // Path F: Fallback — walk all .cm-editor roots and find the one that contains contentElem
+        try {
+            var roots = document.querySelectorAll('.cm-editor');
+            for (var ri = 0; ri < roots.length; ri++) {
+                var r = roots[ri];
+                if (r.contains(contentElem)) {
+                    // Try all known property names
+                    var cands = [r._codemirror, r.codemirrorView, r.view];
+                    for (var ci = 0; ci < cands.length; ci++) {
+                        if (cands[ci] && cands[ci].dispatch && cands[ci].state) return cands[ci];
+                    }
+                }
+            }
+        } catch(ex) {}
+        return null;
+    }
+
+    // ------------------------------------------------------------------
     // Insert text at cursor in active CodeMirror editor (for virtual keys & paste)
+    // Uses _lastActiveCmElem as primary source when activeElement has moved.
+    // ------------------------------------------------------------------
     function insertCodeText(text, offsetBack) {
         if (!text) return false;
+
+        // Resolve the target .cm-content element:
+        //  1) Use cached reference from last focusin event (survives button press)
+        //  2) Try current document.activeElement if it is a cm-content
+        //  3) Fall back to DOM queries
         var cell = getActiveCell();
-        var editorElem = (cell && cell.querySelector('.cm-content')) ||
-                         (document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('cm-content') ? document.activeElement : null) ||
-                         document.querySelector('.jp-Cell.jp-mod-active .cm-content') ||
-                         document.querySelector('.cm-content:focus') ||
-                         document.querySelector('.cm-content');
+        var editorElem =
+            (_lastActiveCmElem && document.contains(_lastActiveCmElem) ? _lastActiveCmElem : null) ||
+            (document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('cm-content') ? document.activeElement : null) ||
+            (cell && cell.querySelector('.cm-content')) ||
+            document.querySelector('.jp-Cell.jp-mod-active .cm-content') ||
+            document.querySelector('.cm-content:focus') ||
+            document.querySelector('.cm-content');
 
         if (editorElem) {
-            // 1. CodeMirror 6 direct view dispatch (JupyterLab 4 / Notebook 7)
-            var cmView = editorElem.cmView && editorElem.cmView.view;
+            // 1. CodeMirror 6 — robust multi-path view resolver
+            var cmView = getCM6ViewForElem(editorElem);
             if (cmView) {
                 try {
                     cmView.focus();
                     var mainSel = cmView.state.selection.main;
-                    var insertLen = text.length;
-                    var anchorPos = mainSel.from + insertLen - (offsetBack || 0);
+                    var anchorPos = mainSel.from + text.length - (offsetBack || 0);
                     cmView.dispatch({
                         changes: { from: mainSel.from, to: mainSel.to, insert: text },
                         selection: { anchor: Math.max(mainSel.from, anchorPos) },
@@ -185,11 +243,11 @@
                     });
                     return true;
                 } catch(e) {
-                    console.warn('[MobileLinux] cmView dispatch failed:', e);
+                    console.warn('[MobileLinux] CM6 dispatch failed:', e);
                 }
             }
 
-            // 2. Jupyter CodeMirrorEditor instance
+            // 2. Jupyter CodeMirrorEditor instance (CM5 wrapper)
             var host = editorElem.closest('.cm-editor') || editorElem.closest('.jp-Editor');
             if (host && host.editor && typeof host.editor.replaceSelection === 'function') {
                 try {
@@ -199,7 +257,7 @@
                 } catch(e) {}
             }
 
-            // 3. CodeMirror 5 instance (Legacy Jupyter Notebook)
+            // 3. CodeMirror 5 instance (Legacy Jupyter Notebook 6)
             var cm5 = editorElem.CodeMirror || (host && host.CodeMirror);
             if (cm5 && typeof cm5.replaceSelection === 'function') {
                 try {
@@ -208,9 +266,17 @@
                     return true;
                 } catch(e) {}
             }
+
+            // 4. execCommand insertText (last resort for CM content divs)
+            try {
+                editorElem.focus();
+                if (document.execCommand('insertText', false, text)) {
+                    return true;
+                }
+            } catch(e) {}
         }
 
-        // 4. Input / Textarea fallback
+        // 5. Plain Input / Textarea fallback
         var activeEl = document.activeElement;
         if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
             try {
@@ -224,14 +290,6 @@
                 return true;
             } catch(e) {}
         }
-
-        // 5. Fallback execCommand
-        try {
-            if (editorElem) editorElem.focus();
-            if (document.execCommand('insertText', false, text)) {
-                return true;
-            }
-        } catch(e) {}
 
         return false;
     }
@@ -313,6 +371,16 @@
         }
     });
 
+    // Cache the last active CodeMirror content element so key buttons can still
+    // insert text even after the button click has moved focus away.
+    var _lastActiveCmElem = null;
+    document.addEventListener('focusin', function(e) {
+        var t = e.target;
+        if (t && t.classList && (t.classList.contains('cm-content') || t.classList.contains('cm-line'))) {
+            _lastActiveCmElem = t.classList.contains('cm-content') ? t : t.closest('.cm-content') || t;
+        }
+    }, true);
+
     function copySelectedCode() {
         var text = '';
         var sel = window.getSelection && window.getSelection();
@@ -372,14 +440,14 @@
     function pasteCode() {
         var textToPaste = '';
 
-        // 1. First check Native Android Clipboard Bridge
+        // 1. Native Android Clipboard Bridge (synchronous, most reliable on Android WebView)
         if (window.MobileLinuxClipboard && window.MobileLinuxClipboard.pasteText) {
             try {
                 var sys = window.MobileLinuxClipboard.pasteText();
                 if (sys && sys.trim()) {
                     textToPaste = sys;
                 }
-            } catch(e) {}
+            } catch(e) { console.warn('[MobileLinux] Bridge pasteText failed:', e); }
         }
 
         // 2. Fallback to in-page memory clipboard
@@ -387,14 +455,16 @@
             textToPaste = window.__ml_clipboard;
         }
 
+        // Determine if user is currently editing inside a cell.
+        // Use _lastActiveCmElem which persists after the button click moves focus away.
         var cell = getActiveCell();
-        var editorElem = cell && cell.querySelector('.cm-content');
-        var isEditorActive = editorElem && (editorElem === document.activeElement || (cell && cell.contains(document.activeElement)));
+        var editorElem = (_lastActiveCmElem && document.contains(_lastActiveCmElem) ? _lastActiveCmElem : null) ||
+                         (cell && cell.querySelector('.cm-content'));
+        var isEditorActive = !!(editorElem);
 
         var pasted = false;
 
-        // If user previously copied a cell and is not actively typing inside code box,
-        // try Jupyter's native notebook:paste-cell-below command first
+        // If user previously did a cell-level copy and is NOT editing a cell, paste as cell
         if (window.__ml_copied_type === 'cell' && !isEditorActive) {
             try {
                 if (runJupyterCmd('notebook:paste-cell-below')) {
@@ -403,17 +473,19 @@
             } catch(e) {}
         }
 
-        // If not pasted as a cell, paste text into active cell's editor!
+        // Otherwise insert text into the active editor at cursor position
         if (!pasted && textToPaste) {
             pasted = insertCodeText(textToPaste);
         }
 
-        // Fallback for asynchronous navigator.clipboard or cell paste
+        // Async fallback: try navigator.clipboard (may be unavailable in WebView)
         if (!pasted) {
             if (navigator.clipboard && navigator.clipboard.readText) {
                 navigator.clipboard.readText().then(function(t) {
-                    if (t) {
-                        insertCodeText(t);
+                    if (t && t.trim()) {
+                        if (!insertCodeText(t)) {
+                            runJupyterCmd('notebook:paste-cell-below');
+                        }
                     } else {
                         runJupyterCmd('notebook:paste-cell-below');
                     }

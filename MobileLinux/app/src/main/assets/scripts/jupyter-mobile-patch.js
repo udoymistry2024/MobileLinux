@@ -28,6 +28,27 @@
         }
     };
 
+    // SVG Vector Icons (Strictly No Emojis)
+    var SVG_PLAY = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"></polygon></svg>';
+    var SVG_CHECK = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+    var SVG_SPINNER = '<svg class="ml-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="9" stroke-dasharray="32" stroke-dashoffset="10"/></svg>';
+
+    var SVG_COPY = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+    var SVG_PASTE = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>';
+    var SVG_UNDO = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"></path><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path></svg>';
+    var SVG_REDO = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"></path><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"></path></svg>';
+    var SVG_ARROW_LEFT = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>';
+    var SVG_ARROW_RIGHT = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>';
+
+    var SVG_RUN = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-1px;margin-right:4px;"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+    var SVG_NEXT = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-1px;margin-right:4px;"><polygon points="4 4 14 12 4 20 4 4"></polygon><line x1="18" y1="4" x2="18" y2="20" stroke="currentColor" stroke-width="3"></line></svg>';
+    var SVG_PLUS = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:4px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>';
+    var SVG_STOP = '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-1px;margin-right:4px;"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg>';
+    var SVG_RESTART = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:4px;"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>';
+    var SVG_KEYS = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><line x1="6" y1="8" x2="6" y2="8.01"></line><line x1="10" y1="8" x2="10" y2="8.01"></line><line x1="14" y1="8" x2="14" y2="8.01"></line><line x1="18" y1="8" x2="18" y2="8.01"></line><line x1="6" y1="12" x2="6" y2="12.01"></line><line x1="18" y1="12" x2="18" y2="12.01"></line><line x1="7" y1="16" x2="17" y2="16"></line></svg>';
+    var SVG_COLLAPSE = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>';
+    var SVG_EXPAND = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>';
+
     // Helper: Execute a command via JupyterLab / Notebook 7 Lumino command registry
     function runJupyterCmd(cmd, args) {
         var app = window.jupyterapp || window.jupyterlab;
@@ -72,8 +93,7 @@
         if (btnElem) {
             btnElem.classList.add('ml-running');
             btnElem.classList.remove('ml-success');
-            var icon = btnElem.querySelector('.ml-play-icon');
-            if (icon) icon.textContent = '⟳';
+            btnElem.innerHTML = SVG_SPINNER;
         }
 
         var executed = false;
@@ -129,11 +149,10 @@
                     clearInterval(interval);
                     btnElem.classList.remove('ml-running');
                     btnElem.classList.add('ml-success');
-                    var icon = btnElem.querySelector('.ml-play-icon');
-                    if (icon) icon.textContent = '✓';
+                    btnElem.innerHTML = SVG_CHECK;
                     setTimeout(function() {
                         btnElem.classList.remove('ml-success');
-                        if (icon) icon.textContent = '▶';
+                        btnElem.innerHTML = SVG_PLAY;
                     }, 1200);
                 }
             }, 300);
@@ -191,7 +210,7 @@
             var btn = document.createElement('div');
             btn.className = 'ml-cell-play-btn';
             btn.title = 'Run cell';
-            btn.innerHTML = '<span class="ml-play-icon">▶</span>';
+            btn.innerHTML = SVG_PLAY;
 
             (function(c, b) {
                 function onRun(ev) {
@@ -203,13 +222,9 @@
                 b.addEventListener('touchend', onRun);
             })(cell, btn);
 
-            if (promptElem && promptElem.parentNode) {
-                promptElem.parentNode.insertBefore(btn, promptElem);
-            } else if (inputWrapper && inputWrapper.parentNode) {
-                inputWrapper.parentNode.insertBefore(btn, inputWrapper);
-            } else if (promptElem) {
-                promptElem.appendChild(btn);
-            }
+            // Mount at top-right of cell input area
+            var host = inputWrapper || cell;
+            host.appendChild(btn);
         }
     }
 
@@ -282,11 +297,11 @@
 
         var btn = document.getElementById('ml-k-copy');
         if (btn) {
-            var orig = btn.innerHTML;
-            btn.innerHTML = '✓ Copied';
+            var span = btn.querySelector('span');
+            if (span) span.textContent = 'Copied';
             btn.classList.add('ml-k-done');
             setTimeout(function() {
-                btn.innerHTML = orig;
+                if (span) span.textContent = 'Copy';
                 btn.classList.remove('ml-k-done');
             }, 1000);
         }
@@ -323,11 +338,11 @@
 
         var btn = document.getElementById('ml-k-paste');
         if (btn) {
-            var orig = btn.innerHTML;
-            btn.innerHTML = '✓ Pasted';
+            var span = btn.querySelector('span');
+            if (span) span.textContent = 'Pasted';
             btn.classList.add('ml-k-done');
             setTimeout(function() {
-                btn.innerHTML = orig;
+                if (span) span.textContent = 'Paste';
                 btn.classList.remove('ml-k-done');
             }, 800);
         }
@@ -359,16 +374,16 @@
         var isNotebookPage = p.indexOf('/notebooks/') !== -1 || p.indexOf('/lab') !== -1 || document.querySelector('.jp-Notebook') !== null;
         if (!isNotebookPage) return;
 
-        // Create Keyboard Strip with Rich Keys
+        // Create Keyboard Strip with Rich Keys (No Emojis)
         var keyStrip = document.createElement('div');
         keyStrip.id = 'ml-keys-strip';
         keyStrip.innerHTML = [
-            '<button class="ml-key-btn ml-k-action" id="ml-k-copy" title="Copy Selected Text">📋 Copy</button>',
-            '<button class="ml-key-btn ml-k-action" id="ml-k-paste" title="Paste Code">📥 Paste</button>',
-            '<button class="ml-key-btn ml-k-tool" id="ml-k-undo" title="Undo">↩</button>',
-            '<button class="ml-key-btn ml-k-tool" id="ml-k-redo" title="Redo">↪</button>',
-            '<button class="ml-key-btn ml-k-nav" id="ml-k-left" title="Move Cursor Left">◀</button>',
-            '<button class="ml-key-btn ml-k-nav" id="ml-k-right" title="Move Cursor Right">▶</button>',
+            '<button class="ml-key-btn ml-k-action" id="ml-k-copy" title="Copy Selected Text">' + SVG_COPY + '<span>Copy</span></button>',
+            '<button class="ml-key-btn ml-k-action" id="ml-k-paste" title="Paste Code">' + SVG_PASTE + '<span>Paste</span></button>',
+            '<button class="ml-key-btn ml-k-tool" id="ml-k-undo" title="Undo">' + SVG_UNDO + '</button>',
+            '<button class="ml-key-btn ml-k-tool" id="ml-k-redo" title="Redo">' + SVG_REDO + '</button>',
+            '<button class="ml-key-btn ml-k-nav" id="ml-k-left" title="Move Cursor Left">' + SVG_ARROW_LEFT + '</button>',
+            '<button class="ml-key-btn ml-k-nav" id="ml-k-right" title="Move Cursor Right">' + SVG_ARROW_RIGHT + '</button>',
             '<button class="ml-key-btn" id="ml-k-tab" title="Indent 4 spaces">Tab</button>',
             '<button class="ml-key-btn" id="ml-k-untab" title="Dedent / Unindent">Untab</button>',
             '<button class="ml-key-btn ml-k-esc" id="ml-k-esc" title="Command Mode">Esc</button>',
@@ -455,20 +470,20 @@
         document.getElementById('ml-k-print').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('print()', 1); });
         document.getElementById('ml-k-len').addEventListener('click', function(e) { e.preventDefault(); insertCodeText('len()', 1); });
 
-        // Create Toolbar
+        // Create Toolbar (No Emojis)
         var bar = document.createElement('div');
         bar.id = 'ml-floating-toolbar';
         bar.innerHTML = [
             '<div id="ml-bar-inner">',
-            '  <button class="ml-bar-btn ml-btn-run" id="ml-action-run">▶ Run</button>',
-            '  <button class="ml-bar-btn" id="ml-action-next">▶+ Next</button>',
-            '  <button class="ml-bar-btn ml-btn-add" id="ml-action-add-code">＋ Code</button>',
-            '  <button class="ml-bar-btn ml-btn-add" id="ml-action-add-text">＋ Text</button>',
-            '  <button class="ml-bar-btn ml-btn-stop" id="ml-action-stop">⏹ Stop</button>',
-            '  <button class="ml-bar-btn" id="ml-action-restart">⟳ Restart</button>',
-            '  <button class="ml-bar-btn ml-btn-toggle" id="ml-action-keys">⌨ Keys</button>',
+            '  <button class="ml-bar-btn ml-btn-run" id="ml-action-run">' + SVG_RUN + '<span>Run</span></button>',
+            '  <button class="ml-bar-btn" id="ml-action-next">' + SVG_NEXT + '<span>Next</span></button>',
+            '  <button class="ml-bar-btn ml-btn-add" id="ml-action-add-code">' + SVG_PLUS + '<span>Code</span></button>',
+            '  <button class="ml-bar-btn ml-btn-add" id="ml-action-add-text">' + SVG_PLUS + '<span>Text</span></button>',
+            '  <button class="ml-bar-btn ml-btn-stop" id="ml-action-stop">' + SVG_STOP + '<span>Stop</span></button>',
+            '  <button class="ml-bar-btn" id="ml-action-restart">' + SVG_RESTART + '<span>Restart</span></button>',
+            '  <button class="ml-bar-btn ml-btn-toggle" id="ml-action-keys">' + SVG_KEYS + '<span>Keys</span></button>',
             '</div>',
-            '<button class="ml-bar-btn ml-btn-collapse" id="ml-action-collapse" title="Collapse / Expand Toolbar">⚡</button>'
+            '<button class="ml-bar-btn ml-btn-collapse" id="ml-action-collapse" title="Collapse / Expand Toolbar">' + SVG_COLLAPSE + '</button>'
         ].join('');
         document.body.appendChild(bar);
 
@@ -537,8 +552,12 @@
         document.getElementById('ml-action-collapse').addEventListener('click', function(e) {
             e.preventDefault();
             var inner = document.getElementById('ml-bar-inner');
+            var collapseBtn = document.getElementById('ml-action-collapse');
             if (inner) {
-                inner.classList.toggle('ml-collapsed');
+                var isCollapsed = inner.classList.toggle('ml-collapsed');
+                if (collapseBtn) {
+                    collapseBtn.innerHTML = isCollapsed ? SVG_EXPAND : SVG_COLLAPSE;
+                }
             }
         });
 
@@ -943,67 +962,66 @@
         '.lm-Menu-item { min-height: 44px !important; padding: 10px 16px !important; font-size: 14px !important; touch-action: manipulation !important; -webkit-tap-highlight-color: rgba(243, 118, 38, 0.2) !important; cursor: pointer !important; }',
         '.lm-Menu-item:active { background: #f37626 !important; color: #fff !important; }',
         '.lm-MenuBar-item { min-height: 38px !important; padding: 8px 12px !important; font-size: 14px !important; touch-action: manipulation !important; cursor: pointer !important; }',
-        '.ml-cell-play-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; min-width: 28px; border-radius: 6px; background: #10b981; color: #fff; margin-right: 6px; margin-top: 4px; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.15); touch-action: manipulation; -webkit-user-select: none; user-select: none; font-size: 13px; flex-shrink: 0; z-index: 10; }',
-        '.ml-cell-play-btn:active { transform: scale(0.92); }',
-        '.ml-cell-play-btn.ml-running { background: #f59e0b; animation: ml-pulse 1s infinite; }',
-        '.ml-cell-play-btn.ml-success { background: #059669; }',
-        '@keyframes ml-pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }',
 
-        '/* Minimal Vertical Mini-Dock for Tree View (Bottom-Right, Jupyter Original Theme) */',
+        '/* Per-Cell Run Button (Positioned at Top-Right Corner of Cell) */',
+        '.jp-Cell, .jp-CodeCell, .cell.code_cell { position: relative !important; }',
+        '.jp-Cell-inputWrapper, .input_area, .jp-InputArea { position: relative !important; }',
+        '.jp-Cell-inputWrapper .cm-editor, .jp-Cell-inputWrapper .CodeMirror, .jp-InputArea .cm-editor { padding-right: 38px !important; }',
+        '.ml-cell-play-btn { position: absolute !important; top: 6px !important; right: 8px !important; z-index: 25 !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; width: 28px !important; height: 28px !important; min-width: 28px !important; border-radius: 6px !important; background: #238636 !important; border: 1px solid #2ea043 !important; color: #ffffff !important; cursor: pointer !important; box-shadow: 0 2px 6px rgba(0,0,0,0.35) !important; touch-action: manipulation !important; -webkit-user-select: none !important; user-select: none !important; transition: transform 0.1s ease, background 0.15s ease !important; }',
+        '.ml-cell-play-btn:active { transform: scale(0.92) !important; background: #2ea043 !important; }',
+        '.ml-cell-play-btn.ml-running { background: #d29922 !important; border-color: #bb8009 !important; }',
+        '.ml-cell-play-btn.ml-success { background: #238636 !important; border-color: #2ea043 !important; }',
+        '@keyframes ml-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }',
+        '.ml-spin { animation: ml-spin 0.8s linear infinite !important; }',
+
+        '/* Minimal Vertical Mini-Dock for Tree View (Bottom-Right) */',
         '#ml-vertical-dock { position: fixed; right: 14px; bottom: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: auto; }',
-        '.ml-vdock-btn { width: 38px; height: 38px; border-radius: 50%; border: 1px solid #d0d7de; background: #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12); cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; transition: transform 0.15s ease, background 0.15s ease; }',
-        '.ml-vdock-btn:hover { background: #f6f8fa; }',
-        '.ml-vdock-btn:active { transform: scale(0.92); background: #eaeef2; }',
+        '.ml-vdock-btn { width: 38px; height: 38px; border-radius: 50%; border: 1px solid #30363d; background: #21262d; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3); cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; transition: transform 0.15s ease, background 0.15s ease; }',
+        '.ml-vdock-btn:hover { background: #2b323b; }',
+        '.ml-vdock-btn:active { transform: scale(0.92); background: #30363d; }',
+        '.ml-vdock-btn svg { stroke: #c9d1d9; }',
+        '.ml-vdock-btn#ml-action-new-nb svg { stroke: #f0883e; }',
 
-        '/* Jupyter Dark Theme Compatibility */',
-        '@media (prefers-color-scheme: dark) {',
-        '    .ml-vdock-btn { background: #252526 !important; border-color: #3c3c3c !important; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4) !important; }',
-        '    .ml-vdock-btn:hover { background: #333333 !important; }',
-        '    .ml-vdock-btn:active { background: #3c3c3c !important; }',
-        '    .ml-vdock-btn svg { stroke: #d1d5db !important; }',
-        '    .ml-vdock-btn#ml-action-new-nb svg { stroke: #f37626 !important; }',
-        '    #ml-bar-inner { background: rgba(30, 30, 30, 0.98) !important; border-color: #444 !important; box-shadow: 0 4px 16px rgba(0,0,0,0.4) !important; }',
-        '    .ml-bar-btn { background: #2d2d2d !important; color: #e5e7eb !important; border-color: #444 !important; }',
-        '    .ml-bar-btn:active { background: #3d3d3d !important; }',
-        '    .ml-btn-collapse { background: #252526 !important; border-color: #444 !important; color: #f37626 !important; }',
-        '    #ml-keys-strip { background: rgba(30, 30, 30, 0.98) !important; border-top-color: #444 !important; }',
-        '    .ml-key-btn { background: #2d2d2d !important; color: #e5e7eb !important; border-color: #444 !important; }',
-        '    .ml-k-action { background: #0c4a6e !important; color: #7dd3fc !important; border-color: #0284c7 !important; }',
-        '    .ml-k-nav { background: #1e293b !important; color: #cbd5e1 !important; border-color: #334155 !important; }',
-        '    .ml-k-code { background: #3b0764 !important; color: #f0abfc !important; border-color: #701a75 !important; }',
-        '}',
-        '[data-jp-theme-light="false"] .ml-vdock-btn, .jp-theme-dark .ml-vdock-btn { background: #252526 !important; border-color: #3c3c3c !important; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4) !important; }',
-        '[data-jp-theme-light="false"] .ml-vdock-btn svg, .jp-theme-dark .ml-vdock-btn svg { stroke: #d1d5db !important; }',
-        '[data-jp-theme-light="false"] .ml-vdock-btn#ml-action-new-nb svg, .jp-theme-dark .ml-vdock-btn#ml-action-new-nb svg { stroke: #f37626 !important; }',
-        '[data-jp-theme-light="false"] #ml-bar-inner, .jp-theme-dark #ml-bar-inner { background: rgba(30, 30, 30, 0.98) !important; border-color: #444 !important; }',
-        '[data-jp-theme-light="false"] .ml-bar-btn, .jp-theme-dark .ml-bar-btn { background: #2d2d2d !important; color: #e5e7eb !important; border-color: #444 !important; }',
-        '[data-jp-theme-light="false"] .ml-btn-collapse, .jp-theme-dark .ml-btn-collapse { background: #252526 !important; border-color: #444 !important; }',
-        '[data-jp-theme-light="false"] #ml-keys-strip, .jp-theme-dark #ml-keys-strip { background: rgba(30, 30, 30, 0.98) !important; border-top-color: #444 !important; }',
-        '[data-jp-theme-light="false"] .ml-key-btn, .jp-theme-dark .ml-key-btn { background: #2d2d2d !important; color: #e5e7eb !important; border-color: #444 !important; }',
-        '[data-jp-theme-light="false"] .ml-k-action, .jp-theme-dark .ml-k-action { background: #0c4a6e !important; color: #7dd3fc !important; border-color: #0284c7 !important; }',
-        '[data-jp-theme-light="false"] .ml-k-nav, .jp-theme-dark .ml-k-nav { background: #1e293b !important; color: #cbd5e1 !important; border-color: #334155 !important; }',
-        '[data-jp-theme-light="false"] .ml-k-code, .jp-theme-dark .ml-k-code { background: #3b0764 !important; color: #f0abfc !important; border-color: #701a75 !important; }',
-
-        '/* Sleek Jupyter-Themed Floating Bar for Notebook View */',
+        '/* Floating Toolbar (Default Sleek Dark Theme matching MobileLinux) */',
         '#ml-floating-toolbar { position: fixed; bottom: 16px; right: 14px; z-index: 10000; display: flex; align-items: center; justify-content: flex-end; gap: 8px; pointer-events: none; transition: bottom 0.15s ease-out; }',
-        '#ml-bar-inner { display: flex; align-items: center; gap: 6px; background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(8px); padding: 6px 8px; border-radius: 8px; border: 1px solid #d0d7de; box-shadow: 0 4px 14px rgba(0,0,0,0.12); pointer-events: auto; overflow-x: auto; max-width: calc(100vw - 76px); }',
+        '#ml-bar-inner { display: flex; align-items: center; gap: 6px; background: rgba(22, 27, 34, 0.96); backdrop-filter: blur(10px); padding: 6px 8px; border-radius: 8px; border: 1px solid #30363d; box-shadow: 0 4px 16px rgba(0,0,0,0.35); pointer-events: auto; overflow-x: auto; max-width: calc(100vw - 76px); }',
         '#ml-bar-inner.ml-collapsed { display: none; }',
-        '.ml-bar-btn { background: #f6f8fa; color: #24292f; border: 1px solid #d0d7de; padding: 6px 11px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; touch-action: manipulation; transition: background 0.1s ease; }',
-        '.ml-bar-btn:active { background: #e5e7eb; }',
-        '.ml-btn-run { background: #10b981 !important; color: #fff !important; font-weight: 600 !important; border-color: #059669 !important; }',
-        '.ml-btn-collapse { background: #ffffff; color: #f37626; width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; border: 1px solid #d0d7de; box-shadow: 0 2px 8px rgba(0,0,0,0.12); pointer-events: auto; font-size: 15px; cursor: pointer; }',
-        '.ml-btn-collapse:active { transform: scale(0.92); }',
-        '#ml-keys-strip { position: fixed; bottom: 65px; left: 0; right: 0; background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(10px); padding: 6px 10px; display: none; gap: 6px; overflow-x: auto; z-index: 9999; border-top: 1px solid #d0d7de; box-shadow: 0 -2px 8px rgba(0,0,0,0.08); transition: bottom 0.15s ease-out; }',
+        '.ml-bar-btn { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; padding: 6px 11px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; touch-action: manipulation; display: inline-flex; align-items: center; justify-content: center; transition: background 0.12s ease, border-color 0.12s ease; }',
+        '.ml-bar-btn:active { background: #30363d; color: #f0f6fc; }',
+        '.ml-btn-run { background: #238636 !important; color: #ffffff !important; font-weight: 600 !important; border-color: #2ea043 !important; }',
+        '.ml-btn-run:active { background: #2ea043 !important; }',
+        '.ml-btn-stop { background: #da3633 !important; color: #ffffff !important; border-color: #f85149 !important; }',
+        '.ml-btn-stop:active { background: #b62324 !important; }',
+        '.ml-btn-add { background: #21262d; color: #58a6ff; border-color: #30363d; }',
+        '.ml-btn-toggle { background: #21262d; color: #58a6ff; border-color: #388bfd; }',
+        '.ml-btn-collapse { background: #161b22; color: #8b949e; width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; border: 1px solid #30363d; box-shadow: 0 2px 8px rgba(0,0,0,0.3); pointer-events: auto; cursor: pointer; }',
+        '.ml-btn-collapse:active { transform: scale(0.92); background: #21262d; color: #f0f6fc; }',
+
+        '/* Keyboard Strip (Harmonious Dark Theme, Unified Buttons, No Bright Patches) */',
+        '#ml-keys-strip { position: fixed; bottom: 65px; left: 0; right: 0; background: rgba(22, 27, 34, 0.96); backdrop-filter: blur(12px); padding: 6px 10px; display: none; gap: 6px; overflow-x: auto; z-index: 9999; border-top: 1px solid #30363d; box-shadow: 0 -3px 12px rgba(0,0,0,0.25); transition: bottom 0.15s ease-out; }',
         '#ml-keys-strip.ml-visible { display: flex; }',
-        '.ml-key-btn { background: #f6f8fa; color: #1f2937; border: 1px solid #d0d7de; border-radius: 6px; padding: 5px 9px; font-family: monospace; font-size: 13px; cursor: pointer; white-space: nowrap; touch-action: manipulation; }',
-        '.ml-key-btn:active { background: #e5e7eb; }',
-        '.ml-k-action { background: #e0f2fe !important; color: #0369a1 !important; border-color: #7dd3fc !important; font-weight: 600 !important; }',
-        '.ml-k-action:active { background: #bae6fd !important; }',
-        '.ml-k-done { background: #10b981 !important; color: #ffffff !important; border-color: #059669 !important; transition: background 0.15s ease; }',
-        '.ml-k-nav { background: #f1f5f9 !important; font-weight: 700 !important; color: #334155 !important; }',
-        '.ml-k-tool { font-weight: 600 !important; color: #4b5563 !important; }',
-        '.ml-k-code { background: #fdf4ff !important; color: #a21caf !important; border-color: #f0abfc !important; font-weight: 500 !important; }',
-        '.ml-k-esc { background: #fee2e2 !important; color: #dc2626 !important; border-color: #fca5a5 !important; }'
+        '.ml-key-btn { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 6px 10px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; font-size: 13px; cursor: pointer; white-space: nowrap; touch-action: manipulation; display: inline-flex; align-items: center; justify-content: center; transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease; }',
+        '.ml-key-btn:active { background: #30363d; color: #f0f6fc; }',
+        '.ml-k-action { border-color: #388bfd !important; color: #58a6ff !important; font-weight: 600 !important; }',
+        '.ml-k-action:active { background: #388bfd33 !important; }',
+        '.ml-key-btn.ml-k-done { border-color: #3fb950 !important; color: #3fb950 !important; }',
+        '.ml-k-code { color: #d2a8ff !important; font-weight: 500 !important; }',
+        '.ml-k-esc { color: #ff7b72 !important; }',
+
+        '/* Light Theme Dynamic Overrides (Active when notebook explicitly runs light theme) */',
+        '[data-jp-theme-light="true"] #ml-bar-inner, .jp-theme-light #ml-bar-inner { background: rgba(255, 255, 255, 0.98) !important; border-color: #d0d7de !important; box-shadow: 0 4px 14px rgba(0,0,0,0.12) !important; }',
+        '[data-jp-theme-light="true"] .ml-bar-btn, .jp-theme-light .ml-bar-btn { background: #f6f8fa !important; color: #24292f !important; border-color: #d0d7de !important; }',
+        '[data-jp-theme-light="true"] .ml-bar-btn:active, .jp-theme-light .ml-bar-btn:active { background: #eaeef2 !important; }',
+        '[data-jp-theme-light="true"] .ml-btn-run, .jp-theme-light .ml-btn-run { background: #1f883d !important; color: #fff !important; border-color: #1a7f37 !important; }',
+        '[data-jp-theme-light="true"] .ml-btn-collapse, .jp-theme-light .ml-btn-collapse { background: #ffffff !important; border-color: #d0d7de !important; color: #57609a !important; }',
+        '[data-jp-theme-light="true"] #ml-keys-strip, .jp-theme-light #ml-keys-strip { background: rgba(255, 255, 255, 0.98) !important; border-top-color: #d0d7de !important; box-shadow: 0 -2px 8px rgba(0,0,0,0.08) !important; }',
+        '[data-jp-theme-light="true"] .ml-key-btn, .jp-theme-light .ml-key-btn { background: #f6f8fa !important; color: #24292f !important; border-color: #d0d7de !important; }',
+        '[data-jp-theme-light="true"] .ml-key-btn:active, .jp-theme-light .ml-key-btn:active { background: #eaeef2 !important; }',
+        '[data-jp-theme-light="true"] .ml-k-action, .jp-theme-light .ml-k-action { border-color: #0969da !important; color: #0969da !important; }',
+        '[data-jp-theme-light="true"] .ml-k-code, .jp-theme-light .ml-k-code { color: #8250df !important; }',
+        '[data-jp-theme-light="true"] .ml-k-esc, .jp-theme-light .ml-k-esc { color: #cf222e !important; }',
+        '[data-jp-theme-light="true"] .ml-vdock-btn, .jp-theme-light .ml-vdock-btn { background: #ffffff !important; border-color: #d0d7de !important; }',
+        '[data-jp-theme-light="true"] .ml-vdock-btn svg, .jp-theme-light .ml-vdock-btn svg { stroke: #4b5563 !important; }'
     ].join('\n');
     document.head.appendChild(style);
 

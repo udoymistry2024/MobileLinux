@@ -53,8 +53,23 @@ class TerminalBuffer(
     var rows: Int = 24
 ) {
     companion object {
-        const val MAX_SCROLLBACK = 5000
+        const val DEFAULT_MAX_SCROLLBACK = 5000
         private const val TAG = "TerminalBuffer"
+    }
+
+    var maxScrollback: Int = try {
+        com.mobilelinux.MobileLinuxApp.optimalScrollbackLimit
+    } catch (e: Throwable) {
+        DEFAULT_MAX_SCROLLBACK
+    }
+
+    @Synchronized
+    fun trimHistory(maxLines: Int) {
+        if (history.size > maxLines) {
+            val removeCount = history.size - maxLines
+            history.subList(0, removeCount).clear()
+            onUpdate?.invoke()
+        }
     }
 
     // Main screen buffer
@@ -186,7 +201,7 @@ class TerminalBuffer(
                 attr = attributes[0].clone()
             )
             history.add(line)
-            if (history.size > MAX_SCROLLBACK) {
+            if (history.size > maxScrollback) {
                 history.removeAt(0)
             }
         }
@@ -676,7 +691,7 @@ class TerminalBuffer(
                     System.arraycopy(attributes[r], 0, lineAttr, 0, copyLen)
                     val line = TerminalLine(lineChars, lineFg, lineBg, lineAttr)
                     history.add(line)
-                    if (history.size > MAX_SCROLLBACK) {
+                    if (history.size > maxScrollback) {
                         history.removeAt(0)
                     }
                 }

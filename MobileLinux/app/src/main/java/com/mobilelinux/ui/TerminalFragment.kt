@@ -104,14 +104,10 @@ class TerminalFragment : Fragment() {
         }
         val cols = terminalView.getTerminalCols()
         val rows = terminalView.getTerminalRows()
-        if (cols > 0 && rows > 0) {
-            viewModel.resizeSession(targetSessionId, cols, rows)
-        }
-        terminalView.post {
-            val measuredCols = terminalView.getTerminalCols()
-            val measuredRows = terminalView.getTerminalRows()
-            if (measuredCols > 0 && measuredRows > 0) {
-                viewModel.resizeSession(targetSessionId, measuredCols, measuredRows)
+        if (cols > 0 && rows > 0 && sessionProcess != null) {
+            val buf = sessionProcess.terminalBuffer
+            if (buf.cols != cols || buf.rows != rows) {
+                viewModel.resizeSession(targetSessionId, cols, rows)
             }
         }
         terminalView.requestFocus()

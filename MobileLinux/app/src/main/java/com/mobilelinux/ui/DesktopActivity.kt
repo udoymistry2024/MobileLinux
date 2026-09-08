@@ -383,6 +383,9 @@ class DesktopActivity : AppCompatActivity(),
             try {
                 runtime.runCommand("/usr/local/bin/desktop-stop")
             } catch (ignored: Exception) {}
+            withContext(Dispatchers.Main) {
+                System.gc()
+            }
         }
     }
 }

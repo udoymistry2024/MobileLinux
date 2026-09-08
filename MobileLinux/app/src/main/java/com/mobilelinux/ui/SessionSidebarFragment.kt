@@ -9,6 +9,7 @@ import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
@@ -128,13 +129,26 @@ class SessionAdapter(
     }
 
     fun submitList(list: List<TerminalSession>) {
+        val oldList = sessions
+        val diffResult = DiffUtil.calculateDiff(object : DiffUtil.Callback() {
+            override fun getOldListSize() = oldList.size
+            override fun getNewListSize() = list.size
+            override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean =
+                oldList[oldItemPosition].id == list[newItemPosition].id
+            override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean =
+                oldList[oldItemPosition] == list[newItemPosition]
+        })
         sessions = list
-        notifyDataSetChanged()
+        diffResult.dispatchUpdatesTo(this)
     }
 
     fun setActiveId(id: String?) {
+        if (activeId == id) return
+        val oldPos = sessions.indexOfFirst { it.id == activeId }
+        val newPos = sessions.indexOfFirst { it.id == id }
         activeId = id
-        notifyDataSetChanged()
+        if (oldPos != -1) notifyItemChanged(oldPos)
+        if (newPos != -1) notifyItemChanged(newPos)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {

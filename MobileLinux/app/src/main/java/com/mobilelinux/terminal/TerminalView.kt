@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.*
 import android.graphics.drawable.GradientDrawable
+import android.os.Handler
+import android.os.Looper
 import android.text.InputType
 import android.util.AttributeSet
 import android.util.Log
@@ -288,8 +290,21 @@ class TerminalView @JvmOverloads constructor(
         updateFontMetrics()
     }
 
+    private val renderHandler = Handler(Looper.getMainLooper())
+    private val isRenderPending = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val renderRunnable = Runnable {
+        isRenderPending.set(false)
+        invalidate()
+    }
+
+    private fun scheduleThrottledRedraw() {
+        if (isRenderPending.compareAndSet(false, true)) {
+            renderHandler.postDelayed(renderRunnable, 16) // Cap at ~60fps for maximum smoothness
+        }
+    }
+
     private fun setupBufferCallbacks(targetBuffer: TerminalBuffer) {
-        targetBuffer.onUpdate = { postInvalidate() }
+        targetBuffer.onUpdate = { scheduleThrottledRedraw() }
         targetBuffer.onBell = {
             if (bellEnabled) {
                 try {
@@ -1316,6 +1331,8 @@ class TerminalView @JvmOverloads constructor(
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         removeCallbacks(cursorBlinkRunnable)
+        renderHandler.removeCallbacks(renderRunnable)
+        isRenderPending.set(false)
         dismissCustomPopup()
     }
 

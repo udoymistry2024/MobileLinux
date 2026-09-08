@@ -154,7 +154,15 @@ class VncCanvasView @JvmOverloads constructor(
         outgoingEvents.clear()
         networkThread?.interrupt()
         eventWriterThread?.interrupt()
+        val bmp = framebufferBitmap
+        framebufferBitmap = null
+        try { bmp?.recycle() } catch (ignored: Exception) {}
         postInvalidate()
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        disconnect()
     }
 
     private fun runEventWriter() {

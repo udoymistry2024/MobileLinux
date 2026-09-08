@@ -237,6 +237,16 @@ class TerminalManager(private val context: Context) {
     }
 
     /**
+     * Trims scrollback history across all active and background sessions during memory pressure.
+     */
+    fun trimAllSessionsMemory(maxLines: Int) {
+        sessionProcesses.values.forEach { sp ->
+            sp.terminalBuffer.trimHistory(maxLines)
+        }
+        Log.d(TAG, "Trimmed scrollback across all ${sessionProcesses.size} sessions to $maxLines lines")
+    }
+
+    /**
      * Returns count of alive sessions.
      */
     fun getAliveSessionCount(): Int {

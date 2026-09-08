@@ -95,9 +95,11 @@ class MainActivity : AppCompatActivity() {
         setupSidebar()
         observeSessionChanges()
 
-        // Setup shared MobileLinux folder in File Manager
-        com.mobilelinux.util.StorageHelper.setupSharedStorage(this)
-        com.mobilelinux.util.StorageHelper.requestAllFilesAccess(this)
+        // Create initial session if none exists
+        if (viewModel.sessions.value.isEmpty()) {
+            viewModel.createSession("Main")
+        }
+        hasCreatedInitialSession = true
 
         // Request initial development permissions (Notifications, Camera, Microphone)
         requestInitialPermissionsAndStart()
@@ -105,38 +107,34 @@ class MainActivity : AppCompatActivity() {
         // Request battery optimization exemption for background persistence
         requestBatteryOptimizationExemption()
 
-        // Create initial session if none exists
-        if (viewModel.sessions.value.isEmpty()) {
-            viewModel.createSession("Main")
-        }
-        hasCreatedInitialSession = true
-
-        // Asynchronously synchronize command wrappers and xdg-open dispatchers on startup
+        // Asynchronously setup storage, command wrappers, and browser triggers off the UI thread
         lifecycleScope.launch(Dispatchers.IO) {
             try {
+                com.mobilelinux.util.StorageHelper.setupSharedStorage(this@MainActivity)
                 val runtime = com.mobilelinux.runtime.UbuntuRuntime.getInstance(this@MainActivity)
                 runtime.installCommandWrappers()
+                val shmDir = runtime.ensureSharedMemoryReady()
+                val tmpDir = java.io.File(runtime.rootfsDir, "tmp")
+                val ubuntuHome = java.io.File(runtime.rootfsDir, "home/ubuntu")
+                withContext(Dispatchers.Main) {
+                    browserUrlObserver = com.mobilelinux.util.BrowserUrlTriggerObserver(this@MainActivity, listOf(shmDir, tmpDir, ubuntuHome)).apply {
+                        start()
+                    }
+                }
             } catch (e: Exception) {
-                android.util.Log.w("MainActivity", "Startup wrappers install: ${e.message}")
+                android.util.Log.w("MainActivity", "Background startup I/O: ${e.message}")
             }
         }
-
-        // Initialize terminal browser trigger observer
-        try {
-            val runtime = com.mobilelinux.runtime.UbuntuRuntime.getInstance(this)
-            val shmDir = runtime.ensureSharedMemoryReady()
-            val tmpDir = java.io.File(runtime.rootfsDir, "tmp")
-            val ubuntuHome = java.io.File(runtime.rootfsDir, "home/ubuntu")
-            browserUrlObserver = com.mobilelinux.util.BrowserUrlTriggerObserver(this, listOf(shmDir, tmpDir, ubuntuHome)).apply {
-                start()
-            }
-        } catch (ignored: Exception) {}
     }
 
     override fun onResume() {
         super.onResume()
-        // Refresh shared storage in case user just granted permission in Settings
-        com.mobilelinux.util.StorageHelper.setupSharedStorage(this)
+        // Refresh shared storage asynchronously
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                com.mobilelinux.util.StorageHelper.setupSharedStorage(this@MainActivity)
+            } catch (ignored: Exception) {}
+        }
 
         // Apply keep screen on preference
         try {

@@ -1025,26 +1025,31 @@ class UbuntuRuntime(private val context: Context) {
         val fullOutput = java.lang.StringBuilder()
         val readerJob = async(Dispatchers.IO) {
             try {
-                val reader = process.inputStream.bufferedReader()
-                val sb = java.lang.StringBuilder()
-                var ch: Int
-                while (reader.read().also { ch = it } != -1) {
-                    val c = ch.toChar()
-                    synchronized(fullOutput) { fullOutput.append(c) }
-                    if (c == '\n' || c == '\r') {
-                        if (sb.isNotEmpty()) {
-                            val segment = sb.toString().trim()
-                            if (segment.isNotEmpty()) {
-                                onOutputLine?.invoke(segment)
+                val reader = process.inputStream.bufferedReader(Charsets.UTF_8)
+                val buffer = CharArray(4096)
+                val lineSb = java.lang.StringBuilder()
+                var charsRead: Int
+                while (reader.read(buffer).also { charsRead = it } != -1) {
+                    synchronized(fullOutput) { fullOutput.append(buffer, 0, charsRead) }
+                    if (onOutputLine != null) {
+                        for (i in 0 until charsRead) {
+                            val c = buffer[i]
+                            if (c == '\n' || c == '\r') {
+                                if (lineSb.isNotEmpty()) {
+                                    val segment = lineSb.toString().trim()
+                                    if (segment.isNotEmpty()) {
+                                        onOutputLine.invoke(segment)
+                                    }
+                                    lineSb.setLength(0)
+                                }
+                            } else {
+                                lineSb.append(c)
                             }
-                            sb.setLength(0)
                         }
-                    } else {
-                        sb.append(c)
                     }
                 }
-                if (sb.isNotEmpty()) {
-                    val segment = sb.toString().trim()
+                if (lineSb.isNotEmpty()) {
+                    val segment = lineSb.toString().trim()
                     if (segment.isNotEmpty()) {
                         onOutputLine?.invoke(segment)
                     }

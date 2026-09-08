@@ -1,183 +1,664 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
+<ScrollView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/setup_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
     android:background="@color/terminal_bg"
-    android:padding="32dp"
-    android:gravity="center">
+    android:fillViewport="true"
+    android:overScrollMode="never"
+    android:scrollbars="none">
 
-    <!-- Logo / Icon area -->
     <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:gravity="center">
-
-        <ImageView
-            android:layout_width="88dp"
-            android:layout_height="88dp"
-            android:src="@drawable/ic_app_logo"
-            android:contentDescription="MobileLinux Logo" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="MobileLinux"
-            android:textColor="@color/text_primary"
-            android:textSize="28sp"
-            android:textStyle="bold"
-            android:fontFamily="@font/inter_bold"
-            android:layout_marginTop="12dp" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Ubuntu 24.04 LTS on Android"
-            android:textColor="@color/text_secondary"
-            android:textSize="14sp"
-            android:layout_marginTop="4dp" />
-    </LinearLayout>
-
-    <!-- Welcome text -->
-    <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="First-time setup required.\n\nUbuntu 24.04 ARM64 environment will be configured on your device.\n\nThis takes a few minutes."
-        android:textColor="@color/text_secondary"
-        android:textSize="14sp"
-        android:gravity="center"
-        android:lineSpacingMultiplier="1.5"
-        android:layout_marginTop="32dp"
-        android:layout_marginBottom="32dp" />
-
-    <!-- Start button -->
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/btn_start_setup"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Setup Ubuntu Environment"
-        android:paddingStart="32dp"
-        android:paddingEnd="32dp"
-        android:paddingTop="12dp"
-        android:paddingBottom="12dp"
-        app:cornerRadius="16dp"
-        android:backgroundTint="@color/accent_blue" />
-
-    <!-- Progress section (hidden initially) -->
-    <LinearLayout
-        android:id="@+id/layout_setup_progress"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:gravity="center_horizontal"
         android:orientation="vertical"
-        android:visibility="gone">
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="16dp">
 
-        <TextView
-            android:id="@+id/tv_step"
+        <!-- Header / Logo Branding -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_horizontal"
+            android:orientation="vertical">
+
+            <!-- Framed Logo -->
+            <FrameLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_setup_logo_container"
+                android:padding="6dp">
+
+                <ImageView
+                    android:layout_width="74dp"
+                    android:layout_height="74dp"
+                    android:src="@drawable/ic_app_logo"
+                    android:contentDescription="MobileLinux Logo" />
+            </FrameLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:fontFamily="@font/inter_bold"
+                android:text="MobileLinux"
+                android:textColor="@color/text_primary"
+                android:textSize="26sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:fontFamily="@font/inter_medium"
+                android:text="Ubuntu 24.04 LTS on Android"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+
+            <!-- System Spec Chips Row -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_badge_spec"
+                    android:fontFamily="@font/inter_bold"
+                    android:paddingStart="8dp"
+                    android:paddingTop="3dp"
+                    android:paddingEnd="8dp"
+                    android:paddingBottom="3dp"
+                    android:text="ARM64"
+                    android:textColor="@color/accent_blue"
+                    android:textSize="11sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:background="@drawable/bg_badge_spec"
+                    android:fontFamily="@font/inter_bold"
+                    android:paddingStart="8dp"
+                    android:paddingTop="3dp"
+                    android:paddingEnd="8dp"
+                    android:paddingBottom="3dp"
+                    android:text="Rootless PRoot"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:background="@drawable/bg_category_pill"
+                    android:fontFamily="@font/inter_bold"
+                    android:paddingStart="8dp"
+                    android:paddingTop="3dp"
+                    android:paddingEnd="8dp"
+                    android:paddingBottom="3dp"
+                    android:text="Noble 24.04"
+                    android:textColor="@color/accent_green"
+                    android:textSize="11sp" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- STATE 1: Initial Setup Info & CTA Button -->
+        <LinearLayout
+            android:id="@+id/layout_initial"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Setting up..."
-            android:textColor="@color/text_primary"
-            android:textSize="16sp"
-            android:gravity="center"
-            android:fontFamily="@font/inter_medium" />
+            android:layout_marginTop="20dp"
+            android:orientation="vertical">
 
-        <ProgressBar
-            android:id="@+id/progress_bar"
-            style="@style/Widget.AppCompat.ProgressBar.Horizontal"
+            <!-- Information Card -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_setup_card"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <!-- Card Header -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:fontFamily="@font/inter_bold"
+                        android:letterSpacing="0.04"
+                        android:text="ENVIRONMENT OVERVIEW"
+                        android:textColor="@color/accent_blue"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/inter_medium"
+                        android:text="Initial Setup"
+                        android:textColor="@color/text_hint"
+                        android:textSize="11sp" />
+
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginTop="10dp"
+                    android:layout_marginBottom="12dp"
+                    android:background="@color/border_color" />
+
+                <!-- Feature 1: Linux shell -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_terminal_small"
+                        app:tint="@color/accent_blue" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/inter_bold"
+                            android:text="Full Linux Shell &amp; Utilities"
+                            android:textColor="@color/text_primary"
+                            android:textSize="13sp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="1dp"
+                            android:fontFamily="@font/inter_regular"
+                            android:text="Bash, APT package manager, coreutils, curl, git, python3."
+                            android:textColor="@color/text_secondary"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- Feature 2: Rootless isolation -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_shield_check" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/inter_bold"
+                            android:text="Rootless PRoot Isolation"
+                            android:textColor="@color/text_primary"
+                            android:textSize="13sp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="1dp"
+                            android:fontFamily="@font/inter_regular"
+                            android:text="Runs completely in user space without requiring root or unlocked bootloader."
+                            android:textColor="@color/text_secondary"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- Feature 3: Storage & Dev Tools -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_bolt" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/inter_bold"
+                            android:text="Fast Native I/O &amp; Storage"
+                            android:textColor="@color/text_primary"
+                            android:textSize="13sp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="1dp"
+                            android:fontFamily="@font/inter_regular"
+                            android:text="Extracted to high-speed private storage with shared /sdcard integration."
+                            android:textColor="@color/text_secondary"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- Time Notice Banner -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:background="@drawable/bg_info_banner"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="12dp"
+                    android:paddingTop="8dp"
+                    android:paddingEnd="12dp"
+                    android:paddingBottom="8dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/inter_medium"
+                        android:text="⏱️ One-time setup unpacks and configures Ubuntu. This takes 1–2 minutes."
+                        android:textColor="@color/accent_blue"
+                        android:textSize="11sp" />
+                </LinearLayout>
+
+            </LinearLayout>
+
+            <!-- Start Button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_start_setup"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="16dp"
+                android:backgroundTint="@color/accent_blue"
+                android:fontFamily="@font/inter_bold"
+                android:text="Setup Ubuntu Environment"
+                android:textAllCaps="false"
+                android:textColor="@color/colorOnPrimary"
+                android:textSize="14sp"
+                app:cornerRadius="14dp"
+                app:elevation="2dp"
+                app:icon="@drawable/ic_download"
+                app:iconGravity="textStart"
+                app:iconPadding="8dp"
+                app:iconTint="@color/colorOnPrimary" />
+
+        </LinearLayout>
+
+        <!-- STATE 2: Setup In-Progress (hidden initially) -->
+        <LinearLayout
+            android:id="@+id/layout_setup_progress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:orientation="vertical"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_setup_card"
+                android:orientation="vertical"
+                android:padding="18dp">
+
+                <!-- Header Step Row -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ProgressBar
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:indeterminate="true"
+                        android:indeterminateTint="@color/accent_blue" />
+
+                    <TextView
+                        android:id="@+id/tv_step"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:layout_weight="1"
+                        android:fontFamily="@font/inter_bold"
+                        android:text="Setting up Ubuntu environment..."
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp" />
+
+                    <TextView
+                        android:id="@+id/tv_progress_percent"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/inter_bold"
+                        android:text="0%"
+                        android:textColor="@color/accent_blue"
+                        android:textSize="13sp" />
+
+                </LinearLayout>
+
+                <!-- Rounded Custom Progress Bar -->
+                <ProgressBar
+                    android:id="@+id/progress_bar"
+                    style="@style/Widget.AppCompat.ProgressBar.Horizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="8dp"
+                    android:layout_marginTop="14dp"
+                    android:layout_marginBottom="10dp"
+                    android:max="100"
+                    android:progress="0"
+                    android:progressDrawable="@drawable/bg_progress_bar" />
+
+                <!-- Sub-status description -->
+                <TextView
+                    android:id="@+id/tv_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/inter_regular"
+                    android:text="Initializing..."
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <!-- Keep app open notice -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:background="@drawable/bg_info_banner"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="12dp"
+                    android:paddingTop="8dp"
+                    android:paddingEnd="12dp"
+                    android:paddingBottom="8dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/inter_medium"
+                        android:gravity="center"
+                        android:text="💡 Please keep MobileLinux open until extraction completes."
+                        android:textColor="@color/accent_blue"
+                        android:textSize="11sp" />
+                </LinearLayout>
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- STATE 3: Setup Complete (hidden initially) -->
+        <LinearLayout
+            android:id="@+id/layout_complete"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            android:visibility="gone"
+            tools:visibility="gone">
+
+            <!-- Success Glow Badge Container (NO EMOJI!) -->
+            <FrameLayout
+                android:layout_width="68dp"
+                android:layout_height="68dp"
+                android:background="@drawable/bg_success_badge_glow">
+
+                <ImageView
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_check_circle"
+                    app:tint="@color/accent_green" />
+            </FrameLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:fontFamily="@font/inter_bold"
+                android:text="Setup Complete!"
+                android:textColor="@color/text_primary"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:fontFamily="@font/inter_medium"
+                android:text="Ubuntu 24.04 LTS is ready to use."
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+
+            <!-- Ready Summary Card -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:background="@drawable/bg_setup_card"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:fontFamily="@font/inter_bold"
+                        android:letterSpacing="0.04"
+                        android:text="ENVIRONMENT STATUS"
+                        android:textColor="@color/accent_green"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_category_pill"
+                        android:fontFamily="@font/inter_bold"
+                        android:paddingStart="8dp"
+                        android:paddingTop="2dp"
+                        android:paddingEnd="8dp"
+                        android:paddingBottom="2dp"
+                        android:text="READY"
+                        android:textColor="@color/accent_green"
+                        android:textSize="10sp" />
+
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginTop="10dp"
+                    android:layout_marginBottom="12dp"
+                    android:background="@color/border_color" />
+
+                <!-- Check 1 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:src="@drawable/ic_check_circle"
+                        app:tint="@color/accent_green" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:layout_weight="1"
+                        android:fontFamily="@font/inter_regular"
+                        android:text="Linux rootfs initialized in private storage"
+                        android:textColor="@color/text_primary"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <!-- Check 2 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:src="@drawable/ic_check_circle"
+                        app:tint="@color/accent_green" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:layout_weight="1"
+                        android:fontFamily="@font/inter_regular"
+                        android:text="Bash shell, APT repository &amp; network configured"
+                        android:textColor="@color/text_primary"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <!-- Check 3 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:src="@drawable/ic_check_circle"
+                        app:tint="@color/accent_green" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:layout_weight="1"
+                        android:fontFamily="@font/inter_regular"
+                        android:text="Shared external storage (/sdcard) linked"
+                        android:textColor="@color/text_primary"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+            </LinearLayout>
+
+            <!-- Launch Terminal Button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_launch"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="20dp"
+                android:backgroundTint="@color/accent_green"
+                android:fontFamily="@font/inter_bold"
+                android:text="Launch Terminal"
+                android:textAllCaps="false"
+                android:textColor="@color/colorOnPrimary"
+                android:textSize="15sp"
+                app:cornerRadius="14dp"
+                app:elevation="2dp"
+                app:icon="@drawable/ic_terminal"
+                app:iconGravity="textStart"
+                app:iconPadding="8dp"
+                app:iconTint="@color/colorOnPrimary" />
+
+        </LinearLayout>
+
+        <!-- Error message scroll (hidden initially) -->
+        <ScrollView
+            android:id="@+id/error_scroll"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:layout_marginBottom="8dp"
-            android:max="100"
-            android:progress="0"
-            android:progressTint="@color/accent_blue"
-            android:progressBackgroundTint="@color/divider_color" />
+            android:background="@drawable/bg_setup_card"
+            android:maxHeight="200dp"
+            android:padding="14dp"
+            android:visibility="gone">
 
-        <TextView
-            android:id="@+id/tv_status"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Initializing..."
-            android:textColor="@color/text_secondary"
-            android:textSize="12sp"
-            android:gravity="center" />
-    </LinearLayout>
+            <TextView
+                android:id="@+id/tv_error"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/inter_regular"
+                android:gravity="center"
+                android:lineSpacingExtra="2dp"
+                android:textColor="@color/accent_red"
+                android:textSize="13sp" />
+        </ScrollView>
 
-    <!-- Complete section (hidden initially) -->
-    <LinearLayout
-        android:id="@+id/layout_complete"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:visibility="gone">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="✅ Setup Complete!"
-            android:textColor="@color/accent_green"
-            android:textSize="20sp"
-            android:textStyle="bold"
-            android:fontFamily="@font/inter_bold" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Ubuntu 24.04 is ready to use."
-            android:textColor="@color/text_secondary"
-            android:textSize="14sp"
-            android:layout_marginTop="8dp"
-            android:layout_marginBottom="24dp" />
-
+        <!-- Retry button (hidden initially) -->
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_launch"
+            android:id="@+id/btn_retry"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginTop="14dp"
+            android:backgroundTint="@color/accent_red"
+            android:fontFamily="@font/inter_bold"
+            android:text="Retry Setup"
+            android:textAllCaps="false"
+            android:textColor="@color/colorOnPrimary"
+            android:textSize="14sp"
+            android:visibility="gone"
+            app:cornerRadius="14dp" />
+
+        <!-- Hidden title for backward compatibility -->
+        <TextView
+            android:id="@+id/tv_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Launch Terminal"
-            android:paddingStart="32dp"
-            android:paddingEnd="32dp"
-            app:cornerRadius="16dp"
-            android:backgroundTint="@color/accent_green" />
+            android:visibility="gone" />
+
     </LinearLayout>
-
-    <!-- Error message text (hidden initially, scrollable for long messages) -->
-    <ScrollView
-        android:id="@+id/error_scroll"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:visibility="gone"
-        android:layout_marginBottom="16dp">
-        <TextView
-            android:id="@+id/tv_error"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textColor="@color/accent_red"
-            android:textSize="13sp"
-            android:gravity="center"
-            android:padding="8dp" />
-    </ScrollView>
-
-    <!-- Retry button (hidden initially) -->
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/btn_retry"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Retry Setup"
-        android:visibility="gone"
-        app:cornerRadius="16dp"
-        style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
-
-    <!-- Hidden title for compat -->
-    <TextView
-        android:id="@+id/tv_title"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:visibility="gone" />
-
-</LinearLayout>
+</ScrollView>

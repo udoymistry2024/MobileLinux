@@ -36,11 +36,13 @@ class SetupActivity : AppCompatActivity() {
     private lateinit var progressBar: ProgressBar
     private lateinit var tvStatus: TextView
     private lateinit var tvStep: TextView
+    private lateinit var tvProgressPercent: TextView
     private lateinit var tvTitle: TextView
     private lateinit var tvError: TextView
     private lateinit var errorScroll: View
     private lateinit var btnStart: MaterialButton
     private lateinit var btnRetry: MaterialButton
+    private lateinit var layoutInitial: View
     private lateinit var layoutSetup: View
     private lateinit var layoutComplete: View
 
@@ -68,27 +70,35 @@ class SetupActivity : AppCompatActivity() {
         progressBar = findViewById(R.id.progress_bar)
         tvStatus = findViewById(R.id.tv_status)
         tvStep = findViewById(R.id.tv_step)
+        tvProgressPercent = findViewById(R.id.tv_progress_percent)
         tvTitle = findViewById(R.id.tv_title)
         tvError = findViewById(R.id.tv_error)
         errorScroll = findViewById(R.id.error_scroll)
         btnStart = findViewById(R.id.btn_start_setup)
         btnRetry = findViewById(R.id.btn_retry)
+        layoutInitial = findViewById(R.id.layout_initial)
         layoutSetup = findViewById(R.id.layout_setup_progress)
         layoutComplete = findViewById(R.id.layout_complete)
 
+        layoutInitial.visibility = View.VISIBLE
         layoutSetup.visibility = View.GONE
         layoutComplete.visibility = View.GONE
 
         btnStart.setOnClickListener {
-            btnStart.visibility = View.GONE
+            layoutInitial.visibility = View.GONE
+            layoutSetup.alpha = 0f
             layoutSetup.visibility = View.VISIBLE
+            layoutSetup.animate().alpha(1f).setDuration(250).start()
             startSetup()
         }
 
         btnRetry.setOnClickListener {
             btnRetry.visibility = View.GONE
             errorScroll.visibility = View.GONE
+            layoutInitial.visibility = View.GONE
+            layoutSetup.alpha = 0f
             layoutSetup.visibility = View.VISIBLE
+            layoutSetup.animate().alpha(1f).setDuration(250).start()
             // Clear cached setup data so extraction starts fresh
             clearSetupData()
             startSetup()
@@ -102,8 +112,17 @@ class SetupActivity : AppCompatActivity() {
             val success = runtime.performSetup(
                 onProgress = { progress, message ->
                     runOnUiThread {
-                        progressBar.progress = (progress * 100).toInt()
+                        val pct = (progress * 100).toInt().coerceIn(0, 100)
+                        progressBar.progress = pct
+                        tvProgressPercent.text = "$pct%"
                         tvStatus.text = message
+
+                        when {
+                            pct < 15 -> tvStep.text = "Initializing runtime environment..."
+                            pct < 85 -> tvStep.text = "Extracting Ubuntu 24.04 rootfs..."
+                            pct < 98 -> tvStep.text = "Configuring Linux packages..."
+                            else -> tvStep.text = "Finalizing setup..."
+                        }
                     }
                 },
                 onError = { error ->
@@ -150,8 +169,11 @@ class SetupActivity : AppCompatActivity() {
     }
 
     private fun showComplete() {
+        layoutInitial.visibility = View.GONE
         layoutSetup.visibility = View.GONE
+        layoutComplete.alpha = 0f
         layoutComplete.visibility = View.VISIBLE
+        layoutComplete.animate().alpha(1f).setDuration(300).start()
 
         val btnLaunch = findViewById<MaterialButton>(R.id.btn_launch)
         btnLaunch.setOnClickListener {
@@ -161,6 +183,7 @@ class SetupActivity : AppCompatActivity() {
     }
 
     private fun showError(error: String) {
+        layoutInitial.visibility = View.GONE
         layoutSetup.visibility = View.GONE
         tvError.text = "Setup Error:\n$error\n\nTap Retry to try again. If the problem persists, try uninstalling and reinstalling the app."
         errorScroll.visibility = View.VISIBLE

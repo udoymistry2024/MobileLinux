@@ -348,6 +348,8 @@
                 android:text="New Tab"
                 android:textColor="@color/accent_blue"
                 android:textSize="13sp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
                 app:icon="@drawable/ic_add_session"
                 app:iconTint="@color/accent_blue"
                 app:iconSize="18dp" />
@@ -359,9 +361,26 @@
                 android:layout_weight="1"
                 android:text="Tabs (1)"
                 android:textColor="@color/text_primary"
-                android:textSize="15sp"
+                android:textSize="14sp"
                 android:textStyle="bold"
-                android:gravity="center" />
+                android:gravity="center"
+                android:singleLine="true"
+                android:ellipsize="end" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_close_all_tabs"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Close All"
+                android:textColor="@color/accent_red"
+                android:textSize="13sp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                app:icon="@drawable/ic_trash"
+                app:iconTint="@color/accent_red"
+                app:iconSize="16dp"
+                android:layout_marginEnd="2dp" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_close_tab_switcher"
@@ -370,7 +389,9 @@
                 android:layout_height="wrap_content"
                 android:text="Done"
                 android:textColor="@color/text_primary"
-                android:textSize="13sp" />
+                android:textSize="13sp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp" />
         </LinearLayout>
 
         <View

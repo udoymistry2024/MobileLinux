@@ -75,9 +75,14 @@ class DevBrowserActivity : AppCompatActivity() {
     private lateinit var tabSwitcherTopBar: LinearLayout
     private lateinit var tvTabSwitcherTitle: TextView
     private lateinit var btnNewTab: MaterialButton
+    private lateinit var btnCloseAllTabs: MaterialButton
     private lateinit var btnCloseTabSwitcher: MaterialButton
     private lateinit var rvTabGrid: RecyclerView
     private lateinit var tabGridAdapter: TabGridAdapter
+
+    // Intent debouncing
+    private var lastIntentUrl: String? = null
+    private var lastIntentTime: Long = 0L
 
     // Tabs state
     private val tabs = mutableListOf<BrowserTab>()
@@ -198,8 +203,28 @@ class DevBrowserActivity : AppCompatActivity() {
         setIntent(intent)
         val url = intent.getStringExtra(EXTRA_URL)
         if (!url.isNullOrEmpty()) {
+            val now = System.currentTimeMillis()
+            if (url == lastIntentUrl && (now - lastIntentTime) < 2000L) {
+                // Ignore rapid duplicate trigger
+                return
+            }
+            lastIntentUrl = url
+            lastIntentTime = now
+
             closeTabSwitcher()
-            createNewTab(url, select = true)
+
+            // If the currently active tab is a clean blank or default home tab with no navigation history, reuse it
+            val active = currentTab
+            val activeWeb = active?.webView
+            val isBlankOrHome = activeWeb != null &&
+                    !activeWeb.canGoBack() &&
+                    (active.url == "about:blank" || active.url == DEFAULT_HOME_URL || activeWeb.url == "about:blank" || activeWeb.url == null)
+
+            if (isBlankOrHome && active != null) {
+                loadTargetUrlInTab(active, url)
+            } else {
+                createNewTab(url, select = true)
+            }
         }
     }
 
@@ -344,6 +369,7 @@ class DevBrowserActivity : AppCompatActivity() {
         layoutTabSwitcher = findViewById(R.id.layout_tab_switcher)
         tvTabSwitcherTitle = findViewById(R.id.tv_tab_switcher_title)
         btnNewTab = findViewById(R.id.btn_new_tab)
+        btnCloseAllTabs = findViewById(R.id.btn_close_all_tabs)
         btnCloseTabSwitcher = findViewById(R.id.btn_close_tab_switcher)
         rvTabGrid = findViewById(R.id.rv_tab_grid)
 
@@ -364,9 +390,49 @@ class DevBrowserActivity : AppCompatActivity() {
             createNewTab(DEFAULT_HOME_URL, select = true)
         }
 
+        btnCloseAllTabs.setOnClickListener {
+            showCloseAllTabsConfirmationDialog()
+        }
+
         btnCloseTabSwitcher.setOnClickListener {
             closeTabSwitcher()
         }
+    }
+
+    private fun showCloseAllTabsConfirmationDialog() {
+        val count = tabs.size
+        val isSingleCleanTab = count == 1 && (tabs.first().url == DEFAULT_HOME_URL || tabs.first().url == "about:blank")
+        if (isSingleCleanTab) {
+            Toast.makeText(this, "Only a single home tab is open", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Close All Tabs")
+            .setMessage("Are you sure you want to close all $count tabs? A clean home tab will be opened.")
+            .setPositiveButton("OK") { _, _ ->
+                closeAllTabs()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun closeAllTabs() {
+        for (tab in tabs) {
+            try {
+                webviewContainer.removeView(tab.webView)
+                tab.webView.stopLoading()
+                tab.webView.loadUrl("about:blank")
+                tab.webView.destroy()
+            } catch (ignored: Exception) {}
+        }
+        tabs.clear()
+
+        // Create a single clean new tab with default home URL
+        createNewTab(DEFAULT_HOME_URL, select = true)
+        tabGridAdapter.notifyDataSetChanged()
+        closeTabSwitcher()
+        Toast.makeText(this, "All tabs closed", Toast.LENGTH_SHORT).show()
     }
 
     private fun initBackNavigation() {
@@ -561,13 +627,16 @@ class DevBrowserActivity : AppCompatActivity() {
                 return true
             }
 
-            // Support target="_blank" links opening in a new tab without collision
+            // Support target="_blank" links opening in a new tab without collision (requires user gesture)
             override fun onCreateWindow(
                 view: WebView?,
                 isDialog: Boolean,
                 isUserGesture: Boolean,
                 resultMsg: Message?
             ): Boolean {
+                if (!isUserGesture) {
+                    return false
+                }
                 val newTab = createNewTab("about:blank", select = true)
                 val transport = resultMsg?.obj as? WebView.WebViewTransport
                 transport?.webView = newTab.webView

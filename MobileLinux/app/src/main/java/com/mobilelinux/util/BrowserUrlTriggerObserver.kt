@@ -79,6 +79,19 @@ class BrowserUrlTriggerObserver(
         mainHandler.postDelayed(pollRunnable, 1200L)
     }
 
+    @Volatile private var lastTriggeredUrl: String = ""
+    @Volatile private var lastTriggeredTime: Long = 0L
+
+    private fun cleanupAllTriggers() {
+        for (dir in watchDirs) {
+            try {
+                File(dir, ".open_url").delete()
+                File(dir, "open_url").delete()
+                File(dir, ".open_url.tmp").delete()
+            } catch (ignored: Exception) {}
+        }
+    }
+
     private fun handleTriggerFile(file: File) {
         try {
             if (!file.exists()) return
@@ -94,7 +107,18 @@ class BrowserUrlTriggerObserver(
                 // Still empty, do NOT delete yet; let CLOSE_WRITE, MOVED_TO or poll handle it when bytes arrive
                 return
             }
-            file.delete()
+
+            // Immediately wipe all triggers in all watch dirs so other observers/polls don't double fire
+            cleanupAllTriggers()
+
+            // Debounce identical trigger within 2.5s
+            val now = System.currentTimeMillis()
+            if (url == lastTriggeredUrl && (now - lastTriggeredTime) < 2500L) {
+                Log.d(TAG, "Ignoring duplicate URL trigger within 2.5s: $url")
+                return
+            }
+            lastTriggeredUrl = url
+            lastTriggeredTime = now
 
             Log.i(TAG, "Detected URL trigger from terminal: $url")
             mainHandler.post {

@@ -6,20 +6,16 @@
     // 1. Polyfill window.open to bypass mobile popup blockers and navigate in-tab or via WebChromeClient
     var origOpen = window.open;
     window.open = function(url, target, features) {
-        if (!url) {
+        if (!url || url === '' || url === 'about:blank') {
             var fakeWin = {
                 opener: null,
                 location: {
-                    set href(val) { if (val) window.location.href = val; },
+                    set href(val) { if (val && val !== 'about:blank') window.location.href = val; },
                     get href() { return window.location.href; }
                 },
                 focus: function() {},
                 close: function() {}
             };
-            try {
-                var w = origOpen ? origOpen.call(window, '', target, features) : null;
-                if (w) return w;
-            } catch(e) {}
             return fakeWin;
         }
         try {

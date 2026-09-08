@@ -18,27 +18,39 @@
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:background="@color/toolbar_bg"
-        android:paddingStart="6dp"
-        android:paddingEnd="6dp"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
         android:paddingTop="6dp"
         android:paddingBottom="6dp">
 
         <!-- Back to Terminal button -->
         <ImageButton
             android:id="@+id/btn_browser_close"
-            android:layout_width="38dp"
-            android:layout_height="38dp"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
             android:src="@drawable/ic_close"
             android:background="?attr/selectableItemBackgroundBorderless"
             app:tint="@color/text_primary"
             android:contentDescription="Close Browser" />
+
+        <!-- Home Button -->
+        <ImageButton
+            android:id="@+id/btn_browser_home"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="2dp"
+            android:layout_marginEnd="2dp"
+            android:src="@drawable/ic_home"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="@color/text_primary"
+            android:contentDescription="Home" />
 
         <!-- Address Bar Container -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="38dp"
             android:layout_weight="1"
-            android:layout_marginStart="4dp"
+            android:layout_marginStart="2dp"
             android:layout_marginEnd="4dp"
             android:background="@drawable/bg_search_bar"
             android:orientation="horizontal"
@@ -62,7 +74,7 @@
                 android:layout_marginStart="6dp"
                 android:layout_marginEnd="4dp"
                 android:background="@null"
-                android:hint="Search Google or type URL (e.g. localhost:8888)"
+                android:hint="Search Google or type URL"
                 android:textColorHint="@color/text_hint"
                 android:textColor="@color/text_primary"
                 android:textSize="13sp"
@@ -82,21 +94,34 @@
                 android:contentDescription="Clear URL" />
         </LinearLayout>
 
-        <!-- Reload Button -->
-        <ImageButton
-            android:id="@+id/btn_browser_refresh"
-            android:layout_width="38dp"
-            android:layout_height="38dp"
-            android:src="@drawable/ic_refresh"
+        <!-- Tab Switcher Badge Button -->
+        <FrameLayout
+            android:id="@+id/btn_tab_switcher"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            app:tint="@color/text_primary"
-            android:contentDescription="Refresh" />
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="Tabs">
+
+            <TextView
+                android:id="@+id/tv_tab_count"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:layout_gravity="center"
+                android:background="@drawable/bg_tab_counter"
+                android:gravity="center"
+                android:text="1"
+                android:textColor="@color/text_primary"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </FrameLayout>
 
         <!-- Menu Button -->
         <ImageButton
             android:id="@+id/btn_browser_menu"
-            android:layout_width="38dp"
-            android:layout_height="38dp"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
             android:src="@drawable/ic_more_vert"
             android:background="?attr/selectableItemBackgroundBorderless"
             app:tint="@color/text_primary"
@@ -230,15 +255,16 @@
         </LinearLayout>
     </HorizontalScrollView>
 
-    <!-- Main Content Frame -->
+    <!-- Main Content Frame (holds active WebView or Error screen) -->
     <FrameLayout
+        android:id="@+id/layout_browser_content"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1">
 
-        <!-- Chromium WebView -->
-        <WebView
-            android:id="@+id/dev_web_view"
+        <!-- Dynamic Container for active Tab WebView -->
+        <FrameLayout
+            android:id="@+id/webview_container"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:background="@color/terminal_bg" />
@@ -292,5 +318,73 @@
                 app:cornerRadius="8dp" />
         </LinearLayout>
     </FrameLayout>
+
+    <!-- Tab Switcher Overlay (Full Screen Multi-Tab Grid) -->
+    <LinearLayout
+        android:id="@+id/layout_tab_switcher"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:background="@color/terminal_bg"
+        android:visibility="gone">
+
+        <!-- Tab Switcher Top Bar -->
+        <LinearLayout
+            android:id="@+id/tab_switcher_top_bar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="54dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@color/toolbar_bg"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_new_tab"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="New Tab"
+                android:textColor="@color/accent_blue"
+                android:textSize="13sp"
+                app:icon="@drawable/ic_add_session"
+                app:iconTint="@color/accent_blue"
+                app:iconSize="18dp" />
+
+            <TextView
+                android:id="@+id/tv_tab_switcher_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Tabs (1)"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:gravity="center" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_close_tab_switcher"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Done"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/border_color" />
+
+        <!-- Grid of Tabs -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_tab_grid"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:padding="8dp"
+            android:clipToPadding="false" />
+    </LinearLayout>
 
 </LinearLayout>

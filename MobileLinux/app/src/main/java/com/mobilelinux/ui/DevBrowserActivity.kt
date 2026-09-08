@@ -11,10 +11,14 @@ import android.net.Uri
 import android.net.http.SslError
 import android.os.Bundle
 import android.os.Environment
+import android.os.Message
 import android.text.Editable
 import android.text.TextWatcher
+import android.text.format.DateUtils
+import android.view.LayoutInflater
 import android.view.MenuItem
 import android.view.View
+import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.webkit.*
@@ -26,18 +30,37 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.PopupMenu
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.mobilelinux.R
+import com.mobilelinux.data.BrowserHistoryDbHelper
+import com.mobilelinux.data.BrowserHistoryItem
 import java.net.URLEncoder
 import java.util.Collections
+import java.util.UUID
+import kotlin.math.max
+
+data class BrowserTab(
+    val id: String = UUID.randomUUID().toString(),
+    var title: String = "Google",
+    var url: String = DevBrowserActivity.DEFAULT_HOME_URL,
+    val webView: WebView,
+    var isDesktopMode: Boolean = false
+)
 
 class DevBrowserActivity : AppCompatActivity() {
 
-    private lateinit var webView: WebView
+    private lateinit var webviewContainer: FrameLayout
     private lateinit var etUrl: EditText
     private lateinit var btnClearUrl: ImageButton
     private lateinit var btnClose: ImageButton
-    private lateinit var btnRefresh: ImageButton
+    private lateinit var btnHome: ImageButton
+    private lateinit var btnTabSwitcher: FrameLayout
+    private lateinit var tvTabCount: TextView
     private lateinit var btnMenu: ImageButton
     private lateinit var progressBar: ProgressBar
     private lateinit var ivSslIndicator: ImageView
@@ -46,11 +69,26 @@ class DevBrowserActivity : AppCompatActivity() {
     private lateinit var btnRetry: Button
     private lateinit var topBar: LinearLayout
 
-    private var filePathCallback: ValueCallback<Array<Uri>>? = null
-    private var isDesktopMode = false
+    // Tab Switcher Overlay Views
+    private lateinit var layoutTabSwitcher: LinearLayout
+    private lateinit var tabSwitcherTopBar: LinearLayout
+    private lateinit var tvTabSwitcherTitle: TextView
+    private lateinit var btnNewTab: MaterialButton
+    private lateinit var btnCloseTabSwitcher: MaterialButton
+    private lateinit var rvTabGrid: RecyclerView
+    private lateinit var tabGridAdapter: TabGridAdapter
+
+    // Tabs state
+    private val tabs = mutableListOf<BrowserTab>()
+    private var activeTabIndex = 0
+    private val currentTab: BrowserTab?
+        get() = if (tabs.isNotEmpty() && activeTabIndex in tabs.indices) tabs[activeTabIndex] else null
+
     private var defaultUserAgent: String = ""
     private val consoleLogs = Collections.synchronizedList(mutableListOf<String>())
+    private lateinit var historyDb: BrowserHistoryDbHelper
 
+    private var filePathCallback: ValueCallback<Array<Uri>>? = null
     private val fileChooserLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -77,23 +115,37 @@ class DevBrowserActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_dev_browser)
 
+        historyDb = BrowserHistoryDbHelper.getInstance(this)
+
         initViews()
         initWindowInsets()
-        initWebView()
         initAddressBar()
         initQuickChips()
+        initTabSwitcherOverlay()
         initBackNavigation()
 
         val initialUrl = intent.getStringExtra(EXTRA_URL) ?: DEFAULT_HOME_URL
-        loadTargetUrl(initialUrl)
+        createNewTab(initialUrl, select = true)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val url = intent.getStringExtra(EXTRA_URL)
+        if (!url.isNullOrEmpty()) {
+            closeTabSwitcher()
+            createNewTab(url, select = true)
+        }
     }
 
     private fun initViews() {
-        webView = findViewById(R.id.dev_web_view)
+        webviewContainer = findViewById(R.id.webview_container)
         etUrl = findViewById(R.id.et_browser_url)
         btnClearUrl = findViewById(R.id.btn_clear_url)
         btnClose = findViewById(R.id.btn_browser_close)
-        btnRefresh = findViewById(R.id.btn_browser_refresh)
+        btnHome = findViewById(R.id.btn_browser_home)
+        btnTabSwitcher = findViewById(R.id.btn_tab_switcher)
+        tvTabCount = findViewById(R.id.tv_tab_count)
         btnMenu = findViewById(R.id.btn_browser_menu)
         progressBar = findViewById(R.id.pb_browser)
         ivSslIndicator = findViewById(R.id.iv_ssl_indicator)
@@ -106,12 +158,12 @@ class DevBrowserActivity : AppCompatActivity() {
             finish()
         }
 
-        btnRefresh.setOnClickListener {
-            if (progressBar.visibility == View.VISIBLE) {
-                webView.stopLoading()
-            } else {
-                webView.reload()
-            }
+        btnHome.setOnClickListener {
+            loadTargetUrl(DEFAULT_HOME_URL)
+        }
+
+        btnTabSwitcher.setOnClickListener {
+            openTabSwitcher()
         }
 
         btnMenu.setOnClickListener { v ->
@@ -120,7 +172,7 @@ class DevBrowserActivity : AppCompatActivity() {
 
         btnRetry.setOnClickListener {
             layoutError.visibility = View.GONE
-            webView.reload()
+            currentTab?.webView?.reload()
         }
     }
 
@@ -139,235 +191,27 @@ class DevBrowserActivity : AppCompatActivity() {
             insets
         }
 
+        tabSwitcherTopBar = findViewById(R.id.tab_switcher_top_bar)
+        ViewCompat.setOnApplyWindowInsetsListener(tabSwitcherTopBar) { v, insets ->
+            val sysInsets = insets.getInsets(
+                WindowInsetsCompat.Type.statusBars() or
+                WindowInsetsCompat.Type.displayCutout()
+            )
+            v.setPadding(
+                v.paddingLeft,
+                sysInsets.top + dpToPx(4),
+                v.paddingRight,
+                v.paddingBottom
+            )
+            insets
+        }
+
         val rootLayout: View = findViewById(R.id.layout_dev_browser_root)
         ViewCompat.setOnApplyWindowInsetsListener(rootLayout) { _, insets ->
             val navInsets = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
-            webView.setPadding(0, 0, 0, navInsets.bottom)
+            webviewContainer.setPadding(0, 0, 0, navInsets.bottom)
+            rvTabGrid.setPadding(dpToPx(8), dpToPx(8), dpToPx(8), navInsets.bottom + dpToPx(8))
             insets
-        }
-    }
-
-    @SuppressLint("SetJavaScriptEnabled")
-    private fun initWebView() {
-        val settings = webView.settings
-        defaultUserAgent = settings.userAgentString
-
-        // Core modern web capabilities
-        settings.javaScriptEnabled = true
-        settings.domStorageEnabled = true
-        settings.databaseEnabled = true
-        settings.allowFileAccess = true
-        settings.allowContentAccess = true
-
-        // Viewport & Scaling
-        settings.loadWithOverviewMode = true
-        settings.useWideViewPort = true
-        settings.setSupportZoom(true)
-        settings.builtInZoomControls = true
-        settings.displayZoomControls = false
-
-        // Developer-friendly relaxed security for local development
-        settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-        settings.cacheMode = WebSettings.LOAD_DEFAULT
-        settings.mediaPlaybackRequiresUserGesture = false
-        settings.javaScriptCanOpenWindowsAutomatically = true
-        settings.setSupportMultipleWindows(true)
-
-        // Web Client
-        webView.webViewClient = object : WebViewClient() {
-            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                super.onPageStarted(view, url, favicon)
-                progressBar.visibility = View.VISIBLE
-                btnRefresh.setImageResource(R.drawable.ic_close)
-                layoutError.visibility = View.GONE
-
-                url?.let {
-                    if (!etUrl.isFocused) {
-                        etUrl.setText(it)
-                    }
-                    updateSslIndicator(it)
-                }
-            }
-
-            override fun onPageFinished(view: WebView?, url: String?) {
-                super.onPageFinished(view, url)
-                progressBar.visibility = View.GONE
-                btnRefresh.setImageResource(R.drawable.ic_refresh)
-
-                url?.let {
-                    if (!etUrl.isFocused) {
-                        etUrl.setText(it)
-                    }
-                    updateSslIndicator(it)
-                }
-            }
-
-            @SuppressLint("WebViewClientOnReceivedSslError")
-            override fun onReceivedSslError(
-                view: WebView?,
-                handler: SslErrorHandler?,
-                error: SslError?
-            ) {
-                val url = error?.url ?: ""
-                // Auto-permit self-signed SSL for local development (localhost, 127.0.0.1, internal IP)
-                if (url.contains("localhost") || url.contains("127.0.0.1") || url.contains("0.0.0.0") ||
-                    url.startsWith("https://192.168.") || url.startsWith("https://10.")
-                ) {
-                    handler?.proceed()
-                } else {
-                    // For public websites with SSL issues, ask user
-                    MaterialAlertDialogBuilder(this@DevBrowserActivity)
-                        .setTitle("SSL Certificate Warning")
-                        .setMessage("The certificate for '${url.take(50)}' is not trusted.\n\nDo you want to proceed anyway?")
-                        .setPositiveButton("Proceed (Unsafe)") { _, _ -> handler?.proceed() }
-                        .setNegativeButton("Cancel") { _, _ -> handler?.cancel() }
-                        .show()
-                }
-            }
-
-            override fun onReceivedError(
-                view: WebView?,
-                request: WebResourceRequest?,
-                error: WebResourceError?
-            ) {
-                super.onReceivedError(view, request, error)
-                if (request?.isForMainFrame == true) {
-                    val failingUrl = request.url.toString()
-                    progressBar.visibility = View.GONE
-                    btnRefresh.setImageResource(R.drawable.ic_refresh)
-
-                    // Show friendly dev error overlay
-                    layoutError.visibility = View.VISIBLE
-                    tvErrorDesc.text = "Could not connect to:\n$failingUrl\n\nEnsure your local server (e.g. Jupyter, Node.js, Flask) is actively running in the terminal."
-                }
-            }
-
-            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                val uri = request?.url ?: return false
-                val scheme = uri.scheme?.lowercase() ?: return false
-
-                if (scheme == "http" || scheme == "https") {
-                    return false // Load in WebView
-                }
-
-                // Handle external app schemes if applicable
-                return try {
-                    val intent = Intent(Intent.ACTION_VIEW, uri)
-                    startActivity(intent)
-                    true
-                } catch (e: Exception) {
-                    false
-                }
-            }
-        }
-
-        // WebChrome Client
-        webView.webChromeClient = object : WebChromeClient() {
-            override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                progressBar.progress = newProgress
-                if (newProgress >= 100) {
-                    progressBar.visibility = View.GONE
-                    btnRefresh.setImageResource(R.drawable.ic_refresh)
-                }
-            }
-
-            override fun onReceivedTitle(view: WebView?, title: String?) {
-                super.onReceivedTitle(view, title)
-                if (!etUrl.isFocused && !title.isNullOrEmpty() && !title.startsWith("http")) {
-                    etUrl.hint = title
-                }
-            }
-
-            override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
-                consoleMessage?.let {
-                    val level = it.messageLevel().name
-                    val msg = "[${it.sourceId()}:${it.lineNumber()}] [$level] ${it.message()}"
-                    if (consoleLogs.size > 200) {
-                        consoleLogs.removeAt(0)
-                    }
-                    consoleLogs.add(msg)
-                }
-                return true
-            }
-
-            // File chooser for uploads (Jupyter file uploads, file pickers)
-            override fun onShowFileChooser(
-                webView: WebView?,
-                filePathCallback: ValueCallback<Array<Uri>>?,
-                fileChooserParams: FileChooserParams?
-            ): Boolean {
-                this@DevBrowserActivity.filePathCallback?.onReceiveValue(null)
-                this@DevBrowserActivity.filePathCallback = filePathCallback
-
-                return try {
-                    val intent = fileChooserParams?.createIntent() ?: Intent(Intent.ACTION_GET_CONTENT).apply {
-                        type = "*/*"
-                    }
-                    fileChooserLauncher.launch(intent)
-                    true
-                } catch (e: Exception) {
-                    this@DevBrowserActivity.filePathCallback = null
-                    false
-                }
-            }
-
-            override fun onJsAlert(view: WebView?, url: String?, message: String?, result: JsResult?): Boolean {
-                MaterialAlertDialogBuilder(this@DevBrowserActivity)
-                    .setTitle("Alert")
-                    .setMessage(message ?: "")
-                    .setPositiveButton("OK") { _, _ -> result?.confirm() }
-                    .setOnCancelListener { result?.cancel() }
-                    .show()
-                return true
-            }
-
-            override fun onJsConfirm(view: WebView?, url: String?, message: String?, result: JsResult?): Boolean {
-                MaterialAlertDialogBuilder(this@DevBrowserActivity)
-                    .setTitle("Confirm")
-                    .setMessage(message ?: "")
-                    .setPositiveButton("OK") { _, _ -> result?.confirm() }
-                    .setNegativeButton("Cancel") { _, _ -> result?.cancel() }
-                    .setOnCancelListener { result?.cancel() }
-                    .show()
-                return true
-            }
-
-            override fun onJsPrompt(view: WebView?, url: String?, message: String?, defaultValue: String?, result: JsPromptResult?): Boolean {
-                val input = EditText(this@DevBrowserActivity).apply {
-                    setText(defaultValue ?: "")
-                }
-                MaterialAlertDialogBuilder(this@DevBrowserActivity)
-                    .setTitle("Prompt")
-                    .setMessage(message ?: "")
-                    .setView(input)
-                    .setPositiveButton("OK") { _, _ -> result?.confirm(input.text.toString()) }
-                    .setNegativeButton("Cancel") { _, _ -> result?.cancel() }
-                    .setOnCancelListener { result?.cancel() }
-                    .show()
-                return true
-            }
-        }
-
-        // File download handling (Exported notebooks, code, datasets)
-        webView.setDownloadListener { url, userAgent, contentDisposition, mimetype, _ ->
-            try {
-                val request = DownloadManager.Request(Uri.parse(url)).apply {
-                    setMimeType(mimetype)
-                    addRequestHeader("User-Agent", userAgent)
-                    setDescription("Downloading file from MobileLinux...")
-                    setTitle(URLUtil.guessFileName(url, contentDisposition, mimetype))
-                    setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                    setDestinationInExternalPublicDir(
-                        Environment.DIRECTORY_DOWNLOADS,
-                        URLUtil.guessFileName(url, contentDisposition, mimetype)
-                    )
-                }
-                val dm = getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager
-                dm?.enqueue(request)
-                Toast.makeText(this, "Downloading file to Downloads folder...", Toast.LENGTH_SHORT).show()
-            } catch (e: Exception) {
-                Toast.makeText(this, "Download error: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
         }
     }
 
@@ -427,11 +271,48 @@ class DevBrowserActivity : AppCompatActivity() {
         }
     }
 
+    private fun initTabSwitcherOverlay() {
+        layoutTabSwitcher = findViewById(R.id.layout_tab_switcher)
+        tvTabSwitcherTitle = findViewById(R.id.tv_tab_switcher_title)
+        btnNewTab = findViewById(R.id.btn_new_tab)
+        btnCloseTabSwitcher = findViewById(R.id.btn_close_tab_switcher)
+        rvTabGrid = findViewById(R.id.rv_tab_grid)
+
+        rvTabGrid.layoutManager = GridLayoutManager(this, 2)
+        tabGridAdapter = TabGridAdapter(
+            onTabSelected = { index ->
+                switchTab(index)
+                closeTabSwitcher()
+            },
+            onTabClosed = { index ->
+                closeTab(index)
+            }
+        )
+        rvTabGrid.adapter = tabGridAdapter
+
+        btnNewTab.setOnClickListener {
+            closeTabSwitcher()
+            createNewTab(DEFAULT_HOME_URL, select = true)
+        }
+
+        btnCloseTabSwitcher.setOnClickListener {
+            closeTabSwitcher()
+        }
+    }
+
     private fun initBackNavigation() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (webView.canGoBack()) {
-                    webView.goBack()
+                if (layoutTabSwitcher.visibility == View.VISIBLE) {
+                    closeTabSwitcher()
+                    return
+                }
+
+                val activeWeb = currentTab?.webView
+                if (activeWeb != null && activeWeb.canGoBack()) {
+                    activeWeb.goBack()
+                } else if (tabs.size > 1) {
+                    closeTab(activeTabIndex)
                 } else {
                     finish()
                 }
@@ -439,7 +320,345 @@ class DevBrowserActivity : AppCompatActivity() {
         })
     }
 
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun createNewTab(initialUrl: String = DEFAULT_HOME_URL, select: Boolean = true): BrowserTab {
+        val webView = WebView(this)
+        val tab = BrowserTab(
+            url = initialUrl,
+            webView = webView
+        )
+
+        val settings = webView.settings
+        if (defaultUserAgent.isEmpty()) {
+            defaultUserAgent = settings.userAgentString
+        }
+
+        // Modern Web Standards
+        settings.javaScriptEnabled = true
+        settings.domStorageEnabled = true
+        @Suppress("DEPRECATION")
+        settings.databaseEnabled = true
+        settings.allowFileAccess = true
+        settings.allowContentAccess = true
+
+        // Viewport & Scale
+        settings.loadWithOverviewMode = true
+        settings.useWideViewPort = true
+        settings.setSupportZoom(true)
+        settings.builtInZoomControls = true
+        settings.displayZoomControls = false
+
+        // Relaxed development security
+        settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+        settings.cacheMode = WebSettings.LOAD_DEFAULT
+        settings.mediaPlaybackRequiresUserGesture = false
+        settings.javaScriptCanOpenWindowsAutomatically = true
+        settings.setSupportMultipleWindows(true)
+
+        // Web Client
+        webView.webViewClient = object : WebViewClient() {
+            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                super.onPageStarted(view, url, favicon)
+                url?.let {
+                    tab.url = it
+                    if (isTabActive(tab)) {
+                        progressBar.visibility = View.VISIBLE
+                        layoutError.visibility = View.GONE
+                        if (!etUrl.isFocused) {
+                            etUrl.setText(it)
+                        }
+                        updateSslIndicator(it)
+                    }
+                }
+            }
+
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                url?.let {
+                    tab.url = it
+                    val pageTitle = view?.title ?: tab.title
+                    tab.title = if (pageTitle.isNotBlank() && !pageTitle.startsWith("http")) pageTitle else it
+
+                    if (isTabActive(tab)) {
+                        progressBar.visibility = View.GONE
+                        if (!etUrl.isFocused) {
+                            etUrl.setText(it)
+                        }
+                        updateSslIndicator(it)
+                    }
+
+                    // Save to local private history
+                    historyDb.addHistory(tab.title, it)
+                }
+            }
+
+            @SuppressLint("WebViewClientOnReceivedSslError")
+            override fun onReceivedSslError(
+                view: WebView?,
+                handler: SslErrorHandler?,
+                error: SslError?
+            ) {
+                val url = error?.url ?: ""
+                // Auto-permit self-signed SSL for local development (localhost, 127.0.0.1, internal IPs)
+                if (url.contains("localhost") || url.contains("127.0.0.1") || url.contains("0.0.0.0") ||
+                    url.startsWith("https://192.168.") || url.startsWith("https://10.")
+                ) {
+                    handler?.proceed()
+                } else {
+                    MaterialAlertDialogBuilder(this@DevBrowserActivity)
+                        .setTitle("SSL Certificate Warning")
+                        .setMessage("The certificate for '${url.take(50)}' is not trusted.\n\nDo you want to proceed anyway?")
+                        .setPositiveButton("Proceed (Unsafe)") { _, _ -> handler?.proceed() }
+                        .setNegativeButton("Cancel") { _, _ -> handler?.cancel() }
+                        .show()
+                }
+            }
+
+            override fun onReceivedError(
+                view: WebView?,
+                request: WebResourceRequest?,
+                error: WebResourceError?
+            ) {
+                super.onReceivedError(view, request, error)
+                if (request?.isForMainFrame == true && isTabActive(tab)) {
+                    val failingUrl = request.url.toString()
+                    progressBar.visibility = View.GONE
+                    layoutError.visibility = View.VISIBLE
+                    tvErrorDesc.text = "Could not connect to:\n$failingUrl\n\nEnsure your local server (e.g. Jupyter, Node.js, Flask) is actively running in the terminal."
+                }
+            }
+
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                val uri = request?.url ?: return false
+                val scheme = uri.scheme?.lowercase() ?: return false
+
+                if (scheme == "http" || scheme == "https") {
+                    return false
+                }
+
+                // Handle custom schemes / external app triggers
+                return try {
+                    val intent = Intent(Intent.ACTION_VIEW, uri)
+                    startActivity(intent)
+                    true
+                } catch (e: Exception) {
+                    false
+                }
+            }
+        }
+
+        // WebChrome Client
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                if (isTabActive(tab)) {
+                    progressBar.progress = newProgress
+                    if (newProgress >= 100) {
+                        progressBar.visibility = View.GONE
+                    }
+                }
+            }
+
+            override fun onReceivedTitle(view: WebView?, title: String?) {
+                super.onReceivedTitle(view, title)
+                if (!title.isNullOrEmpty()) {
+                    tab.title = title
+                    if (isTabActive(tab) && !etUrl.isFocused && !title.startsWith("http")) {
+                        etUrl.hint = title
+                    }
+                }
+            }
+
+            override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+                consoleMessage?.let {
+                    val level = it.messageLevel().name
+                    val msg = "[${it.sourceId()}:${it.lineNumber()}] [$level] ${it.message()}"
+                    if (consoleLogs.size > 200) {
+                        consoleLogs.removeAt(0)
+                    }
+                    consoleLogs.add(msg)
+                }
+                return true
+            }
+
+            // Support target="_blank" links opening in a new tab
+            override fun onCreateWindow(
+                view: WebView?,
+                isDialog: Boolean,
+                isUserGesture: Boolean,
+                resultMsg: Message?
+            ): Boolean {
+                val newTab = createNewTab(DEFAULT_HOME_URL, select = true)
+                val transport = resultMsg?.obj as? WebView.WebViewTransport
+                transport?.webView = newTab.webView
+                resultMsg?.sendToTarget()
+                return true
+            }
+
+            // File chooser for uploads (Jupyter, forms)
+            override fun onShowFileChooser(
+                webView: WebView?,
+                filePathCallback: ValueCallback<Array<Uri>>?,
+                fileChooserParams: FileChooserParams?
+            ): Boolean {
+                this@DevBrowserActivity.filePathCallback?.onReceiveValue(null)
+                this@DevBrowserActivity.filePathCallback = filePathCallback
+
+                return try {
+                    val intent = fileChooserParams?.createIntent() ?: Intent(Intent.ACTION_GET_CONTENT).apply {
+                        type = "*/*"
+                    }
+                    fileChooserLauncher.launch(intent)
+                    true
+                } catch (e: Exception) {
+                    this@DevBrowserActivity.filePathCallback = null
+                    false
+                }
+            }
+
+            override fun onJsAlert(view: WebView?, url: String?, message: String?, result: JsResult?): Boolean {
+                MaterialAlertDialogBuilder(this@DevBrowserActivity)
+                    .setTitle("Alert")
+                    .setMessage(message ?: "")
+                    .setPositiveButton("OK") { _, _ -> result?.confirm() }
+                    .setOnCancelListener { result?.cancel() }
+                    .show()
+                return true
+            }
+
+            override fun onJsConfirm(view: WebView?, url: String?, message: String?, result: JsResult?): Boolean {
+                MaterialAlertDialogBuilder(this@DevBrowserActivity)
+                    .setTitle("Confirm")
+                    .setMessage(message ?: "")
+                    .setPositiveButton("OK") { _, _ -> result?.confirm() }
+                    .setNegativeButton("Cancel") { _, _ -> result?.cancel() }
+                    .setOnCancelListener { result?.cancel() }
+                    .show()
+                return true
+            }
+
+            override fun onJsPrompt(view: WebView?, url: String?, message: String?, defaultValue: String?, result: JsPromptResult?): Boolean {
+                val input = EditText(this@DevBrowserActivity).apply {
+                    setText(defaultValue ?: "")
+                }
+                MaterialAlertDialogBuilder(this@DevBrowserActivity)
+                    .setTitle("Prompt")
+                    .setMessage(message ?: "")
+                    .setView(input)
+                    .setPositiveButton("OK") { _, _ -> result?.confirm(input.text.toString()) }
+                    .setNegativeButton("Cancel") { _, _ -> result?.cancel() }
+                    .setOnCancelListener { result?.cancel() }
+                    .show()
+                return true
+            }
+        }
+
+        // Native Downloads
+        webView.setDownloadListener { url, userAgent, contentDisposition, mimetype, _ ->
+            try {
+                val request = DownloadManager.Request(Uri.parse(url)).apply {
+                    setMimeType(mimetype)
+                    addRequestHeader("User-Agent", userAgent)
+                    setDescription("Downloading file from MobileLinux...")
+                    setTitle(URLUtil.guessFileName(url, contentDisposition, mimetype))
+                    setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                    setDestinationInExternalPublicDir(
+                        Environment.DIRECTORY_DOWNLOADS,
+                        URLUtil.guessFileName(url, contentDisposition, mimetype)
+                    )
+                }
+                val dm = getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager
+                dm?.enqueue(request)
+                Toast.makeText(this, "Downloading file to Downloads folder...", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(this, "Download error: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        tabs.add(tab)
+        updateTabCountDisplay()
+
+        if (select) {
+            switchTab(tabs.size - 1)
+        }
+
+        loadTargetUrlInTab(tab, initialUrl)
+        return tab
+    }
+
+    private fun isTabActive(tab: BrowserTab): Boolean {
+        return currentTab?.id == tab.id
+    }
+
+    private fun switchTab(index: Int) {
+        if (index !in tabs.indices) return
+        activeTabIndex = index
+        val tab = tabs[index]
+
+        webviewContainer.removeAllViews()
+        val parent = tab.webView.parent as? ViewGroup
+        parent?.removeView(tab.webView)
+        webviewContainer.addView(
+            tab.webView,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        )
+
+        etUrl.setText(tab.webView.url ?: tab.url)
+        updateSslIndicator(tab.webView.url ?: tab.url)
+        layoutError.visibility = View.GONE
+        progressBar.visibility = if (tab.webView.progress < 100) View.VISIBLE else View.GONE
+
+        updateTabCountDisplay()
+    }
+
+    private fun closeTab(index: Int) {
+        if (index !in tabs.indices) return
+        val tabToClose = tabs.removeAt(index)
+
+        try {
+            webviewContainer.removeView(tabToClose.webView)
+            tabToClose.webView.stopLoading()
+            tabToClose.webView.destroy()
+        } catch (ignored: Exception) {}
+
+        if (tabs.isEmpty()) {
+            createNewTab(DEFAULT_HOME_URL, select = true)
+        } else {
+            if (activeTabIndex >= tabs.size) {
+                activeTabIndex = tabs.size - 1
+            } else if (activeTabIndex == index) {
+                activeTabIndex = max(0, index - 1)
+            }
+            switchTab(activeTabIndex)
+        }
+
+        updateTabCountDisplay()
+        tabGridAdapter.notifyDataSetChanged()
+    }
+
+    private fun updateTabCountDisplay() {
+        tvTabCount.text = "${tabs.size}"
+        tvTabSwitcherTitle.text = "Tabs (${tabs.size})"
+    }
+
+    private fun openTabSwitcher() {
+        hideKeyboard()
+        layoutTabSwitcher.visibility = View.VISIBLE
+        tabGridAdapter.notifyDataSetChanged()
+    }
+
+    private fun closeTabSwitcher() {
+        layoutTabSwitcher.visibility = View.GONE
+    }
+
     private fun loadTargetUrl(input: String) {
+        val tab = currentTab ?: return
+        loadTargetUrlInTab(tab, input)
+    }
+
+    private fun loadTargetUrlInTab(tab: BrowserTab, input: String) {
         val trimmed = input.trim()
         val finalUrl = when {
             trimmed.startsWith("http://") || trimmed.startsWith("https://") -> trimmed
@@ -448,10 +667,13 @@ class DevBrowserActivity : AppCompatActivity() {
             else -> "https://www.google.com/search?q=" + URLEncoder.encode(trimmed, "UTF-8")
         }
 
-        layoutError.visibility = View.GONE
-        etUrl.setText(finalUrl)
-        etUrl.clearFocus()
-        webView.loadUrl(finalUrl)
+        tab.url = finalUrl
+        if (isTabActive(tab)) {
+            layoutError.visibility = View.GONE
+            etUrl.setText(finalUrl)
+            etUrl.clearFocus()
+        }
+        tab.webView.loadUrl(finalUrl)
     }
 
     private fun updateSslIndicator(url: String) {
@@ -477,20 +699,35 @@ class DevBrowserActivity : AppCompatActivity() {
         val popup = PopupMenu(this, anchor)
         popup.menuInflater.inflate(R.menu.menu_dev_browser, popup.menu)
 
-        popup.menu.findItem(R.id.menu_desktop_mode)?.isChecked = isDesktopMode
+        val tab = currentTab
+        popup.menu.findItem(R.id.menu_desktop_mode)?.isChecked = tab?.isDesktopMode ?: false
 
         popup.setOnMenuItemClickListener { item: MenuItem ->
             when (item.itemId) {
+                R.id.menu_refresh -> {
+                    tab?.webView?.reload()
+                    true
+                }
+                R.id.menu_new_tab -> {
+                    createNewTab(DEFAULT_HOME_URL, select = true)
+                    true
+                }
+                R.id.menu_history -> {
+                    showHistoryBottomSheet()
+                    true
+                }
                 R.id.menu_desktop_mode -> {
-                    isDesktopMode = !isDesktopMode
-                    item.isChecked = isDesktopMode
-                    val settings = webView.settings
-                    if (isDesktopMode) {
-                        settings.userAgentString = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
-                    } else {
-                        settings.userAgentString = defaultUserAgent
+                    if (tab != null) {
+                        tab.isDesktopMode = !tab.isDesktopMode
+                        item.isChecked = tab.isDesktopMode
+                        val settings = tab.webView.settings
+                        if (tab.isDesktopMode) {
+                            settings.userAgentString = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+                        } else {
+                            settings.userAgentString = defaultUserAgent
+                        }
+                        tab.webView.reload()
                     }
-                    webView.reload()
                     true
                 }
                 R.id.menu_view_console -> {
@@ -498,14 +735,14 @@ class DevBrowserActivity : AppCompatActivity() {
                     true
                 }
                 R.id.menu_copy_url -> {
-                    val currentUrl = webView.url ?: etUrl.text.toString()
+                    val currentUrl = tab?.webView?.url ?: etUrl.text.toString()
                     val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
                     clipboard?.setPrimaryClip(ClipData.newPlainText("URL", currentUrl))
                     Toast.makeText(this, "URL copied to clipboard", Toast.LENGTH_SHORT).show()
                     true
                 }
                 R.id.menu_open_external -> {
-                    val currentUrl = webView.url ?: etUrl.text.toString()
+                    val currentUrl = tab?.webView?.url ?: etUrl.text.toString()
                     try {
                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(currentUrl))
                         startActivity(intent)
@@ -515,18 +752,82 @@ class DevBrowserActivity : AppCompatActivity() {
                     true
                 }
                 R.id.menu_clear_cache -> {
-                    webView.clearCache(true)
-                    webView.clearHistory()
+                    tab?.webView?.clearCache(true)
+                    tab?.webView?.clearHistory()
                     WebStorage.getInstance().deleteAllData()
                     CookieManager.getInstance().removeAllCookies(null)
                     Toast.makeText(this, "Cache and cookies cleared", Toast.LENGTH_SHORT).show()
-                    webView.reload()
+                    tab?.webView?.reload()
+                    true
+                }
+                R.id.menu_close_tab -> {
+                    closeTab(activeTabIndex)
                     true
                 }
                 else -> false
             }
         }
         popup.show()
+    }
+
+    private fun showHistoryBottomSheet() {
+        val dialog = BottomSheetDialog(this)
+        val view = layoutInflater.inflate(R.layout.bottom_sheet_browser_history, null)
+        dialog.setContentView(view)
+
+        val rvHistory = view.findViewById<RecyclerView>(R.id.rv_history)
+        val tvEmpty = view.findViewById<TextView>(R.id.tv_empty_history)
+        val etSearch = view.findViewById<EditText>(R.id.et_search_history)
+        val btnClearAll = view.findViewById<MaterialButton>(R.id.btn_clear_all_history)
+
+        rvHistory.layoutManager = LinearLayoutManager(this)
+        val historyList = mutableListOf<BrowserHistoryItem>()
+        val historyAdapter = HistoryAdapter(
+            historyList,
+            onItemClicked = { item ->
+                loadTargetUrl(item.url)
+                dialog.dismiss()
+            },
+            onItemDeleted = { item ->
+                historyDb.deleteItem(item.id)
+                historyList.remove(item)
+                rvHistory.adapter?.notifyDataSetChanged()
+                tvEmpty.visibility = if (historyList.isEmpty()) View.VISIBLE else View.GONE
+            }
+        )
+        rvHistory.adapter = historyAdapter
+
+        fun refreshList(query: String? = null) {
+            historyList.clear()
+            historyList.addAll(historyDb.getHistory(query))
+            historyAdapter.notifyDataSetChanged()
+            tvEmpty.visibility = if (historyList.isEmpty()) View.VISIBLE else View.GONE
+        }
+
+        refreshList()
+
+        etSearch.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                refreshList(s?.toString())
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
+        btnClearAll.setOnClickListener {
+            MaterialAlertDialogBuilder(this)
+                .setTitle("Clear Browsing History")
+                .setMessage("Are you sure you want to clear all browsing history? This cannot be undone.")
+                .setPositiveButton("Clear All") { _, _ ->
+                    historyDb.clearAllHistory()
+                    refreshList()
+                    Toast.makeText(this, "Browsing history cleared", Toast.LENGTH_SHORT).show()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+
+        dialog.show()
     }
 
     private fun showConsoleLogsDialog() {
@@ -569,9 +870,101 @@ class DevBrowserActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        webView.stopLoading()
-        webView.destroy()
+        for (tab in tabs) {
+            try {
+                tab.webView.stopLoading()
+                tab.webView.destroy()
+            } catch (ignored: Exception) {}
+        }
+        tabs.clear()
         super.onDestroy()
+    }
+
+    // Tab Switcher Grid Adapter
+    inner class TabGridAdapter(
+        private val onTabSelected: (Int) -> Unit,
+        private val onTabClosed: (Int) -> Unit
+    ) : RecyclerView.Adapter<TabGridAdapter.TabViewHolder>() {
+
+        inner class TabViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+            val container: LinearLayout = itemView.findViewById(R.id.card_tab_container)
+            val tvTitle: TextView = itemView.findViewById(R.id.tv_tab_title)
+            val tvUrl: TextView = itemView.findViewById(R.id.tv_tab_url)
+            val btnCloseTab: ImageButton = itemView.findViewById(R.id.btn_close_tab)
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): TabViewHolder {
+            val v = LayoutInflater.from(parent.context).inflate(R.layout.item_browser_tab, parent, false)
+            return TabViewHolder(v)
+        }
+
+        override fun onBindViewHolder(holder: TabViewHolder, position: Int) {
+            val tab = tabs[position]
+            holder.tvTitle.text = tab.title.ifBlank { "New Tab" }
+            holder.tvUrl.text = tab.url
+
+            val isActive = position == activeTabIndex
+            holder.container.setBackgroundResource(
+                if (isActive) R.drawable.bg_tab_card_active else R.drawable.bg_tab_card_inactive
+            )
+
+            holder.container.setOnClickListener {
+                val pos = holder.adapterPosition
+                if (pos != RecyclerView.NO_POSITION) {
+                    onTabSelected(pos)
+                }
+            }
+
+            holder.btnCloseTab.setOnClickListener {
+                val pos = holder.adapterPosition
+                if (pos != RecyclerView.NO_POSITION) {
+                    onTabClosed(pos)
+                }
+            }
+        }
+
+        override fun getItemCount(): Int = tabs.size
+    }
+
+    // History List Adapter
+    inner class HistoryAdapter(
+        private val items: List<BrowserHistoryItem>,
+        private val onItemClicked: (BrowserHistoryItem) -> Unit,
+        private val onItemDeleted: (BrowserHistoryItem) -> Unit
+    ) : RecyclerView.Adapter<HistoryAdapter.HistoryViewHolder>() {
+
+        inner class HistoryViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+            val tvTitle: TextView = itemView.findViewById(R.id.tv_history_title)
+            val tvUrl: TextView = itemView.findViewById(R.id.tv_history_url)
+            val tvTime: TextView = itemView.findViewById(R.id.tv_history_time)
+            val btnDelete: ImageButton = itemView.findViewById(R.id.btn_delete_history_item)
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): HistoryViewHolder {
+            val v = LayoutInflater.from(parent.context).inflate(R.layout.item_browser_history, parent, false)
+            return HistoryViewHolder(v)
+        }
+
+        override fun onBindViewHolder(holder: HistoryViewHolder, position: Int) {
+            val item = items[position]
+            holder.tvTitle.text = item.title
+            holder.tvUrl.text = item.url
+            holder.tvTime.text = DateUtils.getRelativeTimeSpanString(
+                item.timestamp,
+                System.currentTimeMillis(),
+                DateUtils.MINUTE_IN_MILLIS
+            )
+
+            holder.itemView.setOnClickListener {
+                onItemClicked(item)
+            }
+
+            holder.btnDelete.setOnClickListener {
+                onItemDeleted(item)
+            }
+        }
+
+        override fun getItemCount(): Int = items.size
     }
 
     companion object {

@@ -20,11 +20,11 @@ data class LinuxPackage(
     val checkInstalledCommand: String,
     val launchUrl: String? = null,
     val uninstallCommand: String? = null,
-    var isInstalled: Boolean = false,
-    var isInstalling: Boolean = false,
-    var isUninstalling: Boolean = false,
-    var isActivated: Boolean = false,
-    var isActivating: Boolean = false,
-    var statusText: String = "",
-    var progressPercent: Int = -1
+    @Volatile var isInstalled: Boolean = false,
+    @Volatile var isInstalling: Boolean = false,
+    @Volatile var isUninstalling: Boolean = false,
+    @Volatile var isActivated: Boolean = false,
+    @Volatile var isActivating: Boolean = false,
+    @Volatile var statusText: String = "",
+    @Volatile var progressPercent: Int = -1
 )

@@ -71,6 +71,7 @@ class LibrariesActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 runtime.installCommandWrappers()
+                runtime.patchJupyterTemplatesForMobile()
             } catch (ignored: Exception) {}
         }
 
@@ -331,8 +332,8 @@ class LibrariesActivity : AppCompatActivity() {
                     .apply()
 
                 allPackages.forEach { pkg ->
-                    // Preserve status for packages currently installing or in queue
-                    if (pkg.isInstalling) return@forEach
+                    // Preserve status for packages currently installing, uninstalling, or activating
+                    if (pkg.isInstalling || pkg.isUninstalling || pkg.isActivating) return@forEach
 
                     if (pkg.id == "miniconda") {
                         pkg.isInstalled = realCondaInstalled
@@ -351,6 +352,14 @@ class LibrariesActivity : AppCompatActivity() {
             } catch (ignored: Exception) {
             } finally {
                 withContext(Dispatchers.Main) {
+                    allPackages.forEach { pkg ->
+                        if (pkg.isInstalling) {
+                            if (pkg.statusText.equals("Installed and ready", ignoreCase = true) ||
+                                pkg.statusText.equals("Ready to install", ignoreCase = true)) {
+                                pkg.statusText = "Installing ${pkg.name}..."
+                            }
+                        }
+                    }
                     applyFilters()
                     pbScanning.visibility = View.GONE
                     tvScanningLabel.visibility = View.GONE
@@ -400,6 +409,23 @@ class LibrariesActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             val parser = PackageProgressParser(pkg.name)
             var lastUpdateMs = 0L
+
+            // Smooth progress ticker for long silent phases (e.g., extracting 15,000 wheels in PRoot)
+            val tickerJob = lifecycleScope.launch(Dispatchers.Main) {
+                while (pkg.isInstalling) {
+                    kotlinx.coroutines.delay(2000)
+                    if (pkg.isInstalling && pkg.progressPercent in 65..91) {
+                        val next = pkg.progressPercent + 1
+                        pkg.progressPercent = next
+                        if (pkg.statusText.contains("unpacking", ignoreCase = true) ||
+                            pkg.statusText.contains("installing", ignoreCase = true) ||
+                            !pkg.statusText.contains("%")) {
+                            pkg.statusText = "Unpacking & configuring files ($next%)..."
+                        }
+                        adapter.updateItem(pkg.id)
+                    }
+                }
+            }
 
             try {
                 // Safety 1: Wait if background essential tools are installing (APT lock contention)
@@ -497,6 +523,13 @@ class LibrariesActivity : AppCompatActivity() {
                                 val currentSet = getCachedInstalledIds(prefs)
                                 currentSet.add(pkg.id)
                                 prefs.edit().putStringSet("installed_ids", currentSet).apply()
+                                if (pkg.id == "jupyterlab") {
+                                    withContext(Dispatchers.IO) {
+                                        try {
+                                            runtime.patchJupyterTemplatesForMobile()
+                                        } catch (ignored: Exception) {}
+                                    }
+                                }
                                 adapter.updateItem(pkg.id)
                                 Toast.makeText(
                                     this@LibrariesActivity,
@@ -554,6 +587,7 @@ class LibrariesActivity : AppCompatActivity() {
                     ).show()
                 }
             } finally {
+                tickerJob.cancel()
                 withContext(Dispatchers.Main) {
                     processNextInQueue()
                 }
@@ -576,6 +610,13 @@ class LibrariesActivity : AppCompatActivity() {
     }
 
     private fun launchPackage(pkg: LinuxPackage) {
+        if (pkg.id == "jupyterlab") {
+            lifecycleScope.launch(Dispatchers.IO) {
+                try {
+                    runtime.patchJupyterTemplatesForMobile()
+                } catch (ignored: Exception) {}
+            }
+        }
         val url = pkg.launchUrl
         if (!url.isNullOrEmpty()) {
             try {

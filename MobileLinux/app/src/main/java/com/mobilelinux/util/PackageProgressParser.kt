@@ -78,7 +78,11 @@ class PackageProgressParser(
                 if (target.isNotEmpty()) "Collecting $target..." else "Collecting dependencies..."
             }
             lower.contains("downloading ") -> {
-                currentPercent = if (currentPercent >= 95) 45 else maxOf(currentPercent, 35)
+                currentPercent = when {
+                    currentPercent in 35..64 -> currentPercent + 2
+                    currentPercent < 35 -> 35
+                    else -> currentPercent
+                }
                 when {
                     lower.contains("conda") || lower.contains("miniforge") -> "Downloading Conda installer..."
                     else -> {
@@ -106,8 +110,16 @@ class PackageProgressParser(
                 if (target.isNotEmpty()) "Configuring $target..." else "Configuring package..."
             }
             lower.contains("installing collected packages") -> {
-                currentPercent = 88
-                "Installing & unpacking packages (please wait)..."
+                currentPercent = maxOf(currentPercent, 75)
+                "Unpacking & installing package files (please wait)..."
+            }
+            lower.contains("registering conda") || lower.contains("conda base kernel") -> {
+                currentPercent = maxOf(currentPercent, 90)
+                "Registering environment kernels..."
+            }
+            lower.contains("mobile touch patch") || lower.contains("patched:") || lower.contains("fixing jupyter") -> {
+                currentPercent = maxOf(currentPercent, 95)
+                "Applying mobile optimizations..."
             }
             lower.contains("processing triggers") -> {
                 currentPercent = maxOf(currentPercent, 94)
@@ -134,8 +146,8 @@ class PackageProgressParser(
                 "Installation complete"
             }
             lower.contains("successfully installed") -> {
-                currentPercent = 94
-                "Finishing installation..."
+                currentPercent = maxOf(currentPercent, 92)
+                "Finalizing installation..."
             }
             else -> {
                 lastStage

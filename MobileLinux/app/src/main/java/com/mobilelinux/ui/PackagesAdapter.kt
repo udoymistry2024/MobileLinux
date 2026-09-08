@@ -194,7 +194,14 @@ class PackagesAdapter(
                         layoutInstalled.visibility = View.GONE
                         btnLaunch.visibility = View.GONE
                         btnUninstall.visibility = View.GONE
-                        tvStatus.text = if (pkg.statusText.isNotEmpty()) pkg.statusText else "Installing in background..."
+                        val cleanStatus = if (pkg.statusText.isNotEmpty() &&
+                            !pkg.statusText.equals("Installed and ready", ignoreCase = true) &&
+                            !pkg.statusText.equals("Ready to install", ignoreCase = true)) {
+                            pkg.statusText
+                        } else {
+                            "Installing ${pkg.name} in background..."
+                        }
+                        tvStatus.text = cleanStatus
 
                         if (pkg.progressPercent >= 0) {
                             tvInstallingLabel.text = "Installing ${pkg.progressPercent}%"

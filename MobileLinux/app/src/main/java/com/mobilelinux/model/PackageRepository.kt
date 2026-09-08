@@ -42,8 +42,9 @@ object PackageRepository {
         sb.append("        pass\n")
         sb.append("\" 2>/dev/null)\"\n")
         sb.append("fi\n")
-        sb.append("if [ -n \"").append(d).append("CONDA_PREFIX\" ] && [ -x \"").append(d).append("CONDA_PREFIX/bin/python\" ]; then\n")
-        sb.append("    ALL_PY=\"").append(d).append("ALL_PY ").append(d).append("(\"").append(d).append("CONDA_PREFIX/bin/python\" -c \"import sys\n")
+        sb.append("for py_bin in /home/ubuntu/miniforge3/envs/*/bin/python /root/miniconda3/envs/*/bin/python /opt/conda/envs/*/bin/python; do\n")
+        sb.append("    if [ -x \"").append(d).append("py_bin\" ]; then\n")
+        sb.append("        ALL_PY=\"").append(d).append("ALL_PY ").append(d).append("(\"").append(d).append("py_bin\" -c \"import sys\n")
         sb.append("for m in ['notebook','jupyterlab','numpy','pandas','scipy','sklearn','torch','torchvision','torchaudio','tflite_runtime','onnxruntime','matplotlib','seaborn','plotly','bokeh','altair','cv2','PIL','skimage','nltk','spacy','transformers','tokenizers','datasets','gensim','networkx','sympy','statsmodels','xgboost','lightgbm','catboost','polars','dask','pyarrow','fastapi','uvicorn','streamlit','gradio','tqdm','joblib','h5py','zarr','librosa','soundfile','pydub','whisper','sentence_transformers','langchain','chromadb','faiss','optuna','Cython','numba','bs4','scrapy','requests','httpx','aiohttp','flask','django','sqlalchemy','alembic','psycopg2','pymysql','redis','celery','pydantic','pytest','hypothesis','locust','impacket','scapy','sherlock','chatdev','qwen_agent']:\n")
         sb.append("    try:\n")
         sb.append("        __import__(m)\n")
@@ -51,9 +52,18 @@ object PackageRepository {
         sb.append("    except Exception:\n")
         sb.append("        pass\n")
         sb.append("\" 2>/dev/null)\"\n")
-        sb.append("fi\n")
+        sb.append("    fi\n")
+        sb.append("done\n")
         sb.append("fast_check() {\n")
-        sb.append("    local cmd=\"").append(d).append("1\"\n")
+        sb.append("    local id=\"").append(d).append("1\"\n")
+        sb.append("    local cmd=\"").append(d).append("2\"\n")
+        sb.append("    if [ \"").append(d).append("id\" = \"jupyterlab\" ]; then\n")
+        sb.append("        if [[ \"").append(d).append("ALL_PY\" == *\"PY:notebook\"* ]] || [[ \"").append(d).append("ALL_PY\" == *\"PY:jupyterlab\"* ]]; then\n")
+        sb.append("            return 0\n")
+        sb.append("        else\n")
+        sb.append("            return 1\n")
+        sb.append("        fi\n")
+        sb.append("    fi\n")
         sb.append("    if [[ \"").append(d).append("cmd\" == *\"import \"* ]]; then\n")
         sb.append("        local mod\n")
         sb.append("        mod=\"").append(d).append("(echo \"").append(d).append("cmd\" | sed -n 's/.*import \\([a-zA-Z0-9_]*\\).*/\\1/p')\"\n")
@@ -67,7 +77,7 @@ object PackageRepository {
         sb.append("    eval \"").append(d).append("fast_cmd\" >/dev/null 2>&1\n")
         sb.append("}\n")
         sb.append("while IFS=: read -r id cmd; do\n")
-        sb.append("    if [ -n \"").append(d).append("id\" ] && fast_check \"").append(d).append("cmd\"; then\n")
+        sb.append("    if [ -n \"").append(d).append("id\" ] && fast_check \"").append(d).append("id\" \"").append(d).append("cmd\"; then\n")
         sb.append("        echo \"INSTALLED:").append(d).append("id\"\n")
         sb.append("    fi\n")
         sb.append("done << 'BATCH_EOF'\n")
@@ -1123,13 +1133,15 @@ object PackageRepository {
             installCommand = "if [ -x /usr/local/bin/install-jupyter ]; then /usr/local/bin/install-jupyter; else " +
                     "echo '[MobileLinux] Installing JupyterLab & Notebook...'; " +
                     "sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true; " +
+                    "export PYTHONUNBUFFERED=1; " +
                     "if ! command -v pip3 >/dev/null 2>&1 && ! command -v pip >/dev/null 2>&1 && ! python3 -m pip --version >/dev/null 2>&1; then (sudo apt-get -o DPkg::Lock::Timeout=60 -o Acquire::ForceIPv4=true install -y --no-install-recommends python3-pip 2>&1 || ((sudo apt-get -o DPkg::Lock::Timeout=60 -o Acquire::ForceIPv4=true update 2>&1 || true) && sudo apt-get -o DPkg::Lock::Timeout=60 -o Acquire::ForceIPv4=true install -y --no-install-recommends python3-pip 2>&1 || true)); fi; " +
                     "sudo rm -rf /usr/lib/python3/dist-packages/jsonschema* /usr/lib/python3/dist-packages/rpds* /usr/lib/python3/dist-packages/referencing* 2>/dev/null || true; " +
-                    "(pip3 install --break-system-packages --ignore-installed --prefer-binary --no-compile notebook jupyterlab ipykernel 2>&1 || pip install --break-system-packages --ignore-installed --prefer-binary --no-compile notebook jupyterlab ipykernel 2>&1 || python3 -m pip install --break-system-packages --ignore-installed --prefer-binary --no-compile notebook jupyterlab ipykernel 2>&1); PIP_EXIT=\$?; " +
+                    "(pip3 install --break-system-packages --prefer-binary --no-compile notebook jupyterlab ipykernel 2>&1 || pip install --break-system-packages --prefer-binary --no-compile notebook jupyterlab ipykernel 2>&1 || python3 -m pip install --break-system-packages --prefer-binary --no-compile notebook jupyterlab ipykernel 2>&1); PIP_EXIT=\$?; " +
                     "if [ -x /home/ubuntu/miniforge3/bin/python ]; then /home/ubuntu/miniforge3/bin/python -m ipykernel install --user --name conda_base --display-name 'Python (Conda)' 2>/dev/null || true; fi; " +
+                    "for env_dir in /home/ubuntu/miniforge3/envs/*; do if [ -x \"\$env_dir/bin/python\" ]; then env_name=\$(basename \"\$env_dir\"); \"\$env_dir/bin/python\" -m ipykernel install --user --name \"\$env_name\" --display-name \"Python (\$env_name)\" 2>/dev/null || true; fi; done; " +
                     "if [ -x /usr/local/bin/fix-jupyter-mobile ]; then /usr/local/bin/fix-jupyter-mobile >/dev/null 2>&1 || true; fi; " +
-                    "if [ \$PIP_EXIT -eq 0 ] || python3 -c 'import notebook' 2>/dev/null || python3 -c 'import jupyterlab' 2>/dev/null; then echo '[MobileLinux] ✓ JupyterLab & Notebook installed successfully!'; exit 0; else echo '[MobileLinux] ✗ Installation failed'; exit 1; fi; fi",
-            checkInstalledCommand = "python3 -c 'import notebook' 2>/dev/null || python3 -c 'import jupyterlab' 2>/dev/null || (/home/ubuntu/miniforge3/bin/python -c 'import notebook' 2>/dev/null) || (/root/miniconda3/bin/python -c 'import notebook' 2>/dev/null)",
+                    "if [ \$PIP_EXIT -eq 0 ] || python3 -c 'import notebook' 2>/dev/null || python3 -c 'import jupyterlab' 2>/dev/null || ([ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import notebook' 2>/dev/null) || ([ -x /root/miniconda3/bin/python ] && /root/miniconda3/bin/python -c 'import notebook' 2>/dev/null); then echo '[MobileLinux] ✓ JupyterLab & Notebook installed successfully!'; exit 0; else echo '[MobileLinux] ✗ Installation failed'; exit 1; fi; fi",
+            checkInstalledCommand = "python3 -c 'import notebook' 2>/dev/null || python3 -c 'import jupyterlab' 2>/dev/null || ([ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import notebook' 2>/dev/null) || ([ -x /root/miniconda3/bin/python ] && /root/miniconda3/bin/python -c 'import notebook' 2>/dev/null) || (for p in /home/ubuntu/miniforge3/envs/*/bin/python /root/miniconda3/envs/*/bin/python /opt/conda/envs/*/bin/python; do if [ -x \"\$p\" ] && \"\$p\" -c 'import notebook' 2>/dev/null; then exit 0; fi; done; exit 1)",
             launchUrl = "http://127.0.0.1:8888/lab"
         ),
         LinuxPackage(

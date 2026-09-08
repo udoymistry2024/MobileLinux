@@ -32,6 +32,13 @@ import com.mobilelinux.terminal.TerminalSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import android.widget.ProgressBar
+import android.widget.TextView
+import android.widget.LinearLayout
+import android.widget.Toast
 
 /**
  * Main activity — DrawerLayout with session sidebar + terminal.
@@ -284,6 +291,10 @@ class MainActivity : AppCompatActivity() {
                 closeDrawer()
                 true
             }
+            R.id.action_desktop_mode -> {
+                launchDesktopMode()
+                true
+            }
             R.id.action_libraries -> {
                 openLibraries(); true
             }
@@ -314,6 +325,97 @@ class MainActivity : AppCompatActivity() {
     fun openSettings() = startActivity(Intent(this, SettingsActivity::class.java))
     fun openDevBrowser(url: String = DevBrowserActivity.DEFAULT_HOME_URL) {
         DevBrowserActivity.openUrl(this, url)
+    }
+
+    private fun launchDesktopMode() {
+        val runtime = com.mobilelinux.runtime.UbuntuRuntime.getInstance(this)
+        val rootfs = runtime.rootfsDir
+        val hasXfce = File(rootfs, "usr/bin/startxfce4").exists() || File(rootfs, "usr/bin/xfce4-session").exists()
+        val hasVnc = File(rootfs, "usr/bin/vncserver").exists() || File(rootfs, "usr/bin/Xvnc").exists()
+
+        if (hasXfce && hasVnc) {
+            startActivity(Intent(this, DesktopActivity::class.java))
+        } else {
+            showInstallDesktopPrompt()
+        }
+    }
+
+    private fun showInstallDesktopPrompt() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Install Desktop Mode?")
+            .setMessage("Desktop Mode requires the lightweight XFCE4 graphical desktop and TigerVNC standalone server (~250 MB download).\n\nWould you like to install and launch it now?")
+            .setPositiveButton("Install & Launch") { _, _ ->
+                startDesktopInstallation()
+            }
+            .setNeutralButton("Open Package Store") { _, _ ->
+                openLibraries()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun startDesktopInstallation() {
+        val runtime = com.mobilelinux.runtime.UbuntuRuntime.getInstance(this)
+
+        val progressLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            val pad = (20 * resources.displayMetrics.density).toInt()
+            setPadding(pad, pad, pad, pad)
+        }
+
+        val progressBar = ProgressBar(this).apply {
+            isIndeterminate = true
+        }
+        val statusTv = TextView(this).apply {
+            text = "Starting package installation (takes 1-3 mins)..."
+            setTextColor(android.graphics.Color.parseColor("#C9D1D9"))
+            setPadding(0, (14 * resources.displayMetrics.density).toInt(), 0, 0)
+        }
+
+        progressLayout.addView(progressBar)
+        progressLayout.addView(statusTv)
+
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle("Installing XFCE4 & TigerVNC")
+            .setView(progressLayout)
+            .setCancelable(false)
+            .create()
+
+        dialog.show()
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val cmd = "export DEBIAN_FRONTEND=noninteractive; sudo apt-get update && sudo apt-get install -y --no-install-recommends xfce4 xfce4-terminal tigervnc-standalone-server tigervnc-common dbus-x11"
+            val result = runtime.runCommand(cmd, timeoutSeconds = 600L) { line ->
+                val trimmed = line.trim()
+                if (trimmed.isNotEmpty()) {
+                    lifecycleScope.launch(Dispatchers.Main) {
+                        statusTv.text = trimmed
+                    }
+                }
+            }
+
+            // Re-install command wrappers to ensure desktop-start is generated
+            runtime.installCommandWrappers()
+
+            withContext(Dispatchers.Main) {
+                dialog.dismiss()
+                val rootfs = runtime.rootfsDir
+                val hasXfce = File(rootfs, "usr/bin/startxfce4").exists() || File(rootfs, "usr/bin/xfce4-session").exists()
+                val hasVnc = File(rootfs, "usr/bin/vncserver").exists() || File(rootfs, "usr/bin/Xvnc").exists()
+
+                if (hasXfce && hasVnc) {
+                    Toast.makeText(this@MainActivity, "Desktop Installed Successfully!", Toast.LENGTH_SHORT).show()
+                    startActivity(Intent(this@MainActivity, DesktopActivity::class.java))
+                } else {
+                    MaterialAlertDialogBuilder(this@MainActivity)
+                        .setTitle("Installation Incomplete")
+                        .setMessage("Installation finished with exit code ${result.first}. Please check your internet connection or try installing via 'Libraries & Packages'.")
+                        .setPositiveButton("OK", null)
+                        .setNeutralButton("Open Store") { _, _ -> openLibraries() }
+                        .show()
+                }
+            }
+        }
     }
 
     override fun onDestroy() {

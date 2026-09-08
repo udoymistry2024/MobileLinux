@@ -1231,6 +1231,26 @@ class UbuntuRuntime(private val context: Context) {
             jupyterRestartFile.setExecutable(true, false)
             jupyterRestartFile.setReadable(true, false)
 
+            val desktopStartFile = File(usrLocalBin, "desktop-start")
+            safeWriteFile(desktopStartFile, getDesktopStartScript())
+            desktopStartFile.setExecutable(true, false)
+            desktopStartFile.setReadable(true, false)
+
+            val startDesktopAlias = File(usrLocalBin, "start-desktop")
+            safeWriteFile(startDesktopAlias, getDesktopStartScript())
+            startDesktopAlias.setExecutable(true, false)
+            startDesktopAlias.setReadable(true, false)
+
+            val desktopStopFile = File(usrLocalBin, "desktop-stop")
+            safeWriteFile(desktopStopFile, getDesktopStopScript())
+            desktopStopFile.setExecutable(true, false)
+            desktopStopFile.setReadable(true, false)
+
+            val stopDesktopAlias = File(usrLocalBin, "stop-desktop")
+            safeWriteFile(stopDesktopAlias, getDesktopStopScript())
+            stopDesktopAlias.setExecutable(true, false)
+            stopDesktopAlias.setReadable(true, false)
+
             // Multi-Environment Python Installer, Uninstaller & Conda Synchronizer
             val pkgInstallPythonFile = File(usrLocalBin, "pkg-install-python")
             safeWriteFile(pkgInstallPythonFile, getPkgInstallPythonScript())
@@ -1350,7 +1370,8 @@ class UbuntuRuntime(private val context: Context) {
                 val toolsToLink = listOf(
                     "pkg-install-python", "pkg-uninstall-python", "conda-sync-packages", "conda-sync",
                     "conda-manager", "install-jupyter", "jupyter", "jupyter-start", "jupyter-restart", "jupyter-notebook", "jupyter-lab",
-                    "fix-jupyter-mobile", "xdg-open", "x-www-browser", "sensible-browser", "www-browser"
+                    "fix-jupyter-mobile", "xdg-open", "x-www-browser", "sensible-browser", "www-browser",
+                    "desktop-start", "start-desktop", "desktop-stop", "stop-desktop"
                 ) + pythonCliConfigs.map { it.cmdName }
                 for (cBin in targetBins) {
                     for (tool in toolsToLink) {
@@ -2056,6 +2077,83 @@ class UbuntuRuntime(private val context: Context) {
         "echo -e \"\\033[1;36m│\\033[0m Starting clean Jupyter Server...\"",
         "echo -e \"\\033[1;36m└──────────────────────────────────────────────\\033[0m\"",
         "exec /usr/local/bin/jupyter-start \"\$@\"\n"
+    ).joinToString("\n")
+
+    private fun getDesktopStartScript(): String = listOf(
+        "#!/bin/bash",
+        "# MobileLinux - XFCE4 Graphical Desktop Environment Launcher",
+        "echo -e \"\\033[1;36m┌─[MobileLinux]─[XFCE4 Desktop & TigerVNC]\\033[0m\"",
+        "echo -e \"\\033[1;36m│\\033[0m Starting XFCE4 Desktop on \\033[1;33m:1 (127.0.0.1:5901)\\033[0m...\"",
+        "echo -e \"\\033[1;36m└──────────────────────────────────────────────\\033[0m\"",
+        "",
+        "if ! command -v vncserver >/dev/null 2>&1 || ! command -v startxfce4 >/dev/null 2>&1; then",
+        "    echo -e \"\\033[1;31m[MobileLinux]\\033[0m Desktop environment not installed.\"",
+        "    echo -e \"Run \\033[1;33msudo apt update && sudo apt install -y --no-install-recommends xfce4 xfce4-terminal tigervnc-standalone-server dbus-x11\\033[0m to install.\"",
+        "    exit 1",
+        "fi",
+        "",
+        "# Cleanup stale locks and sockets from prior sessions",
+        "vncserver -kill :1 >/dev/null 2>&1 || true",
+        "pkill -9 -f Xvnc >/dev/null 2>&1 || true",
+        "pkill -9 -f xfce4 >/dev/null 2>&1 || true",
+        "rm -rf /tmp/.X11-unix/X1 /tmp/.X1-lock ~/.vnc/*.pid ~/.vnc/*.log 2>/dev/null || true",
+        "",
+        "# Ensure ~/.vnc/xstartup exists and launches xfce4",
+        "mkdir -p ~/.vnc",
+        "cat << 'XSTARTUP_EOF' > ~/.vnc/xstartup",
+        "#!/bin/bash",
+        "unset SESSION_MANAGER",
+        "unset DBUS_SESSION_BUS_ADDRESS",
+        "export XKL_XMODMAP_DISABLE=1",
+        "export LC_ALL=C.UTF-8",
+        "export LANG=C.UTF-8",
+        "export SAL_USE_VCLPLUGIN=gen",
+        "[ -r \$HOME/.Xresources ] && xrdb \$HOME/.Xresources 2>/dev/null",
+        "exec dbus-launch --exit-with-session startxfce4",
+        "XSTARTUP_EOF",
+        "chmod +x ~/.vnc/xstartup",
+        "",
+        "# Desired resolution (passed via \$1 or default 1280x720)",
+        "RES=\"\${1:-1280x720}\"",
+        "",
+        "# Start TigerVNC standalone server on display :1",
+        "vncserver :1 -geometry \"\$RES\" -depth 24 -SecurityTypes None -localhost no > ~/.vnc/desktop.log 2>&1 &",
+        "",
+        "# Verify startup (poll for up to 6 seconds)",
+        "STARTED=0",
+        "for i in $(seq 1 20); do",
+        "    sleep 0.3",
+        "    if pgrep -f Xvnc >/dev/null 2>&1 || [ -e /tmp/.X11-unix/X1 ]; then",
+        "        STARTED=1",
+        "        break",
+        "    fi",
+        "done",
+        "",
+        "if [ \$STARTED -eq 1 ]; then",
+        "    echo -e \"\\033[1;32m[MobileLinux]\\033[0m Desktop started successfully on :1 (port 5901) with resolution \$RES.\"",
+        "    exit 0",
+        "else",
+        "    echo -e \"\\033[1;31m[MobileLinux]\\033[0m Failed to start TigerVNC server. Check ~/.vnc/desktop.log:\"",
+        "    cat ~/.vnc/desktop.log 2>/dev/null | tail -n 15",
+        "    exit 1",
+        "fi\n"
+    ).joinToString("\n")
+
+    private fun getDesktopStopScript(): String = listOf(
+        "#!/bin/bash",
+        "# MobileLinux - XFCE4 Graphical Desktop Shutdown & Memory Release",
+        "echo -e \"\\033[1;36m┌─[MobileLinux]─[Stopping Desktop Environment]\\033[0m\"",
+        "echo -e \"\\033[1;36m│\\033[0m Releasing RAM and CPU...\"",
+        "vncserver -kill :1 >/dev/null 2>&1 || true",
+        "pkill -9 -f xfce4 >/dev/null 2>&1 || true",
+        "pkill -9 -f Xvnc >/dev/null 2>&1 || true",
+        "pkill -9 -f xfwm4 >/dev/null 2>&1 || true",
+        "pkill -9 -f dbus-daemon >/dev/null 2>&1 || true",
+        "pkill -9 -f dbus-launch >/dev/null 2>&1 || true",
+        "pkill -9 -f thunar >/dev/null 2>&1 || true",
+        "rm -rf /tmp/.X11-unix/X1 /tmp/.X1-lock ~/.vnc/*.pid /tmp/.X*-lock 2>/dev/null || true",
+        "echo -e \"\\033[1;32m│\\033[0m Desktop stopped cleanly. 100% memory released.\"",
+        "echo -e \"\\033[1;36m└──────────────────────────────────────────────\\033[0m\"\n"
     ).joinToString("\n")
 
     private fun getXdgOpenScript(): String = listOf(

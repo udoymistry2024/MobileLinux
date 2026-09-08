@@ -17,6 +17,13 @@
         android:orderInCategory="1" />
 
     <item
+        android:id="@+id/action_desktop_mode"
+        android:title="Desktop Mode"
+        android:icon="@drawable/ic_desktop"
+        app:showAsAction="never"
+        android:orderInCategory="85" />
+
+    <item
         android:id="@+id/action_libraries"
         android:title="Libraries &amp; Packages"
         android:icon="@drawable/ic_library"

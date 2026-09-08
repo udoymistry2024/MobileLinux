@@ -2200,6 +2200,16 @@ object PackageRepository {
     private val devToolsPackages: List<LinuxPackage> by lazy {
         listOf(
         LinuxPackage(
+            id = "xfce4-desktop",
+            name = "XFCE4 Desktop & TigerVNC",
+            category = PackageCategory.DEV_TOOLS,
+            version = "4.18",
+            description = "Complete lightweight graphical Linux Desktop Environment with TigerVNC standalone server, window manager, and terminal.",
+            installCommand = "export DEBIAN_FRONTEND=noninteractive; sudo apt-get update && sudo apt-get install -y --no-install-recommends xfce4 xfce4-terminal tigervnc-standalone-server tigervnc-common dbus-x11",
+            checkInstalledCommand = "command -v startxfce4 && command -v vncserver",
+            uninstallCommand = "sudo apt-get purge -y xfce4 xfce4-terminal tigervnc-standalone-server tigervnc-common dbus-x11 && sudo apt-get autoremove -y --purge"
+        ),
+        LinuxPackage(
             id = "antigravity-cli",
             name = "Google Anti-Gravity CLI (agy)",
             category = PackageCategory.DEV_TOOLS,

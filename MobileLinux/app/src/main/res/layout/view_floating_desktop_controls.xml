@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/layout_dock_container"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_desktop_floating_dock"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="8dp"
+    android:paddingTop="4dp"
+    android:paddingEnd="8dp"
+    android:paddingBottom="4dp">
+
+    <!-- Drag Grip Handle -->
+    <ImageView
+        android:id="@+id/btn_drag_handle"
+        android:layout_width="20dp"
+        android:layout_height="36dp"
+        android:layout_marginEnd="6dp"
+        android:contentDescription="Drag Handle"
+        android:scaleType="centerInside"
+        android:src="@drawable/ic_more_vert" />
+
+    <!-- Expanded Buttons Container -->
+    <LinearLayout
+        android:id="@+id/layout_expanded_buttons"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <!-- Left Click (Supports Hold-to-Drag) -->
+        <TextView
+            android:id="@+id/btn_left_click"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/bg_desktop_btn"
+            android:gravity="center"
+            android:minWidth="44dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:text="L-Click"
+            android:textColor="#C9D1D9"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <!-- Right Click -->
+        <TextView
+            android:id="@+id/btn_right_click"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/bg_desktop_btn"
+            android:gravity="center"
+            android:minWidth="44dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:text="R-Click"
+            android:textColor="#C9D1D9"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <!-- Scroll Up -->
+        <TextView
+            android:id="@+id/btn_scroll_up"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/bg_desktop_btn"
+            android:gravity="center"
+            android:text="▲"
+            android:textColor="#C9D1D9"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <!-- Scroll Down -->
+        <TextView
+            android:id="@+id/btn_scroll_down"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/bg_desktop_btn"
+            android:gravity="center"
+            android:text="▼"
+            android:textColor="#C9D1D9"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <!-- Toggle Soft Keyboard -->
+        <TextView
+            android:id="@+id/btn_toggle_keyboard"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/bg_desktop_btn"
+            android:gravity="center"
+            android:text="⌨"
+            android:textColor="#C9D1D9"
+            android:textSize="15sp" />
+
+        <!-- Exit Desktop Mode -->
+        <TextView
+            android:id="@+id/btn_exit_desktop"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:layout_marginEnd="4dp"
+            android:background="@drawable/bg_desktop_btn_danger"
+            android:gravity="center"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:text="Exit"
+            android:textColor="#F85149"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- Collapse / Expand Toggle Button -->
+    <TextView
+        android:id="@+id/btn_toggle_collapse"
+        android:layout_width="28dp"
+        android:layout_height="36dp"
+        android:background="@drawable/bg_desktop_btn"
+        android:gravity="center"
+        android:text="◀"
+        android:textColor="#8B949E"
+        android:textSize="10sp" />
+
+</LinearLayout>

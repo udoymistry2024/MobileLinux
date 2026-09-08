@@ -115,6 +115,15 @@
             </intent-filter>
         </activity>
 
+        <!-- Fullscreen Graphical Linux Desktop (XFCE4 & TigerVNC) -->
+        <activity
+            android:name=".ui.DesktopActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|smallestScreenSize|orientation|uiMode"
+            android:theme="@style/Theme.MobileLinux"
+            android:hardwareAccelerated="true" />
+
         <!-- ================================================================
              BACKGROUND SERVICE — Android 14/15 Compatible
              ================================================================ -->

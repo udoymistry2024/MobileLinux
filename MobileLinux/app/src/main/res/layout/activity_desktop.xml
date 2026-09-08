@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/root_desktop_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#0D1117"
+    android:keepScreenOn="true">
+
+    <!-- VNC Native Linux Framebuffer Canvas View -->
+    <com.mobilelinux.ui.VncCanvasView
+        android:id="@+id/vnc_canvas"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- Top Modifier Bar for Keyboard (Ctrl, Alt, Super, Tab, Esc) -->
+    <HorizontalScrollView
+        android:id="@+id/scroll_modifier_bar"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:layout_gravity="top"
+        android:background="#E6161B22"
+        android:scrollbars="none"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:id="@+id/layout_modifier_keys"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp">
+
+            <TextView
+                android:id="@+id/key_esc"
+                android:layout_width="wrap_content"
+                android:layout_height="30dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/bg_desktop_btn"
+                android:gravity="center"
+                android:minWidth="40dp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:text="ESC"
+                android:textColor="#C9D1D9"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/key_tab"
+                android:layout_width="wrap_content"
+                android:layout_height="30dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/bg_desktop_btn"
+                android:gravity="center"
+                android:minWidth="40dp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:text="TAB"
+                android:textColor="#C9D1D9"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/key_ctrl"
+                android:layout_width="wrap_content"
+                android:layout_height="30dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/bg_desktop_btn"
+                android:gravity="center"
+                android:minWidth="42dp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:text="CTRL"
+                android:textColor="#C9D1D9"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/key_alt"
+                android:layout_width="wrap_content"
+                android:layout_height="30dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/bg_desktop_btn"
+                android:gravity="center"
+                android:minWidth="40dp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:text="ALT"
+                android:textColor="#C9D1D9"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/key_super"
+                android:layout_width="wrap_content"
+                android:layout_height="30dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/bg_desktop_btn"
+                android:gravity="center"
+                android:minWidth="48dp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:text="SUPER"
+                android:textColor="#58A6FF"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/key_arrow_up"
+                android:layout_width="32dp"
+                android:layout_height="30dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/bg_desktop_btn"
+                android:gravity="center"
+                android:text="↑"
+                android:textColor="#C9D1D9"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/key_arrow_down"
+                android:layout_width="32dp"
+                android:layout_height="30dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/bg_desktop_btn"
+                android:gravity="center"
+                android:text="↓"
+                android:textColor="#C9D1D9"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/key_arrow_left"
+                android:layout_width="32dp"
+                android:layout_height="30dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/bg_desktop_btn"
+                android:gravity="center"
+                android:text="←"
+                android:textColor="#C9D1D9"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/key_arrow_right"
+                android:layout_width="32dp"
+                android:layout_height="30dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/bg_desktop_btn"
+                android:gravity="center"
+                android:text="→"
+                android:textColor="#C9D1D9"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/key_hide_kbd"
+                android:layout_width="wrap_content"
+                android:layout_height="30dp"
+                android:background="@drawable/bg_desktop_btn"
+                android:gravity="center"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:text="Hide ▾"
+                android:textColor="#8B949E"
+                android:textSize="11sp" />
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <!-- Draggable Floating Controls Overlay (Left Click, Right Click, Scroll, Exit) -->
+    <com.mobilelinux.ui.FloatingDesktopControlsView
+        android:id="@+id/floating_controls"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="20dp"
+        android:layout_marginBottom="20dp" />
+
+    <!-- Hidden dummy EditText to receive soft keyboard inputs -->
+    <EditText
+        android:id="@+id/dummy_key_input"
+        android:layout_width="1dp"
+        android:layout_height="1dp"
+        android:background="@null"
+        android:cursorVisible="false"
+        android:imeOptions="flagNoExtractUi|actionNone"
+        android:importantForAutofill="no"
+        android:inputType="textNoSuggestions"
+        android:textColor="@android:color/transparent" />
+
+    <!-- Loading / Booting Desktop Environment Overlay -->
+    <LinearLayout
+        android:id="@+id/layout_loading"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:background="@drawable/bg_desktop_floating_dock"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <ProgressBar
+            android:id="@+id/progress_loading"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:indeterminateTint="#58A6FF" />
+
+        <TextView
+            android:id="@+id/tv_loading_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="Starting XFCE4 Desktop &amp; TigerVNC..."
+            android:textColor="#C9D1D9"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Initializing local display server :1"
+            android:textColor="#8B949E"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+</FrameLayout>

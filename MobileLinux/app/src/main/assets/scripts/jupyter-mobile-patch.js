@@ -444,25 +444,49 @@
         });
     }
 
-    // 5. Dashboard Action Toolbar on /tree or /
+    // 5. Minimal Vertical Mini-Dock on Bottom-Right for /tree or /
     function addMobileDashboardToolbar() {
-        if (document.getElementById('mobilelinux-touch-bar')) return;
+        if (document.getElementById('ml-vertical-dock')) return;
         if (!document.body) return;
         var p = window.location.pathname || '';
         if (p.indexOf('/tree') === -1 && p !== '/' && !p.endsWith('/')) return;
 
-        var bar = document.createElement('div');
-        bar.id = 'mobilelinux-touch-bar';
-        bar.innerHTML = [
-            '<button class="ml-dash-btn ml-btn-nb" id="ml-action-new-nb">＋ Notebook</button>',
-            '<button class="ml-dash-btn ml-btn-folder" id="ml-action-new-folder">＋ Folder</button>',
-            '<button class="ml-dash-btn ml-btn-lab" id="ml-action-open-lab">⚡ Open Lab</button>'
+        var dock = document.createElement('div');
+        dock.id = 'ml-vertical-dock';
+        dock.innerHTML = [
+            '<button class="ml-vdock-btn" id="ml-action-new-nb" title="New Notebook">',
+            '  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#f37626" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">',
+            '    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>',
+            '    <polyline points="14 2 14 8 20 8"></polyline>',
+            '    <line x1="12" y1="18" x2="12" y2="12"></line>',
+            '    <line x1="9" y1="15" x2="15" y2="15"></line>',
+            '  </svg>',
+            '</button>',
+            '<button class="ml-vdock-btn" id="ml-action-new-folder" title="New Folder">',
+            '  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#4b5563" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">',
+            '    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>',
+            '    <line x1="12" y1="11" x2="12" y2="17"></line>',
+            '    <line x1="9" y1="14" x2="15" y2="14"></line>',
+            '  </svg>',
+            '</button>',
+            '<button class="ml-vdock-btn" id="ml-action-open-lab" title="JupyterLab">',
+            '  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#4b5563" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">',
+            '    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>',
+            '  </svg>',
+            '</button>',
+            '<button class="ml-vdock-btn" id="ml-action-refresh" title="Reload Page">',
+            '  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4b5563" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">',
+            '    <polyline points="23 4 23 10 17 10"></polyline>',
+            '    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>',
+            '  </svg>',
+            '</button>'
         ].join('');
-        document.body.appendChild(bar);
+        document.body.appendChild(dock);
 
         document.getElementById('ml-action-new-nb').addEventListener('click', function(ev) {
             ev.preventDefault(); ev.stopPropagation();
-            if (!runJupyterCmd('notebook:create-new', { isLauncher: true })) {
+            if (!runJupyterCmd('notebook:create-new', { isLauncher: true }) &&
+                !runJupyterCmd('filebrowser:create-new-notebook')) {
                 createNotebookFallback();
             }
         });
@@ -480,6 +504,17 @@
             if (!base.endsWith('/')) base += '/';
             window.location.href = base + 'lab';
         });
+
+        document.getElementById('ml-action-refresh').addEventListener('click', function(ev) {
+            ev.preventDefault(); ev.stopPropagation();
+            window.location.reload();
+        });
+    }
+
+    // Helper to find Lumino Widget instance from DOM node
+    function getLuminoWidget(node) {
+        if (!node) return null;
+        return node.__widget__ || node._widget || node.__luminoWidget || node.widget || null;
     }
 
     // 6. Direct Touch Fix for Lumino Dropdown Menus, MenuBars, File Listing & Toolbars (CRITICAL)
@@ -489,8 +524,37 @@
             var rect = menuItem.getBoundingClientRect();
             var cx = rect.left + rect.width / 2;
             var cy = rect.top + rect.height / 2;
-            menuItem.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, cancelable: true, clientX: cx, clientY: cy, button: 0 }));
-            menuItem.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, cancelable: true, clientX: cx, clientY: cy, button: 0 }));
+
+            var menuNode = menuItem.closest('.lm-Menu');
+            var w = getLuminoWidget(menuNode);
+            if (w) {
+                var items = Array.prototype.slice.call(menuNode.querySelectorAll('.lm-Menu-item'));
+                var idx = items.indexOf(menuItem);
+                if (idx !== -1) {
+                    w.activeIndex = idx;
+                }
+            }
+
+            menuItem.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, cancelable: true, clientX: cx, clientY: cy, view: window }));
+            menuItem.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, cancelable: true, clientX: cx, clientY: cy, button: 0, view: window }));
+            menuItem.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, cancelable: true, clientX: cx, clientY: cy, button: 0, view: window }));
+        }
+
+        var menuBarItem = e.target.closest('.lm-MenuBar-item');
+        if (menuBarItem) {
+            var rectM = menuBarItem.getBoundingClientRect();
+            var cxM = rectM.left + rectM.width / 2;
+            var cyM = rectM.top + rectM.height / 2;
+            var barNode = menuBarItem.closest('.lm-MenuBar');
+            var bw = getLuminoWidget(barNode);
+            if (bw) {
+                var bItems = Array.prototype.slice.call(barNode.querySelectorAll('.lm-MenuBar-item'));
+                var bIdx = bItems.indexOf(menuBarItem);
+                if (bIdx !== -1) {
+                    bw.activeIndex = bIdx;
+                }
+            }
+            menuBarItem.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, cancelable: true, clientX: cxM, clientY: cyM, button: 0, view: window }));
         }
     }, { capture: true, passive: true });
 
@@ -502,8 +566,25 @@
         var menuItem = target.closest('.lm-Menu-item');
         if (menuItem) {
             var hasSubmenu = menuItem.classList.contains('lm-mod-has-submenu') || menuItem.querySelector('.lm-Menu-itemSubmenuIcon') !== null;
+            var menuNode = menuItem.closest('.lm-Menu');
+            var w = getLuminoWidget(menuNode);
+
+            if (w) {
+                var items = Array.prototype.slice.call(menuNode.querySelectorAll('.lm-Menu-item'));
+                var idx = items.indexOf(menuItem);
+                if (idx !== -1) {
+                    w.activeIndex = idx;
+                    if (typeof w.triggerActiveItem === 'function') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        w.triggerActiveItem();
+                        return;
+                    }
+                }
+            }
+
             if (hasSubmenu) {
-                return; // Let Lumino expand the submenu
+                return; // Let Lumino naturally open the submenu
             }
 
             e.preventDefault();
@@ -525,7 +606,8 @@
             if (cmd) {
                 runJupyterCmd(cmd);
             } else if (text.indexOf('python 3') !== -1 || text.indexOf('ipykernel') !== -1 || text === 'notebook') {
-                if (!runJupyterCmd('notebook:create-new', { isLauncher: true })) {
+                if (!runJupyterCmd('notebook:create-new', { isLauncher: true }) &&
+                    !runJupyterCmd('filebrowser:create-new-notebook')) {
                     createNotebookFallback();
                 }
             } else if (text.indexOf('folder') !== -1) {
@@ -542,19 +624,37 @@
                 }
             }
 
-            var menu = menuItem.closest('.lm-Menu');
-            if (menu) {
-                menu.style.display = 'none';
-                setTimeout(function() {
-                    if (menu.parentNode) {
-                        menu.parentNode.removeChild(menu);
-                    }
-                }, 100);
+            if (w && typeof w.close === 'function') {
+                w.close();
             }
             return;
         }
 
-        // B. Handle Single-Tap File / Folder Open in DirListing
+        // B. Handle Lumino MenuBar Item Click (File, View, Settings, Help)
+        var mbItem = target.closest('.lm-MenuBar-item');
+        if (mbItem) {
+            var rectM = mbItem.getBoundingClientRect();
+            var cxM = rectM.left + rectM.width / 2;
+            var cyM = rectM.top + rectM.height / 2;
+            var barNode = mbItem.closest('.lm-MenuBar');
+            var bw = getLuminoWidget(barNode);
+            if (bw) {
+                var bItems = Array.prototype.slice.call(barNode.querySelectorAll('.lm-MenuBar-item'));
+                var bIdx = bItems.indexOf(mbItem);
+                if (bIdx !== -1) {
+                    bw.activeIndex = bIdx;
+                    if (typeof bw.openActiveMenu === 'function') {
+                        bw.openActiveMenu();
+                    }
+                }
+            }
+            mbItem.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window, button: 0, clientX: cxM, clientY: cyM }));
+            mbItem.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window, button: 0, clientX: cxM, clientY: cyM }));
+            mbItem.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window, clientX: cxM, clientY: cyM }));
+            return;
+        }
+
+        // C. Handle Single-Tap File / Folder Open in DirListing
         var fileItem = target.closest('.jp-DirListing-item');
         if (fileItem) {
             var rectF = fileItem.getBoundingClientRect();
@@ -571,9 +671,9 @@
             return;
         }
 
-        // C. Handle Jupyter Native Toolbar Buttons on Touch
+        // D. Handle Jupyter Native Toolbar Buttons on Touch
         var tbBtn = target.closest('.jp-ToolbarButtonComponent, jp-button, button[data-command]');
-        if (tbBtn && !tbBtn.closest('#ml-floating-toolbar') && !tbBtn.closest('#mobilelinux-touch-bar')) {
+        if (tbBtn && !tbBtn.closest('#ml-floating-toolbar') && !tbBtn.closest('#ml-vertical-dock')) {
             var cmdTb = tbBtn.getAttribute('data-command');
             if (cmdTb) {
                 e.preventDefault();
@@ -587,30 +687,46 @@
     style.id = 'mobilelinux-touch-styles';
     style.textContent = [
         '/* Mobile Touch Optimizations */',
-        '.lm-Menu-item { min-height: 46px !important; padding: 12px 18px !important; font-size: 15px !important; touch-action: manipulation !important; -webkit-tap-highlight-color: rgba(59, 130, 246, 0.3) !important; cursor: pointer !important; }',
-        '.lm-Menu-item:active { background: #3b82f6 !important; color: #fff !important; }',
-        '.lm-MenuBar-item { min-height: 40px !important; padding: 10px 14px !important; font-size: 14px !important; touch-action: manipulation !important; }',
-        '.ml-cell-play-btn { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 8px; background: #10b981; color: #fff; margin-right: 8px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2); touch-action: manipulation; -webkit-user-select: none; font-size: 14px; }',
+        '.lm-Menu-item { min-height: 44px !important; padding: 10px 16px !important; font-size: 14px !important; touch-action: manipulation !important; -webkit-tap-highlight-color: rgba(243, 118, 38, 0.2) !important; cursor: pointer !important; }',
+        '.lm-Menu-item:active { background: #f37626 !important; color: #fff !important; }',
+        '.lm-MenuBar-item { min-height: 38px !important; padding: 8px 12px !important; font-size: 14px !important; touch-action: manipulation !important; cursor: pointer !important; }',
+        '.ml-cell-play-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 6px; background: #10b981; color: #fff; margin-right: 8px; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.15); touch-action: manipulation; -webkit-user-select: none; font-size: 13px; }',
         '.ml-cell-play-btn.ml-running { background: #f59e0b; animation: ml-pulse 1s infinite; }',
         '.ml-cell-play-btn.ml-success { background: #059669; }',
         '@keyframes ml-pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }',
-        '#mobilelinux-touch-bar { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 10000; display: flex; gap: 10px; background: rgba(15, 23, 42, 0.92); backdrop-filter: blur(8px); padding: 8px 14px; border-radius: 28px; border: 1px solid rgba(255,255,255,0.15); box-shadow: 0 6px 20px rgba(0,0,0,0.4); }',
-        '.ml-dash-btn { background: #3b82f6; color: #fff; border: none; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 600; cursor: pointer; touch-action: manipulation; box-shadow: 0 2px 6px rgba(59,130,246,0.3); }',
-        '.ml-dash-btn:active { opacity: 0.8; transform: scale(0.96); }',
-        '.ml-btn-folder { background: #6366f1 !important; }',
-        '.ml-btn-lab { background: #8b5cf6 !important; }',
-        '#ml-floating-toolbar { position: fixed; bottom: 16px; left: 16px; right: 16px; z-index: 10000; display: flex; align-items: center; justify-content: space-between; pointer-events: none; }',
-        '#ml-bar-inner { display: flex; gap: 6px; background: rgba(15, 23, 42, 0.92); backdrop-filter: blur(8px); padding: 6px 10px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.15); box-shadow: 0 4px 16px rgba(0,0,0,0.4); pointer-events: auto; overflow-x: auto; max-width: calc(100% - 50px); }',
+
+        '/* Minimal Vertical Mini-Dock for Tree View (Bottom-Right, Jupyter Original Theme) */',
+        '#ml-vertical-dock { position: fixed; right: 14px; bottom: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: auto; }',
+        '.ml-vdock-btn { width: 38px; height: 38px; border-radius: 50%; border: 1px solid #d0d7de; background: #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12); cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; transition: transform 0.15s ease, background 0.15s ease; }',
+        '.ml-vdock-btn:hover { background: #f6f8fa; }',
+        '.ml-vdock-btn:active { transform: scale(0.92); background: #eaeef2; }',
+
+        '/* Jupyter Dark Theme Compatibility */',
+        '@media (prefers-color-scheme: dark) {',
+        '    .ml-vdock-btn { background: #252526 !important; border-color: #3c3c3c !important; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4) !important; }',
+        '    .ml-vdock-btn:hover { background: #333333 !important; }',
+        '    .ml-vdock-btn:active { background: #3c3c3c !important; }',
+        '    .ml-vdock-btn svg { stroke: #d1d5db !important; }',
+        '    .ml-vdock-btn#ml-action-new-nb svg { stroke: #f37626 !important; }',
+        '}',
+        '[data-jp-theme-light="false"] .ml-vdock-btn, .jp-theme-dark .ml-vdock-btn { background: #252526 !important; border-color: #3c3c3c !important; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4) !important; }',
+        '[data-jp-theme-light="false"] .ml-vdock-btn svg, .jp-theme-dark .ml-vdock-btn svg { stroke: #d1d5db !important; }',
+        '[data-jp-theme-light="false"] .ml-vdock-btn#ml-action-new-nb svg, .jp-theme-dark .ml-vdock-btn#ml-action-new-nb svg { stroke: #f37626 !important; }',
+
+        '/* Sleek Jupyter-Themed Floating Bar for Notebook View */',
+        '#ml-floating-toolbar { position: fixed; bottom: 16px; right: 14px; z-index: 10000; display: flex; align-items: center; justify-content: flex-end; gap: 8px; pointer-events: none; }',
+        '#ml-bar-inner { display: flex; gap: 6px; background: rgba(255, 255, 255, 0.96); backdrop-filter: blur(8px); padding: 5px 8px; border-radius: 20px; border: 1px solid #d0d7de; box-shadow: 0 4px 14px rgba(0,0,0,0.12); pointer-events: auto; overflow-x: auto; max-width: calc(100vw - 80px); }',
         '#ml-bar-inner.ml-collapsed { display: none; }',
-        '.ml-bar-btn { background: #1e293b; color: #f1f5f9; border: 1px solid rgba(255,255,255,0.1); padding: 6px 12px; border-radius: 16px; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; touch-action: manipulation; }',
-        '.ml-bar-btn:active { background: #334155; }',
-        '.ml-btn-run { background: #10b981 !important; color: #fff !important; font-weight: 600 !important; }',
-        '.ml-btn-collapse { background: #3b82f6; color: #fff; width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: none; box-shadow: 0 3px 10px rgba(0,0,0,0.3); pointer-events: auto; font-size: 16px; }',
-        '#ml-keys-strip { position: fixed; bottom: 70px; left: 0; right: 0; background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(10px); padding: 8px 12px; display: none; gap: 6px; overflow-x: auto; z-index: 9999; border-top: 1px solid rgba(255,255,255,0.1); }',
+        '.ml-bar-btn { background: #f6f8fa; color: #24292f; border: 1px solid #d0d7de; padding: 6px 11px; border-radius: 14px; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; touch-action: manipulation; }',
+        '.ml-bar-btn:active { background: #e5e7eb; }',
+        '.ml-btn-run { background: #10b981 !important; color: #fff !important; font-weight: 600 !important; border-color: #059669 !important; }',
+        '.ml-btn-collapse { background: #ffffff; color: #f37626; width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1px solid #d0d7de; box-shadow: 0 2px 8px rgba(0,0,0,0.12); pointer-events: auto; font-size: 16px; cursor: pointer; }',
+        '.ml-btn-collapse:active { transform: scale(0.92); }',
+        '#ml-keys-strip { position: fixed; bottom: 65px; left: 0; right: 0; background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(10px); padding: 6px 10px; display: none; gap: 6px; overflow-x: auto; z-index: 9999; border-top: 1px solid #d0d7de; box-shadow: 0 -2px 8px rgba(0,0,0,0.08); }',
         '#ml-keys-strip.ml-visible { display: flex; }',
-        '.ml-key-btn { background: #334155; color: #f8fafc; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 6px 10px; font-family: monospace; font-size: 13px; cursor: pointer; white-space: nowrap; touch-action: manipulation; }',
-        '.ml-key-btn:active { background: #475569; }',
-        '.ml-k-esc { background: #dc2626 !important; }'
+        '.ml-key-btn { background: #f6f8fa; color: #1f2937; border: 1px solid #d0d7de; border-radius: 6px; padding: 5px 9px; font-family: monospace; font-size: 13px; cursor: pointer; white-space: nowrap; touch-action: manipulation; }',
+        '.ml-key-btn:active { background: #e5e7eb; }',
+        '.ml-k-esc { background: #fee2e2 !important; color: #dc2626 !important; border-color: #fca5a5 !important; }'
     ].join('\n');
     document.head.appendChild(style);
 

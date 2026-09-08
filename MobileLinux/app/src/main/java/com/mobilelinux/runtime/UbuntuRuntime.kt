@@ -1222,6 +1222,11 @@ class UbuntuRuntime(private val context: Context) {
             jupyterStartFile.setExecutable(true, false)
             jupyterStartFile.setReadable(true, false)
 
+            val jupyterRestartFile = File(usrLocalBin, "jupyter-restart")
+            safeWriteFile(jupyterRestartFile, getJupyterRestartScript())
+            jupyterRestartFile.setExecutable(true, false)
+            jupyterRestartFile.setReadable(true, false)
+
             // Multi-Environment Python Installer, Uninstaller & Conda Synchronizer
             val pkgInstallPythonFile = File(usrLocalBin, "pkg-install-python")
             safeWriteFile(pkgInstallPythonFile, getPkgInstallPythonScript())
@@ -1340,7 +1345,7 @@ class UbuntuRuntime(private val context: Context) {
 
                 val toolsToLink = listOf(
                     "pkg-install-python", "pkg-uninstall-python", "conda-sync-packages", "conda-sync",
-                    "conda-manager", "install-jupyter", "jupyter", "jupyter-start", "jupyter-notebook", "jupyter-lab",
+                    "conda-manager", "install-jupyter", "jupyter", "jupyter-start", "jupyter-restart", "jupyter-notebook", "jupyter-lab",
                     "fix-jupyter-mobile", "xdg-open", "x-www-browser", "sensible-browser", "www-browser"
                 ) + pythonCliConfigs.map { it.cmdName }
                 for (cBin in targetBins) {
@@ -2019,6 +2024,14 @@ class UbuntuRuntime(private val context: Context) {
         "    /usr/local/bin/fix-jupyter-mobile >/dev/null 2>&1 || true",
         "fi",
         "",
+        "# Clean up stale processes on port 8888",
+        "if command -v fuser >/dev/null 2>&1; then",
+        "    fuser -k 8888/tcp >/dev/null 2>&1 || true",
+        "fi",
+        "pkill -f 'jupyter-notebook' >/dev/null 2>&1 || true",
+        "pkill -f 'jupyter-lab' >/dev/null 2>&1 || true",
+        "sleep 0.4",
+        "",
         "(",
         "    TARGET_URL=\"http://127.0.0.1:8888/tree\"",
         "    for i in \$(seq 1 50); do",
@@ -2035,6 +2048,23 @@ class UbuntuRuntime(private val context: Context) {
         "else",
         "    exec \$JUPYTER_CMD lab --allow-root --no-browser --ip=127.0.0.1 --LabApp.expose_app_in_browser=True --JupyterNotebookApp.expose_app_in_browser=True \"\$@\"",
         "fi\n"
+    ).joinToString("\n")
+
+    private fun getJupyterRestartScript(): String = listOf(
+        "#!/bin/bash",
+        "# MobileLinux - Clean Jupyter Server Restart",
+        "echo -e \"\\033[1;36m┌─[MobileLinux]─[Restarting Jupyter]\\033[0m\"",
+        "echo -e \"\\033[1;36m│\\033[0m Terminating any running Jupyter instances...\"",
+        "if command -v fuser >/dev/null 2>&1; then",
+        "    fuser -k 8888/tcp >/dev/null 2>&1 || true",
+        "fi",
+        "pkill -9 -f \"jupyter-notebook\" >/dev/null 2>&1 || true",
+        "pkill -9 -f \"jupyter-lab\" >/dev/null 2>&1 || true",
+        "pkill -9 -f \"jupyter_server\" >/dev/null 2>&1 || true",
+        "sleep 0.8",
+        "echo -e \"\\033[1;36m│\\033[0m Starting clean Jupyter Server...\"",
+        "echo -e \"\\033[1;36m└──────────────────────────────────────────────\\033[0m\"",
+        "exec /usr/local/bin/jupyter-start \"\$@\"\n"
     ).joinToString("\n")
 
     private fun getXdgOpenScript(): String = listOf(
@@ -3263,6 +3293,12 @@ class UbuntuRuntime(private val context: Context) {
         "if [ -x /usr/local/bin/fix-jupyter-mobile ]; then",
         "    /usr/local/bin/fix-jupyter-mobile >/dev/null 2>&1 || true",
         "fi",
+        "if command -v fuser >/dev/null 2>&1; then",
+        "    fuser -k 8888/tcp >/dev/null 2>&1 || true",
+        "fi",
+        "pkill -f 'jupyter-notebook' >/dev/null 2>&1 || true",
+        "pkill -f 'jupyter-lab' >/dev/null 2>&1 || true",
+        "sleep 0.4",
         "(",
         "    TARGET_URL=\"http://127.0.0.1:8888/tree\"",
         "    for i in \$(seq 1 50); do",
@@ -3302,6 +3338,12 @@ class UbuntuRuntime(private val context: Context) {
         "if [ -x /usr/local/bin/fix-jupyter-mobile ]; then",
         "    /usr/local/bin/fix-jupyter-mobile >/dev/null 2>&1 || true",
         "fi",
+        "if command -v fuser >/dev/null 2>&1; then",
+        "    fuser -k 8888/tcp >/dev/null 2>&1 || true",
+        "fi",
+        "pkill -f 'jupyter-notebook' >/dev/null 2>&1 || true",
+        "pkill -f 'jupyter-lab' >/dev/null 2>&1 || true",
+        "sleep 0.4",
         "(",
         "    TARGET_URL=\"http://127.0.0.1:8888/lab\"",
         "    for i in \$(seq 1 50); do",

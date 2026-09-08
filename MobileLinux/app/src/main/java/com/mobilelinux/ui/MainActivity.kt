@@ -52,13 +52,10 @@ class MainActivity : AppCompatActivity() {
     private var hasCreatedInitialSession = false
     private var browserUrlObserver: com.mobilelinux.util.BrowserUrlTriggerObserver? = null
 
-    // Android 13+ notification permission request
-    private val notificationPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (granted) {
-                // Notification permission granted — service notifications will show
-            }
-            // Whether granted or not, continue starting the service
+    // Runtime permissions request for notifications, camera & microphone
+    private val appPermissionsLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+            // Proceed to start Linux background service regardless of individual permissions
             startLinuxService()
         }
 
@@ -94,8 +91,8 @@ class MainActivity : AppCompatActivity() {
         com.mobilelinux.util.StorageHelper.setupSharedStorage(this)
         com.mobilelinux.util.StorageHelper.requestAllFilesAccess(this)
 
-        // Request notification permission (Android 13+), then start service
-        requestNotificationPermissionAndStart()
+        // Request initial development permissions (Notifications, Camera, Microphone)
+        requestInitialPermissionsAndStart()
 
         // Request battery optimization exemption for background persistence
         requestBatteryOptimizationExemption()
@@ -134,23 +131,23 @@ class MainActivity : AppCompatActivity() {
         } catch (ignored: Exception) {}
     }
 
-    private fun requestNotificationPermissionAndStart() {
+    private fun requestInitialPermissionsAndStart() {
+        val permissionsToRequest = mutableListOf<String>()
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            // Android 13+ — must request POST_NOTIFICATIONS at runtime
-            when {
-                ContextCompat.checkSelfPermission(
-                    this, Manifest.permission.POST_NOTIFICATIONS
-                ) == PackageManager.PERMISSION_GRANTED -> {
-                    startLinuxService()
-                }
-                shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS) -> {
-                    // Show rationale then request
-                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                }
-                else -> {
-                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
             }
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            permissionsToRequest.add(Manifest.permission.CAMERA)
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            permissionsToRequest.add(Manifest.permission.RECORD_AUDIO)
+        }
+
+        if (permissionsToRequest.isNotEmpty()) {
+            appPermissionsLauncher.launch(permissionsToRequest.toTypedArray())
         } else {
             startLinuxService()
         }

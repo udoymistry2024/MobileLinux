@@ -110,6 +110,42 @@ class DevBrowserActivity : AppCompatActivity() {
         filePathCallback = null
     }
 
+    private var pendingWebPermissionRequest: PermissionRequest? = null
+    private val webPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        pendingWebPermissionRequest?.let { req ->
+            val grantedList = mutableListOf<String>()
+            for (res in req.resources) {
+                when (res) {
+                    PermissionRequest.RESOURCE_VIDEO_CAPTURE -> {
+                        if (results[android.Manifest.permission.CAMERA] == true ||
+                            androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                        ) {
+                            grantedList.add(res)
+                        }
+                    }
+                    PermissionRequest.RESOURCE_AUDIO_CAPTURE -> {
+                        if (results[android.Manifest.permission.RECORD_AUDIO] == true ||
+                            androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                        ) {
+                            grantedList.add(res)
+                        }
+                    }
+                    PermissionRequest.RESOURCE_PROTECTED_MEDIA_ID -> {
+                        grantedList.add(res)
+                    }
+                }
+            }
+            if (grantedList.isNotEmpty()) {
+                req.grant(grantedList.toTypedArray())
+            } else {
+                req.deny()
+            }
+            pendingWebPermissionRequest = null
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
@@ -155,7 +191,7 @@ class DevBrowserActivity : AppCompatActivity() {
         topBar = findViewById(R.id.browser_top_bar)
 
         btnClose.setOnClickListener {
-            finish()
+            showExitConfirmationDialog()
         }
 
         btnHome.setOnClickListener {
@@ -314,7 +350,7 @@ class DevBrowserActivity : AppCompatActivity() {
                 } else if (tabs.size > 1) {
                     closeTab(activeTabIndex)
                 } else {
-                    finish()
+                    showExitConfirmationDialog()
                 }
             }
         })
@@ -512,6 +548,48 @@ class DevBrowserActivity : AppCompatActivity() {
                 } catch (e: Exception) {
                     this@DevBrowserActivity.filePathCallback = null
                     false
+                }
+            }
+
+            // Dynamic on-demand camera & microphone permissions for Jupyter, WebRTC, OpenCV, WebCam
+            override fun onPermissionRequest(request: PermissionRequest?) {
+                if (request == null) return
+                val requestedResources = request.resources
+                val neededAndroidPerms = mutableListOf<String>()
+
+                for (res in requestedResources) {
+                    if (res == PermissionRequest.RESOURCE_VIDEO_CAPTURE) {
+                        if (androidx.core.content.ContextCompat.checkSelfPermission(
+                                this@DevBrowserActivity,
+                                android.Manifest.permission.CAMERA
+                            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                        ) {
+                            neededAndroidPerms.add(android.Manifest.permission.CAMERA)
+                        }
+                    }
+                    if (res == PermissionRequest.RESOURCE_AUDIO_CAPTURE) {
+                        if (androidx.core.content.ContextCompat.checkSelfPermission(
+                                this@DevBrowserActivity,
+                                android.Manifest.permission.RECORD_AUDIO
+                            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                        ) {
+                            neededAndroidPerms.add(android.Manifest.permission.RECORD_AUDIO)
+                        }
+                    }
+                }
+
+                if (neededAndroidPerms.isEmpty()) {
+                    request.grant(requestedResources)
+                } else {
+                    pendingWebPermissionRequest = request
+                    webPermissionLauncher.launch(neededAndroidPerms.toTypedArray())
+                }
+            }
+
+            override fun onPermissionRequestCanceled(request: PermissionRequest?) {
+                super.onPermissionRequestCanceled(request)
+                if (pendingWebPermissionRequest == request) {
+                    pendingWebPermissionRequest = null
                 }
             }
 
@@ -857,6 +935,17 @@ class DevBrowserActivity : AppCompatActivity() {
             .setNegativeButton("Clear") { _, _ ->
                 consoleLogs.clear()
             }
+            .show()
+    }
+
+    private fun showExitConfirmationDialog() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Exit Browser?")
+            .setMessage("Are you sure you want to close the browser and return to the terminal?")
+            .setPositiveButton("Exit") { _, _ ->
+                finish()
+            }
+            .setNegativeButton("Cancel", null)
             .show()
     }
 

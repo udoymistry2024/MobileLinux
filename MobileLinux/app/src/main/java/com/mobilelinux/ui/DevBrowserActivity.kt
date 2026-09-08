@@ -273,9 +273,13 @@ class DevBrowserActivity : AppCompatActivity() {
 
         val rootLayout: View = findViewById(R.id.layout_dev_browser_root)
         ViewCompat.setOnApplyWindowInsetsListener(rootLayout) { _, insets ->
-            val navInsets = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
-            webviewContainer.setPadding(0, 0, 0, navInsets.bottom)
-            rvTabGrid.setPadding(dpToPx(8), dpToPx(8), dpToPx(8), navInsets.bottom + dpToPx(8))
+            val navAndImeInsets = insets.getInsets(
+                WindowInsetsCompat.Type.navigationBars() or
+                WindowInsetsCompat.Type.ime()
+            )
+            val bottomInset = navAndImeInsets.bottom
+            webviewContainer.setPadding(0, 0, 0, bottomInset)
+            rvTabGrid.setPadding(dpToPx(8), dpToPx(8), dpToPx(8), bottomInset + dpToPx(8))
             insets
         }
     }

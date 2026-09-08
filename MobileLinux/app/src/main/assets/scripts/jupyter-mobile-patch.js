@@ -59,21 +59,18 @@
     function executeCell(cellElem, btnElem) {
         if (!cellElem) cellElem = getActiveCell();
         if (cellElem) {
-            var editor = cellElem.querySelector('.cm-content') ||
-                         cellElem.querySelector('textarea') ||
-                         cellElem.querySelector('.cm-editor') ||
-                         cellElem;
-            try {
-                editor.focus();
-                editor.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-                editor.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
-                editor.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-            } catch(e) {}
-
             document.querySelectorAll('.jp-Cell.jp-mod-active, .cell.selected').forEach(function(c) {
                 if (c !== cellElem) c.classList.remove('jp-mod-active', 'selected');
             });
             cellElem.classList.add('jp-mod-active');
+            var prompt = cellElem.querySelector('.jp-InputPrompt') || cellElem;
+            try {
+                prompt.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            } catch(e) {}
+        }
+
+        if (window.getSelection) {
+            try { window.getSelection().removeAllRanges(); } catch(e) {}
         }
 
         if (btnElem) {
@@ -179,19 +176,21 @@
         }
     }
 
-    // 2. Colab-Style Per-Cell Play Button Injection
+    // 2. Colab-Style Per-Cell Play Button Injection (Persistent across cell runs)
     function attachPlayButtons() {
+        var p = window.location.pathname || '';
+        var isNotebookPage = p.indexOf('/notebooks/') !== -1 || p.indexOf('/lab') !== -1 || document.querySelector('.jp-Notebook') !== null;
+        if (!isNotebookPage) return;
+
         var cells = document.querySelectorAll('.jp-Cell, .jp-CodeCell, .cell.code_cell');
         for (var i = 0; i < cells.length; i++) {
             var cell = cells[i];
-            if (cell.dataset.mlPlayAttached === 'true') continue;
+            if (cell.querySelector('.ml-cell-play-btn')) continue;
 
             var promptElem = cell.querySelector('.jp-InputPrompt') || cell.querySelector('.prompt.input_prompt');
-            var inputWrapper = cell.querySelector('.jp-Cell-inputWrapper') || cell.querySelector('.input_area');
+            var inputWrapper = cell.querySelector('.jp-Cell-inputWrapper') || cell.querySelector('.input_area') || cell.querySelector('.jp-InputArea');
 
             if (!promptElem && !inputWrapper) continue;
-
-            cell.dataset.mlPlayAttached = 'true';
 
             var btn = document.createElement('div');
             btn.className = 'ml-cell-play-btn';
@@ -208,12 +207,44 @@
                 b.addEventListener('touchend', onRun);
             })(cell, btn);
 
-            if (promptElem) {
-                promptElem.insertBefore(btn, promptElem.firstChild);
-            } else if (inputWrapper) {
-                inputWrapper.insertBefore(btn, inputWrapper.firstChild);
+            if (promptElem && promptElem.parentNode) {
+                promptElem.parentNode.insertBefore(btn, promptElem);
+            } else if (inputWrapper && inputWrapper.parentNode) {
+                inputWrapper.parentNode.insertBefore(btn, inputWrapper);
+            } else if (promptElem) {
+                promptElem.appendChild(btn);
             }
         }
+    }
+
+    // Dynamic MutationObserver for notebook cells & prompt updates
+    var nbObserver = null;
+    function observeNotebookMutations() {
+        if (nbObserver) return;
+        var target = document.querySelector('.jp-Notebook') || document.querySelector('#notebook-container') || document.body;
+        if (!target) return;
+        try {
+            nbObserver = new MutationObserver(function() {
+                attachPlayButtons();
+            });
+            nbObserver.observe(target, { childList: true, subtree: true });
+        } catch(e) {}
+    }
+
+    // Keyboard-adaptive viewport tracking for floating toolbar
+    function updateFloatingToolbarPosition() {
+        var tb = document.getElementById('ml-floating-toolbar');
+        if (!tb) return;
+        if (window.visualViewport) {
+            var keyboardOffset = Math.max(0, window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop);
+            tb.style.bottom = Math.max(16, keyboardOffset + 12) + 'px';
+            var ks = document.getElementById('ml-keys-strip');
+            if (ks) ks.style.bottom = Math.max(65, keyboardOffset + 58) + 'px';
+        }
+    }
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', updateFloatingToolbarPosition);
+        window.visualViewport.addEventListener('scroll', updateFloatingToolbarPosition);
     }
 
     // 3. Floating Mobile Action Dock (Run, Add, Stop, Restart, Keys)
@@ -350,6 +381,8 @@
                 inner.classList.toggle('ml-collapsed');
             }
         });
+
+        updateFloatingToolbarPosition();
     }
 
     // 4. Fallback API functions for Tree / Dashboard
@@ -518,7 +551,27 @@
     }
 
     // 6. Direct Touch Fix for Lumino Dropdown Menus, MenuBars, File Listing & Toolbars (CRITICAL)
+    // Suppress unwanted cell context menu inside editor on touch
+    document.addEventListener('contextmenu', function(e) {
+        if (e.target && e.target.closest('.jp-InputArea, .cm-editor, .cm-content, .jp-Cell-inputWrapper, .jp-Cell')) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            return false;
+        }
+    }, { capture: true });
+
+    var lastTouchX = 0;
+    var lastTouchY = 0;
+    var lastTouchTime = 0;
+
     document.addEventListener('touchstart', function(e) {
+        if (e.touches && e.touches.length === 1) {
+            lastTouchX = e.touches[0].clientX;
+            lastTouchY = e.touches[0].clientY;
+            lastTouchTime = Date.now();
+        }
+
         var menuItem = e.target.closest('.lm-Menu-item');
         if (menuItem) {
             var rect = menuItem.getBoundingClientRect();
@@ -680,6 +733,45 @@
                 runJupyterCmd(cmdTb);
             }
         }
+
+        // E. Handle Single-Tap on Cell Editor -> Immediate Edit Mode & Blinking Cursor (No Text Selection or Lumino Context Menu)
+        var cell = target.closest('.jp-Cell, .jp-CodeCell');
+        var editorArea = target.closest('.cm-editor, .cm-content, .jp-InputArea, .jp-Cell-inputWrapper');
+        var touchDuration = Date.now() - lastTouchTime;
+        var touch = e.changedTouches && e.changedTouches[0];
+        var dist = touch ? Math.hypot(touch.clientX - lastTouchX, touch.clientY - lastTouchY) : 0;
+
+        if (cell && editorArea && touchDuration < 350 && dist < 12) {
+            // Dismiss any open Lumino menus
+            var openMenus = document.querySelectorAll('.lm-Menu');
+            for (var m = 0; m < openMenus.length; m++) {
+                var mw = getLuminoWidget(openMenus[m]);
+                if (mw && typeof mw.close === 'function') {
+                    try { mw.close(); } catch(err) {}
+                } else {
+                    openMenus[m].style.display = 'none';
+                }
+            }
+
+            // Clear accidental text selection ranges
+            var sel = window.getSelection && window.getSelection();
+            if (sel && !sel.isCollapsed) {
+                try { sel.removeAllRanges(); } catch(err) {}
+            }
+
+            // Activate cell
+            document.querySelectorAll('.jp-Cell.jp-mod-active, .cell.selected').forEach(function(c) {
+                if (c !== cell) c.classList.remove('jp-mod-active', 'selected');
+            });
+            cell.classList.add('jp-mod-active');
+
+            // Switch Jupyter into edit mode and focus editor
+            runJupyterCmd('notebook:enter-edit-mode');
+            var cm = cell.querySelector('.cm-content');
+            if (cm) {
+                cm.focus();
+            }
+        }
     }, { capture: true });
 
     // Inject mobile CSS tokens
@@ -687,10 +779,12 @@
     style.id = 'mobilelinux-touch-styles';
     style.textContent = [
         '/* Mobile Touch Optimizations */',
+        '.cm-editor, .cm-content, .jp-InputArea { -webkit-touch-callout: none !important; }',
         '.lm-Menu-item { min-height: 44px !important; padding: 10px 16px !important; font-size: 14px !important; touch-action: manipulation !important; -webkit-tap-highlight-color: rgba(243, 118, 38, 0.2) !important; cursor: pointer !important; }',
         '.lm-Menu-item:active { background: #f37626 !important; color: #fff !important; }',
         '.lm-MenuBar-item { min-height: 38px !important; padding: 8px 12px !important; font-size: 14px !important; touch-action: manipulation !important; cursor: pointer !important; }',
-        '.ml-cell-play-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 6px; background: #10b981; color: #fff; margin-right: 8px; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.15); touch-action: manipulation; -webkit-user-select: none; font-size: 13px; }',
+        '.ml-cell-play-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; min-width: 28px; border-radius: 6px; background: #10b981; color: #fff; margin-right: 6px; margin-top: 4px; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.15); touch-action: manipulation; -webkit-user-select: none; user-select: none; font-size: 13px; flex-shrink: 0; z-index: 10; }',
+        '.ml-cell-play-btn:active { transform: scale(0.92); }',
         '.ml-cell-play-btn.ml-running { background: #f59e0b; animation: ml-pulse 1s infinite; }',
         '.ml-cell-play-btn.ml-success { background: #059669; }',
         '@keyframes ml-pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }',
@@ -708,21 +802,32 @@
         '    .ml-vdock-btn:active { background: #3c3c3c !important; }',
         '    .ml-vdock-btn svg { stroke: #d1d5db !important; }',
         '    .ml-vdock-btn#ml-action-new-nb svg { stroke: #f37626 !important; }',
+        '    #ml-bar-inner { background: rgba(30, 30, 30, 0.98) !important; border-color: #444 !important; box-shadow: 0 4px 16px rgba(0,0,0,0.4) !important; }',
+        '    .ml-bar-btn { background: #2d2d2d !important; color: #e5e7eb !important; border-color: #444 !important; }',
+        '    .ml-bar-btn:active { background: #3d3d3d !important; }',
+        '    .ml-btn-collapse { background: #252526 !important; border-color: #444 !important; color: #f37626 !important; }',
+        '    #ml-keys-strip { background: rgba(30, 30, 30, 0.98) !important; border-top-color: #444 !important; }',
+        '    .ml-key-btn { background: #2d2d2d !important; color: #e5e7eb !important; border-color: #444 !important; }',
         '}',
         '[data-jp-theme-light="false"] .ml-vdock-btn, .jp-theme-dark .ml-vdock-btn { background: #252526 !important; border-color: #3c3c3c !important; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4) !important; }',
         '[data-jp-theme-light="false"] .ml-vdock-btn svg, .jp-theme-dark .ml-vdock-btn svg { stroke: #d1d5db !important; }',
         '[data-jp-theme-light="false"] .ml-vdock-btn#ml-action-new-nb svg, .jp-theme-dark .ml-vdock-btn#ml-action-new-nb svg { stroke: #f37626 !important; }',
+        '[data-jp-theme-light="false"] #ml-bar-inner, .jp-theme-dark #ml-bar-inner { background: rgba(30, 30, 30, 0.98) !important; border-color: #444 !important; }',
+        '[data-jp-theme-light="false"] .ml-bar-btn, .jp-theme-dark .ml-bar-btn { background: #2d2d2d !important; color: #e5e7eb !important; border-color: #444 !important; }',
+        '[data-jp-theme-light="false"] .ml-btn-collapse, .jp-theme-dark .ml-btn-collapse { background: #252526 !important; border-color: #444 !important; }',
+        '[data-jp-theme-light="false"] #ml-keys-strip, .jp-theme-dark #ml-keys-strip { background: rgba(30, 30, 30, 0.98) !important; border-top-color: #444 !important; }',
+        '[data-jp-theme-light="false"] .ml-key-btn, .jp-theme-dark .ml-key-btn { background: #2d2d2d !important; color: #e5e7eb !important; border-color: #444 !important; }',
 
         '/* Sleek Jupyter-Themed Floating Bar for Notebook View */',
-        '#ml-floating-toolbar { position: fixed; bottom: 16px; right: 14px; z-index: 10000; display: flex; align-items: center; justify-content: flex-end; gap: 8px; pointer-events: none; }',
-        '#ml-bar-inner { display: flex; gap: 6px; background: rgba(255, 255, 255, 0.96); backdrop-filter: blur(8px); padding: 5px 8px; border-radius: 20px; border: 1px solid #d0d7de; box-shadow: 0 4px 14px rgba(0,0,0,0.12); pointer-events: auto; overflow-x: auto; max-width: calc(100vw - 80px); }',
+        '#ml-floating-toolbar { position: fixed; bottom: 16px; right: 14px; z-index: 10000; display: flex; align-items: center; justify-content: flex-end; gap: 8px; pointer-events: none; transition: bottom 0.15s ease-out; }',
+        '#ml-bar-inner { display: flex; align-items: center; gap: 6px; background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(8px); padding: 6px 8px; border-radius: 8px; border: 1px solid #d0d7de; box-shadow: 0 4px 14px rgba(0,0,0,0.12); pointer-events: auto; overflow-x: auto; max-width: calc(100vw - 76px); }',
         '#ml-bar-inner.ml-collapsed { display: none; }',
-        '.ml-bar-btn { background: #f6f8fa; color: #24292f; border: 1px solid #d0d7de; padding: 6px 11px; border-radius: 14px; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; touch-action: manipulation; }',
+        '.ml-bar-btn { background: #f6f8fa; color: #24292f; border: 1px solid #d0d7de; padding: 6px 11px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; touch-action: manipulation; transition: background 0.1s ease; }',
         '.ml-bar-btn:active { background: #e5e7eb; }',
         '.ml-btn-run { background: #10b981 !important; color: #fff !important; font-weight: 600 !important; border-color: #059669 !important; }',
-        '.ml-btn-collapse { background: #ffffff; color: #f37626; width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1px solid #d0d7de; box-shadow: 0 2px 8px rgba(0,0,0,0.12); pointer-events: auto; font-size: 16px; cursor: pointer; }',
+        '.ml-btn-collapse { background: #ffffff; color: #f37626; width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; border: 1px solid #d0d7de; box-shadow: 0 2px 8px rgba(0,0,0,0.12); pointer-events: auto; font-size: 15px; cursor: pointer; }',
         '.ml-btn-collapse:active { transform: scale(0.92); }',
-        '#ml-keys-strip { position: fixed; bottom: 65px; left: 0; right: 0; background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(10px); padding: 6px 10px; display: none; gap: 6px; overflow-x: auto; z-index: 9999; border-top: 1px solid #d0d7de; box-shadow: 0 -2px 8px rgba(0,0,0,0.08); }',
+        '#ml-keys-strip { position: fixed; bottom: 65px; left: 0; right: 0; background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(10px); padding: 6px 10px; display: none; gap: 6px; overflow-x: auto; z-index: 9999; border-top: 1px solid #d0d7de; box-shadow: 0 -2px 8px rgba(0,0,0,0.08); transition: bottom 0.15s ease-out; }',
         '#ml-keys-strip.ml-visible { display: flex; }',
         '.ml-key-btn { background: #f6f8fa; color: #1f2937; border: 1px solid #d0d7de; border-radius: 6px; padding: 5px 9px; font-family: monospace; font-size: 13px; cursor: pointer; white-space: nowrap; touch-action: manipulation; }',
         '.ml-key-btn:active { background: #e5e7eb; }',
@@ -735,10 +840,12 @@
         attachPlayButtons();
         addMobileDashboardToolbar();
         injectFloatingToolbar();
+        observeNotebookMutations();
     }, 1000);
 
     // Initial run
     attachPlayButtons();
     addMobileDashboardToolbar();
     injectFloatingToolbar();
+    observeNotebookMutations();
 })();

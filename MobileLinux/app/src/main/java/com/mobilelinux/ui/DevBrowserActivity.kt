@@ -1284,9 +1284,12 @@ class DevBrowserActivity : AppCompatActivity() {
     }
 
     inner class BrowserClipboardBridge(private val context: Context) {
+        private var memoryClipboard: String = ""
+
         @JavascriptInterface
         fun copyText(text: String?) {
             if (text.isNullOrEmpty()) return
+            memoryClipboard = text
             runOnUiThread {
                 try {
                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -1300,18 +1303,29 @@ class DevBrowserActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun pasteText(): String {
-            return try {
-                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                val clip = clipboard.primaryClip
-                if (clip != null && clip.itemCount > 0) {
-                    clip.getItemAt(0).coerceToText(context)?.toString() ?: ""
-                } else {
-                    ""
+            var result = memoryClipboard
+            val latch = java.util.concurrent.CountDownLatch(1)
+            runOnUiThread {
+                try {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    val clip = clipboard.primaryClip
+                    if (clip != null && clip.itemCount > 0) {
+                        val sys = clip.getItemAt(0).coerceToText(context)?.toString() ?: ""
+                        if (sys.isNotEmpty()) {
+                            result = sys
+                            memoryClipboard = sys
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("DevBrowser", "Failed to paste text from system clipboard on UI thread", e)
+                } finally {
+                    latch.countDown()
                 }
-            } catch (e: Exception) {
-                Log.e("DevBrowser", "Failed to paste text from system clipboard", e)
-                ""
             }
+            try {
+                latch.await(350, java.util.concurrent.TimeUnit.MILLISECONDS)
+            } catch (ignored: Exception) {}
+            return result
         }
     }
 

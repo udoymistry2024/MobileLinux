@@ -159,36 +159,81 @@
         }
     }
 
-    // Insert text at cursor in active CodeMirror editor (for virtual keys)
+    // Insert text at cursor in active CodeMirror editor (for virtual keys & paste)
     function insertCodeText(text, offsetBack) {
+        if (!text) return false;
         var cell = getActiveCell();
-        var editor = (cell && cell.querySelector('.cm-content')) || document.activeElement;
-        if (!editor) return;
-        try {
-            editor.focus();
-            if (document.execCommand) {
-                document.execCommand('insertText', false, text);
-            } else {
-                editor.dispatchEvent(new InputEvent('beforeinput', {
-                    bubbles: true,
-                    cancelable: true,
-                    inputType: 'insertText',
-                    data: text
-                }));
-            }
-            if (offsetBack && window.getSelection) {
-                var sel = window.getSelection();
-                if (sel && sel.rangeCount > 0) {
-                    var range = sel.getRangeAt(0);
-                    range.setStart(range.startContainer, Math.max(0, range.startOffset - offsetBack));
-                    range.collapse(true);
-                    sel.removeAllRanges();
-                    sel.addRange(range);
+        var editorElem = (cell && cell.querySelector('.cm-content')) ||
+                         (document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('cm-content') ? document.activeElement : null) ||
+                         document.querySelector('.jp-Cell.jp-mod-active .cm-content') ||
+                         document.querySelector('.cm-content:focus') ||
+                         document.querySelector('.cm-content');
+
+        if (editorElem) {
+            // 1. CodeMirror 6 direct view dispatch (JupyterLab 4 / Notebook 7)
+            var cmView = editorElem.cmView && editorElem.cmView.view;
+            if (cmView) {
+                try {
+                    cmView.focus();
+                    var mainSel = cmView.state.selection.main;
+                    var insertLen = text.length;
+                    var anchorPos = mainSel.from + insertLen - (offsetBack || 0);
+                    cmView.dispatch({
+                        changes: { from: mainSel.from, to: mainSel.to, insert: text },
+                        selection: { anchor: Math.max(mainSel.from, anchorPos) },
+                        scrollIntoView: true
+                    });
+                    return true;
+                } catch(e) {
+                    console.warn('[MobileLinux] cmView dispatch failed:', e);
                 }
             }
-        } catch(e) {
-            console.warn('[MobileLinux] Insert text failed:', e);
+
+            // 2. Jupyter CodeMirrorEditor instance
+            var host = editorElem.closest('.cm-editor') || editorElem.closest('.jp-Editor');
+            if (host && host.editor && typeof host.editor.replaceSelection === 'function') {
+                try {
+                    host.editor.focus();
+                    host.editor.replaceSelection(text);
+                    return true;
+                } catch(e) {}
+            }
+
+            // 3. CodeMirror 5 instance (Legacy Jupyter Notebook)
+            var cm5 = editorElem.CodeMirror || (host && host.CodeMirror);
+            if (cm5 && typeof cm5.replaceSelection === 'function') {
+                try {
+                    cm5.focus();
+                    cm5.replaceSelection(text);
+                    return true;
+                } catch(e) {}
+            }
         }
+
+        // 4. Input / Textarea fallback
+        var activeEl = document.activeElement;
+        if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
+            try {
+                var s = activeEl.selectionStart || 0;
+                var en = activeEl.selectionEnd || 0;
+                var v = activeEl.value;
+                activeEl.value = v.substring(0, s) + text + v.substring(en);
+                var newPos = s + text.length - (offsetBack || 0);
+                activeEl.selectionStart = activeEl.selectionEnd = newPos;
+                activeEl.dispatchEvent(new Event('input', { bubbles: true }));
+                return true;
+            } catch(e) {}
+        }
+
+        // 5. Fallback execCommand
+        try {
+            if (editorElem) editorElem.focus();
+            if (document.execCommand('insertText', false, text)) {
+                return true;
+            }
+        } catch(e) {}
+
+        return false;
     }
 
     // 2. Colab-Style Per-Cell Play Button Injection (Persistent across cell runs)
@@ -260,9 +305,10 @@
 
     // Track active selection text for reliable copy even after button touch
     var lastSelectedText = '';
+    var lastCopiedType = ''; // 'text' or 'cell'
     document.addEventListener('selectionchange', function() {
         var sel = window.getSelection && window.getSelection();
-        if (sel && sel.toString()) {
+        if (sel && sel.toString() && sel.toString().trim()) {
             lastSelectedText = sel.toString();
         }
     });
@@ -270,22 +316,38 @@
     function copySelectedCode() {
         var text = '';
         var sel = window.getSelection && window.getSelection();
-        if (sel && sel.toString()) {
+        if (sel && sel.toString() && sel.toString().trim()) {
             text = sel.toString();
-        } else if (lastSelectedText) {
+        } else if (lastSelectedText && lastSelectedText.trim()) {
             text = lastSelectedText;
         }
 
-        if (!text) {
-            var cell = getActiveCell();
-            var cm = cell && cell.querySelector('.cm-content');
-            if (cm) {
-                try { document.execCommand('copy'); } catch(e) {}
+        var isCellCopy = false;
+        var cell = getActiveCell();
+
+        // If no specific text selection, copy the cell and its entire content!
+        if (!text && cell) {
+            isCellCopy = true;
+            // 1. Try JupyterLab command to copy cell to Jupyter internal clipboard
+            runJupyterCmd('notebook:copy-cell');
+
+            // 2. Also extract text content of the cell editor
+            var cm = cell.querySelector('.cm-content');
+            if (cm && cm.cmView && cm.cmView.view) {
+                try {
+                    text = cm.cmView.view.state.doc.toString();
+                } catch(e) {}
+            }
+            if (!text && cm) {
+                text = cm.innerText || cm.textContent || '';
             }
         }
 
         if (text) {
             window.__ml_clipboard = text;
+            lastCopiedType = isCellCopy ? 'cell' : 'text';
+            window.__ml_copied_type = lastCopiedType;
+
             if (window.MobileLinuxClipboard && window.MobileLinuxClipboard.copyText) {
                 try { window.MobileLinuxClipboard.copyText(text); } catch(e) {}
             }
@@ -298,7 +360,7 @@
         var btn = document.getElementById('ml-k-copy');
         if (btn) {
             var span = btn.querySelector('span');
-            if (span) span.textContent = 'Copied';
+            if (span) span.textContent = isCellCopy ? 'Cell Copied' : 'Copied';
             btn.classList.add('ml-k-done');
             setTimeout(function() {
                 if (span) span.textContent = 'Copy';
@@ -308,31 +370,58 @@
     }
 
     function pasteCode() {
-        var pasted = false;
+        var textToPaste = '';
+
+        // 1. First check Native Android Clipboard Bridge
         if (window.MobileLinuxClipboard && window.MobileLinuxClipboard.pasteText) {
             try {
-                var sysText = window.MobileLinuxClipboard.pasteText();
-                if (sysText) {
-                    insertCodeText(sysText);
+                var sys = window.MobileLinuxClipboard.pasteText();
+                if (sys && sys.trim()) {
+                    textToPaste = sys;
+                }
+            } catch(e) {}
+        }
+
+        // 2. Fallback to in-page memory clipboard
+        if (!textToPaste && window.__ml_clipboard) {
+            textToPaste = window.__ml_clipboard;
+        }
+
+        var cell = getActiveCell();
+        var editorElem = cell && cell.querySelector('.cm-content');
+        var isEditorActive = editorElem && (editorElem === document.activeElement || (cell && cell.contains(document.activeElement)));
+
+        var pasted = false;
+
+        // If user previously copied a cell and is not actively typing inside code box,
+        // try Jupyter's native notebook:paste-cell-below command first
+        if (window.__ml_copied_type === 'cell' && !isEditorActive) {
+            try {
+                if (runJupyterCmd('notebook:paste-cell-below')) {
                     pasted = true;
                 }
             } catch(e) {}
         }
 
+        // If not pasted as a cell, paste text into active cell's editor!
+        if (!pasted && textToPaste) {
+            pasted = insertCodeText(textToPaste);
+        }
+
+        // Fallback for asynchronous navigator.clipboard or cell paste
         if (!pasted) {
             if (navigator.clipboard && navigator.clipboard.readText) {
                 navigator.clipboard.readText().then(function(t) {
-                    if (t) insertCodeText(t);
-                    else if (window.__ml_clipboard) insertCodeText(window.__ml_clipboard);
-                    else document.execCommand('paste');
+                    if (t) {
+                        insertCodeText(t);
+                    } else {
+                        runJupyterCmd('notebook:paste-cell-below');
+                    }
                 }).catch(function() {
-                    if (window.__ml_clipboard) insertCodeText(window.__ml_clipboard);
-                    else document.execCommand('paste');
+                    runJupyterCmd('notebook:paste-cell-below');
                 });
-            } else if (window.__ml_clipboard) {
-                insertCodeText(window.__ml_clipboard);
             } else {
-                try { document.execCommand('paste'); } catch(e) {}
+                runJupyterCmd('notebook:paste-cell-below');
             }
         }
 
@@ -423,6 +512,7 @@
         // Prevent virtual keys from stealing editor focus or collapsing selection
         keyStrip.querySelectorAll('.ml-key-btn').forEach(function(b) {
             b.addEventListener('mousedown', function(e) { e.preventDefault(); });
+            b.addEventListener('pointerdown', function(e) { e.preventDefault(); });
         });
 
         // Bind virtual key actions

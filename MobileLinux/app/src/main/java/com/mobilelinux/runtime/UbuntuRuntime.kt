@@ -798,7 +798,7 @@ class UbuntuRuntime(private val context: Context) {
         }
 
         val cmd = if (isRooted) {
-            buildChrootCommand(execCommand)
+            buildChrootCommand(cols, rows, execCommand)
         } else {
             buildProotCommand(sessionId, cols, rows, execCommand)
         }
@@ -928,7 +928,7 @@ class UbuntuRuntime(private val context: Context) {
         return cmd
     }
 
-    private fun buildChrootCommand(execCmd: String?): List<String> {
+    private fun buildChrootCommand(cols: Int, rows: Int, execCmd: String?): List<String> {
         ensureSharedMemoryReady()
         val cmd = mutableListOf(
             "su", "-c",
@@ -939,7 +939,11 @@ class UbuntuRuntime(private val context: Context) {
                 append("/usr/bin/env -i ")
                 append("HOME=/home/ubuntu ")
                 append("TERM=xterm-256color ")
+                append("COLORTERM=truecolor ")
+                append("COLUMNS=$cols ")
+                append("LINES=$rows ")
                 append("LANG=C.UTF-8 ")
+                append("LC_ALL=C.UTF-8 ")
                 append("PATH=/home/ubuntu/.local/bin:/root/.local/bin:/home/ubuntu/go/bin:/root/go/bin:/home/ubuntu/.cargo/bin:/root/.cargo/bin:/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/home/ubuntu/miniconda3/bin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ")
                 append("USER=ubuntu SHELL=/usr/bin/bash ANDROID_HOST=true MOBILELINUX_MODE=chroot TMPDIR=/tmp ")
                 if (execCmd != null) {
@@ -2469,6 +2473,9 @@ class UbuntuRuntime(private val context: Context) {
         "    ln -s /sdcard /root/sdcard 2>/dev/null || true",
         "fi",
         "",
+        "# Enable bash automatic window size checking on resize signals",
+        "shopt -s checkwinsize 2>/dev/null || true",
+        "",
         "# Clean one-line welcome banner ONCE at session start",
         "printf \"\\r\\033[1;36mMobileLinux\\033[0m \\033[0;37m(Ubuntu 24.04 ARM64)\\033[0m — \\033[0;32m~/MobileLinux\\033[0m\\r\\n\\r\\n\"",
         "",
@@ -2497,12 +2504,13 @@ class UbuntuRuntime(private val context: Context) {
         "import select",
         "import errno",
         "import re",
+        "import signal",
         "",
         "def main():",
-        "    cols = int(os.environ.get('COLUMNS', 80))",
-        "    rows = int(os.environ.get('LINES', 24))",
-        "    if cols <= 0: cols = 80",
-        "    if rows <= 0: rows = 24",
+        "    cols = int(os.environ.get('COLUMNS', 46))",
+        "    rows = int(os.environ.get('LINES', 42))",
+        "    if cols <= 0: cols = 46",
+        "    if rows <= 0: rows = 42",
         "",
         "    master_fd, slave_fd = pty.openpty()",
         "",
@@ -2549,16 +2557,24 @@ class UbuntuRuntime(private val context: Context) {
         "                if not data:",
         "                    break",
         "",
-        "                m = pattern.search(data)",
-        "                if m:",
+        "                while True:",
+        "                    m = pattern.search(data)",
+        "                    if not m:",
+        "                        break",
         "                    try:",
         "                        new_rows = int(m.group(1))",
         "                        new_cols = int(m.group(2))",
         "                        if new_rows > 0 and new_cols > 0:",
         "                            fcntl.ioctl(master_fd, termios.TIOCSWINSZ, struct.pack('HHHH', new_rows, new_cols, 0, 0))",
+        "                            os.environ['LINES'] = str(new_rows)",
+        "                            os.environ['COLUMNS'] = str(new_cols)",
+        "                            try:",
+        "                                os.kill(pid, signal.SIGWINCH)",
+        "                            except Exception:",
+        "                                pass",
         "                    except Exception:",
         "                        pass",
-        "                    data = pattern.sub(b'', data)",
+        "                    data = pattern.sub(b'', data, count=1)",
         "",
         "                if data:",
         "                    try:",

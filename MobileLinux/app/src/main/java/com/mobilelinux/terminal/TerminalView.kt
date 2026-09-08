@@ -83,6 +83,16 @@ class TerminalView @JvmOverloads constructor(
             val newRows = max(1, (height / charHeight).toInt())
             buffer.resize(newCols, newRows)
             onTerminalResize?.invoke(newCols, newRows)
+        } else {
+            post {
+                if (charWidth > 0 && charHeight > 0 && width > 0 && height > 0) {
+                    val newCols = max(1, (width / charWidth).toInt())
+                    val newRows = max(1, (height / charHeight).toInt())
+                    buffer.resize(newCols, newRows)
+                    onTerminalResize?.invoke(newCols, newRows)
+                    postInvalidate()
+                }
+            }
         }
         scrollOffset = 0
         clearSelection()
@@ -305,6 +315,15 @@ class TerminalView @JvmOverloads constructor(
         charAscent = -fm.ascent
         charWidth = paint.measureText("M")
         pillTextPaint.textSize = 12f * resources.displayMetrics.scaledDensity
+
+        if (width > 0 && height > 0 && charWidth > 0 && charHeight > 0) {
+            val newCols = max(1, (width / charWidth).toInt())
+            val newRows = max(1, (height / charHeight).toInt())
+            if (newCols != cols || newRows != rows) {
+                resize(newCols, newRows)
+                onTerminalResize?.invoke(newCols, newRows)
+            }
+        }
     }
 
     private fun getLine(absRow: Int): TerminalLine? = buffer.getLine(absRow)
@@ -395,8 +414,11 @@ class TerminalView @JvmOverloads constructor(
                     val attr = rowAttr[col]
 
                     val isReversed = (attr and 16) != 0
-                    val drawFg = if (isReversed) bg else fg
-                    val drawBg = if (isReversed) fg else bg
+                    val rawFg = if (isReversed) bg else fg
+                    val rawBg = if (isReversed) fg else bg
+
+                    val drawBg = rawBg
+                    val drawFg = TerminalColors.ensureContrasting(rawFg, drawBg)
 
                     val x = col * charWidth
 
@@ -499,7 +521,7 @@ class TerminalView @JvmOverloads constructor(
 
                 val ch = buffer.screen.getOrNull(cursorRow)?.getOrNull(cursorCol) ?: ' '
                 if (ch != ' ' && ch != '\u0000') {
-                    paint.color = TerminalColors.DEFAULT_BG
+                    paint.color = TerminalColors.ensureContrasting(TerminalColors.DEFAULT_BG, TerminalColors.CURSOR_COLOR)
                     canvas.drawText(ch.toString(), cx, cy + charAscent, paint)
                 }
             }

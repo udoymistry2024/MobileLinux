@@ -31,27 +31,68 @@ class TerminalManager(private val context: Context) {
     private val sessionProcesses = mutableMapOf<String, SessionProcess>()
 
     /**
+     * Estimates dynamic terminal dimensions based on the physical device screen and font size.
+     * Prevents processes from starting in legacy 80x24 mode on mobile portrait viewports.
+     */
+    fun calculateDefaultDimensions(): Pair<Int, Int> {
+        return try {
+            val dm = context.resources.displayMetrics
+            val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
+            val fontSizeSp = prefs.getInt("pref_font_size", 14).toFloat().coerceIn(8f, 32f)
+
+            val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                try {
+                    typeface = android.graphics.Typeface.createFromAsset(context.assets, "fonts/JetBrainsMono-Regular.ttf")
+                } catch (e: Exception) {
+                    typeface = android.graphics.Typeface.MONOSPACE
+                }
+                textSize = fontSizeSp * dm.scaledDensity
+                isSubpixelText = true
+            }
+            val fm = paint.fontMetrics
+            val charHeight = fm.descent - fm.ascent
+            val charWidth = paint.measureText("M")
+
+            val widthPx = dm.widthPixels
+            // Reserved UI height: toolbar (~56dp) + extra keys bar (~88dp) + system bars (~48dp)
+            val density = dm.density
+            val reservedHeightPx = (56f + 88f + 48f) * density
+            val availableHeightPx = (dm.heightPixels - reservedHeightPx).coerceAtLeast(200f)
+
+            val cols = if (charWidth > 0) (widthPx / charWidth).toInt().coerceIn(20, 200) else 46
+            val rows = if (charHeight > 0) (availableHeightPx / charHeight).toInt().coerceIn(10, 100) else 42
+            Pair(cols, rows)
+        } catch (e: Exception) {
+            Pair(46, 42)
+        }
+    }
+
+    /**
      * Creates a new terminal session and starts the Ubuntu process.
      */
-    fun createSession(name: String? = null, cols: Int = 80, rows: Int = 24): TerminalSession {
+    fun createSession(name: String? = null, cols: Int? = null, rows: Int? = null): TerminalSession {
+        val (defCols, defRows) = calculateDefaultDimensions()
+        val effectiveCols = cols?.takeIf { it > 0 } ?: defCols
+        val effectiveRows = rows?.takeIf { it > 0 } ?: defRows
+
         val sessionNumber = _sessions.value.size + 1
         val session = TerminalSession.createNamed(name ?: "Session $sessionNumber")
 
         try {
             val process = runtime.createSessionProcess(
                 sessionId = session.id,
-                cols = cols,
-                rows = rows
+                cols = effectiveCols,
+                rows = effectiveRows
             )
             val sessionProcess = SessionProcess(session, process)
-            sessionProcess.terminalBuffer.resize(cols, rows)
+            sessionProcess.terminalBuffer.resize(effectiveCols, effectiveRows)
             sessionProcesses[session.id] = sessionProcess
             session.isAlive = true
 
             // Start background I/O reader for this session immediately
             startSessionReader(sessionProcess)
 
-            Log.d(TAG, "Created session: ${session.id} (${session.name})")
+            Log.d(TAG, "Created session: ${session.id} (${session.name}) with size ${effectiveCols}x$effectiveRows")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to create session process: ${e.message}", e)
             session.isAlive = false

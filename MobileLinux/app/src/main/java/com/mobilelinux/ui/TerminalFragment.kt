@@ -107,6 +107,13 @@ class TerminalFragment : Fragment() {
         if (cols > 0 && rows > 0) {
             viewModel.resizeSession(targetSessionId, cols, rows)
         }
+        terminalView.post {
+            val measuredCols = terminalView.getTerminalCols()
+            val measuredRows = terminalView.getTerminalRows()
+            if (measuredCols > 0 && measuredRows > 0) {
+                viewModel.resizeSession(targetSessionId, measuredCols, measuredRows)
+            }
+        }
         terminalView.requestFocus()
         terminalView.invalidate()
     }

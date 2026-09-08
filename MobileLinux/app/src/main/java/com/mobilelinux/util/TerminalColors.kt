@@ -33,7 +33,7 @@ object TerminalColors {
         fg = Color.parseColor("#E6EDF3"),
         cursor = Color.parseColor("#58A6FF"),
         ansi16 = intArrayOf(
-            Color.parseColor("#21262D"), // 0 Black
+            Color.parseColor("#6E7681"), // 0 Black (adjusted for dark bg legibility)
             Color.parseColor("#FF7B72"), // 1 Red
             Color.parseColor("#3FB950"), // 2 Green
             Color.parseColor("#D29922"), // 3 Yellow
@@ -41,7 +41,7 @@ object TerminalColors {
             Color.parseColor("#BC8CFF"), // 5 Magenta
             Color.parseColor("#39C5CF"), // 6 Cyan
             Color.parseColor("#B1BAC4"), // 7 White
-            Color.parseColor("#6E7681"), // 8 Bright Black
+            Color.parseColor("#8B949E"), // 8 Bright Black
             Color.parseColor("#FFA198"), // 9 Bright Red
             Color.parseColor("#56D364"), // 10 Bright Green
             Color.parseColor("#E3B341"), // 11 Bright Yellow
@@ -60,7 +60,7 @@ object TerminalColors {
         fg = Color.parseColor("#F8F8F2"),
         cursor = Color.parseColor("#BD93F9"),
         ansi16 = intArrayOf(
-            Color.parseColor("#21222C"), // 0
+            Color.parseColor("#6272A4"), // 0
             Color.parseColor("#FF5555"), // 1
             Color.parseColor("#50FA7B"), // 2
             Color.parseColor("#F1FA8C"), // 3
@@ -68,7 +68,7 @@ object TerminalColors {
             Color.parseColor("#FF79C6"), // 5
             Color.parseColor("#8BE9FD"), // 6
             Color.parseColor("#F8F8F2"), // 7
-            Color.parseColor("#6272A4"), // 8
+            Color.parseColor("#9DA8C7"), // 8
             Color.parseColor("#FF6E6E"), // 9
             Color.parseColor("#69FF94"), // 10
             Color.parseColor("#FFFFA5"), // 11
@@ -87,7 +87,7 @@ object TerminalColors {
         fg = Color.parseColor("#F8F8F2"),
         cursor = Color.parseColor("#F92672"),
         ansi16 = intArrayOf(
-            Color.parseColor("#272822"), // 0
+            Color.parseColor("#75715E"), // 0
             Color.parseColor("#F92672"), // 1
             Color.parseColor("#A6E22E"), // 2
             Color.parseColor("#F4BF75"), // 3
@@ -95,7 +95,7 @@ object TerminalColors {
             Color.parseColor("#AE81FF"), // 5
             Color.parseColor("#A1EFE4"), // 6
             Color.parseColor("#F8F8F2"), // 7
-            Color.parseColor("#75715E"), // 8
+            Color.parseColor("#A6A28E"), // 8
             Color.parseColor("#F92672"), // 9
             Color.parseColor("#A6E22E"), // 10
             Color.parseColor("#F4BF75"), // 11
@@ -114,7 +114,7 @@ object TerminalColors {
         fg = Color.parseColor("#839496"),
         cursor = Color.parseColor("#268BD2"),
         ansi16 = intArrayOf(
-            Color.parseColor("#073642"), // 0
+            Color.parseColor("#586E75"), // 0
             Color.parseColor("#DC322F"), // 1
             Color.parseColor("#859900"), // 2
             Color.parseColor("#B58900"), // 3
@@ -122,7 +122,7 @@ object TerminalColors {
             Color.parseColor("#D33682"), // 5
             Color.parseColor("#2AA198"), // 6
             Color.parseColor("#EEE8D5"), // 7
-            Color.parseColor("#586E75"), // 8
+            Color.parseColor("#839496"), // 8
             Color.parseColor("#CB4B16"), // 9
             Color.parseColor("#859900"), // 10
             Color.parseColor("#B58900"), // 11
@@ -141,7 +141,7 @@ object TerminalColors {
         fg = Color.parseColor("#ABB2BF"),
         cursor = Color.parseColor("#61AFEF"),
         ansi16 = intArrayOf(
-            Color.parseColor("#282C34"), // 0
+            Color.parseColor("#5C6370"), // 0
             Color.parseColor("#E06C75"), // 1
             Color.parseColor("#98C379"), // 2
             Color.parseColor("#E5C07B"), // 3
@@ -149,7 +149,7 @@ object TerminalColors {
             Color.parseColor("#C678DD"), // 5
             Color.parseColor("#56B6C2"), // 6
             Color.parseColor("#ABB2BF"), // 7
-            Color.parseColor("#5C6370"), // 8
+            Color.parseColor("#828997"), // 8
             Color.parseColor("#E06C75"), // 9
             Color.parseColor("#98C379"), // 10
             Color.parseColor("#E5C07B"), // 11
@@ -195,11 +195,78 @@ object TerminalColors {
                 )
             }
             in 232..255 -> {
-                val gray = 8 + (index - 232) * 10
+                // Adjust darkest 232-238 grays to ensure readability against dark backgrounds
+                val gray = if (index < 239) {
+                    60 + (index - 232) * 8
+                } else {
+                    8 + (index - 232) * 10
+                }
                 Color.rgb(gray, gray, gray)
             }
             else -> currentScheme.fg
         }
+    }
+
+    // Fast contrast cache: packs (fg, bg) -> high-contrast fg
+    private val contrastCache = android.util.LongSparseArray<Int>(256)
+
+    /**
+     * Ensures foreground text has sufficient perceptual contrast against the background cell.
+     * Prevents invisible or hard-to-read text on dark backgrounds (e.g. Google Antigravity CLI,
+     * Gemini CLI, Claude, Python Rich, Chalk output).
+     */
+    fun ensureContrasting(fg: Int, bg: Int, minDifference: Int = 90): Int {
+        if (fg == DEFAULT_FG && bg == DEFAULT_BG) return fg
+
+        val key = (fg.toLong() shl 32) or (bg.toLong() and 0xFFFFFFFFL)
+        val cached = contrastCache.get(key)
+        if (cached != null) return cached
+
+        val bgR = (bg shr 16) and 0xFF
+        val bgG = (bg shr 8) and 0xFF
+        val bgB = bg and 0xFF
+        val bgY = (299 * bgR + 587 * bgG + 114 * bgB) / 1000
+
+        val fgR = (fg shr 16) and 0xFF
+        val fgG = (fg shr 8) and 0xFF
+        val fgB = fg and 0xFF
+        val fgY = (299 * fgR + 587 * fgG + 114 * fgB) / 1000
+
+        val diff = kotlin.math.abs(fgY - bgY)
+        val result = if (diff >= minDifference) {
+            fg
+        } else if (bgY < 128) {
+            // Dark background: brighten foreground to at least bgY + minDifference
+            val targetY = kotlin.math.min(255, bgY + minDifference)
+            if (fgY <= 15) {
+                // Pure black or near-black on dark bg: boost to crisp legible neutral slate
+                Color.rgb(150, 160, 175)
+            } else {
+                val boost = targetY.toFloat() / fgY.toFloat()
+                val r = kotlin.math.min(255, (fgR * boost).toInt())
+                val g = kotlin.math.min(255, (fgG * boost).toInt())
+                val b = kotlin.math.min(255, (fgB * boost).toInt())
+                Color.rgb(r, g, b)
+            }
+        } else {
+            // Light background: darken foreground
+            val targetY = kotlin.math.max(0, bgY - minDifference)
+            if (fgY >= 240) {
+                Color.rgb(30, 30, 30)
+            } else {
+                val scale = targetY.toFloat() / fgY.toFloat()
+                val r = kotlin.math.max(0, (fgR * scale).toInt())
+                val g = kotlin.math.max(0, (fgG * scale).toInt())
+                val b = kotlin.math.max(0, (fgB * scale).toInt())
+                Color.rgb(r, g, b)
+            }
+        }
+
+        if (contrastCache.size() > 512) {
+            contrastCache.clear()
+        }
+        contrastCache.put(key, result)
+        return result
     }
 
     // Attr flags

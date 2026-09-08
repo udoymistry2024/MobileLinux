@@ -84,6 +84,25 @@
             android:exported="false"
             android:parentActivityName=".ui.MainActivity" />
 
+        <!-- Integrated Chromium Developer Browser -->
+        <activity
+            android:name=".ui.DevBrowserActivity"
+            android:exported="true"
+            android:screenOrientation="unspecified"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|smallestScreenSize|orientation|uiMode"
+            android:theme="@style/Theme.MobileLinux">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" android:host="localhost" />
+                <data android:scheme="http" android:host="127.0.0.1" />
+                <data android:scheme="https" android:host="localhost" />
+                <data android:scheme="https" android:host="127.0.0.1" />
+            </intent-filter>
+        </activity>
+
         <!-- ================================================================
              BACKGROUND SERVICE — Android 14/15 Compatible
              ================================================================ -->

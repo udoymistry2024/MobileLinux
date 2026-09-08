@@ -904,7 +904,8 @@ class UbuntuRuntime(private val context: Context) {
             "LOGNAME=ubuntu",
             "ANDROID_HOST=true",
             "MOBILELINUX_MODE=proot",
-            "MOBILELINUX_SESSION=$sessionId"
+            "MOBILELINUX_SESSION=$sessionId",
+            "BROWSER=/usr/local/bin/xdg-open"
         )
         val netlinkShim = File(rootfsDir, "usr/local/lib/libfixgetifaddrs.so")
         if (netlinkShim.exists()) {
@@ -1294,6 +1295,15 @@ class UbuntuRuntime(private val context: Context) {
             fixJupyterMobileFile.setExecutable(true, false)
             fixJupyterMobileFile.setReadable(true, false)
 
+            // Browser dispatchers for integrated MobileLinux Dev Browser (xdg-open, sensible-browser, etc.)
+            val xdgOpenScript = getXdgOpenScript()
+            listOf("xdg-open", "x-www-browser", "sensible-browser", "www-browser").forEach { browserCmd ->
+                val bFile = File(usrLocalBin, browserCmd)
+                safeWriteFile(bFile, xdgOpenScript)
+                bFile.setExecutable(true, false)
+                bFile.setReadable(true, false)
+            }
+
             // Install Smart Python CLI Utilities in /usr/local/bin
             for (cfg in pythonCliConfigs) {
                 try {
@@ -1327,7 +1337,11 @@ class UbuntuRuntime(private val context: Context) {
                     }
                 }
 
-                val toolsToLink = listOf("pkg-install-python", "pkg-uninstall-python", "conda-sync-packages", "conda-sync", "conda-manager", "install-jupyter", "jupyter-start", "jupyter-notebook", "jupyter-lab") + pythonCliConfigs.map { it.cmdName }
+                val toolsToLink = listOf(
+                    "pkg-install-python", "pkg-uninstall-python", "conda-sync-packages", "conda-sync",
+                    "conda-manager", "install-jupyter", "jupyter-start", "jupyter-notebook", "jupyter-lab",
+                    "xdg-open", "x-www-browser", "sensible-browser", "www-browser"
+                ) + pythonCliConfigs.map { it.cmdName }
                 for (cBin in condaBins) {
                     for (tool in toolsToLink) {
                         val targetLink = File(cBin, tool)
@@ -1412,6 +1426,22 @@ class UbuntuRuntime(private val context: Context) {
                             export LS_COLORS="rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=00:tw=01;34:ow=01;34:st=01;34:ex=01;32:"
                         fi
                     """.trimIndent()).append("\n")
+                    existing = sb.toString()
+                    modified = true
+                }
+                // Ensure BROWSER points to integrated MobileLinux Dev Browser dispatcher
+                if (!existing.contains("export BROWSER=")) {
+                    val sb = StringBuilder(existing)
+                    if (!existing.endsWith("\n") && existing.isNotEmpty()) sb.append("\n")
+                    sb.append("export BROWSER=\"/usr/local/bin/xdg-open\"\n")
+                    existing = sb.toString()
+                    modified = true
+                }
+                if (!existing.contains("alias open=")) {
+                    val sb = StringBuilder(existing)
+                    if (!existing.endsWith("\n") && existing.isNotEmpty()) sb.append("\n")
+                    sb.append("alias open='/usr/local/bin/xdg-open'\n")
+                    sb.append("alias xdg-open='/usr/local/bin/xdg-open'\n")
                     existing = sb.toString()
                     modified = true
                 }
@@ -1524,6 +1554,22 @@ class UbuntuRuntime(private val context: Context) {
                             export LS_COLORS="rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=00:tw=01;34:ow=01;34:st=01;34:ex=01;32:"
                         fi
                     """.trimIndent()).append("\n")
+                    existing = sb.toString()
+                    modified = true
+                }
+                // Ensure BROWSER points to integrated MobileLinux Dev Browser dispatcher
+                if (!existing.contains("export BROWSER=")) {
+                    val sb = StringBuilder(existing)
+                    if (!existing.endsWith("\n") && existing.isNotEmpty()) sb.append("\n")
+                    sb.append("export BROWSER=\"/usr/local/bin/xdg-open\"\n")
+                    existing = sb.toString()
+                    modified = true
+                }
+                if (!existing.contains("alias open=")) {
+                    val sb = StringBuilder(existing)
+                    if (!existing.endsWith("\n") && existing.isNotEmpty()) sb.append("\n")
+                    sb.append("alias open='/usr/local/bin/xdg-open'\n")
+                    sb.append("alias xdg-open='/usr/local/bin/xdg-open'\n")
                     existing = sb.toString()
                     modified = true
                 }
@@ -1962,11 +2008,53 @@ class UbuntuRuntime(private val context: Context) {
         "    /usr/local/bin/fix-jupyter-mobile >/dev/null 2>&1 || true",
         "fi",
         "",
+        "(sleep 2 && /usr/local/bin/xdg-open \"http://127.0.0.1:8888\" >/dev/null 2>&1) &",
         "if [ \$HAS_NOTEBOOK -eq 1 ]; then",
         "    exec \$JUPYTER_CMD notebook --allow-root --no-browser --ip=127.0.0.1 --JupyterNotebookApp.expose_app_in_browser=True --LabApp.expose_app_in_browser=True \"\$@\"",
         "else",
         "    exec \$JUPYTER_CMD lab --allow-root --no-browser --ip=127.0.0.1 --LabApp.expose_app_in_browser=True --JupyterNotebookApp.expose_app_in_browser=True \"\$@\"",
         "fi\n"
+    ).joinToString("\n")
+
+    private fun getXdgOpenScript(): String = listOf(
+        "#!/bin/bash",
+        "# MobileLinux - Integrated Dev Browser Dispatcher",
+        "# Automatically routes web URLs and local HTML files to the integrated Dev Browser",
+        "TARGET=\"\$1\"",
+        "if [ -z \"\$TARGET\" ]; then",
+        "    echo \"Usage: xdg-open <url-or-file>\" >&2",
+        "    exit 1",
+        "fi",
+        "",
+        "# If target is an existing local file or relative path, normalize it",
+        "if [ -f \"\$TARGET\" ]; then",
+        "    REAL_P=\$(realpath \"\$TARGET\" 2>/dev/null || echo \"\$TARGET\")",
+        "    TARGET=\"file://\$REAL_P\"",
+        "fi",
+        "",
+        "# 1. Primary IPC trigger: /dev/shm/.open_url",
+        "NOTIFIED=0",
+        "if [ -d \"/dev/shm\" ]; then",
+        "    if printf \"%s\\n\" \"\$TARGET\" > /dev/shm/.open_url 2>/dev/null; then",
+        "        chmod 666 /dev/shm/.open_url 2>/dev/null || true",
+        "        NOTIFIED=1",
+        "    fi",
+        "fi",
+        "",
+        "# 2. Fallback IPC trigger: /tmp/.open_url",
+        "if [ \$NOTIFIED -eq 0 ]; then",
+        "    if printf \"%s\\n\" \"\$TARGET\" > /tmp/.open_url 2>/dev/null; then",
+        "        chmod 666 /tmp/.open_url 2>/dev/null || true",
+        "        NOTIFIED=1",
+        "    fi",
+        "fi",
+        "",
+        "# 3. Fallback: Android am start (if available)",
+        "if [ -x /system/bin/am ]; then",
+        "    /system/bin/am start -a android.intent.action.VIEW -d \"\$TARGET\" >/dev/null 2>&1 || true",
+        "fi",
+        "",
+        "exit 0\n"
     ).joinToString("\n")
 
     private fun getCondaWrapperScript(): String = listOf(
@@ -2203,6 +2291,7 @@ class UbuntuRuntime(private val context: Context) {
         "export LOGNAME=ubuntu",
         "export HOME=/home/ubuntu",
         "export TMPDIR=/tmp",
+        "export BROWSER=/usr/local/bin/xdg-open",
         "export PATH=\"/home/ubuntu/.local/bin:/root/.local/bin:/home/ubuntu/go/bin:/root/go/bin:/home/ubuntu/.cargo/bin:/root/.cargo/bin:/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games\"",
         "shopt -s checkwinsize",
         "",
@@ -2223,6 +2312,8 @@ class UbuntuRuntime(private val context: Context) {
         "alias install='sudo apt-get install -y'",
         "alias clear='printf \"\\033[H\\033[2J\\033[3J\"'",
         "alias cls='printf \"\\033[H\\033[2J\\033[3J\"'",
+        "alias open='/usr/local/bin/xdg-open'",
+        "alias xdg-open='/usr/local/bin/xdg-open'",
         "alias install-tools='/usr/local/bin/install-tools'",
         "alias pkg-install='/usr/local/bin/pkg-install'",
         "alias fix-perms='/usr/local/bin/fix-permissions'",
@@ -2248,6 +2339,7 @@ class UbuntuRuntime(private val context: Context) {
         "export LOGNAME=root",
         "export HOME=/root",
         "export TMPDIR=/tmp",
+        "export BROWSER=/usr/local/bin/xdg-open",
         "export PATH=\"/root/.local/bin:/home/ubuntu/.local/bin:/root/go/bin:/home/ubuntu/go/bin:/root/.cargo/bin:/home/ubuntu/.cargo/bin:/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games\"",
         "shopt -s checkwinsize",
         "",
@@ -2268,6 +2360,8 @@ class UbuntuRuntime(private val context: Context) {
         "alias install='apt-get install -y'",
         "alias clear='printf \"\\033[H\\033[2J\\033[3J\"'",
         "alias cls='printf \"\\033[H\\033[2J\\033[3J\"'",
+        "alias open='/usr/local/bin/xdg-open'",
+        "alias xdg-open='/usr/local/bin/xdg-open'",
         "alias install-tools='/usr/local/bin/install-tools'",
         "alias pkg-install='/usr/local/bin/pkg-install'",
         "alias fix-perms='/usr/local/bin/fix-permissions'",
@@ -3156,6 +3250,7 @@ class UbuntuRuntime(private val context: Context) {
         "if [ -x /usr/local/bin/fix-jupyter-mobile ]; then",
         "    /usr/local/bin/fix-jupyter-mobile >/dev/null 2>&1 || true",
         "fi",
+        "(sleep 2 && /usr/local/bin/xdg-open \"http://127.0.0.1:8888\" >/dev/null 2>&1) &",
         "if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/python\" ] && \"\$CONDA_PREFIX/bin/python\" -c \"import notebook\" 2>/dev/null; then",
         "    exec \"\$CONDA_PREFIX/bin/python\" -m notebook --allow-root --no-browser --ip=127.0.0.1 --JupyterNotebookApp.expose_app_in_browser=True --LabApp.expose_app_in_browser=True \"\$@\"",
         "elif [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c \"import notebook\" 2>/dev/null; then",
@@ -3184,6 +3279,7 @@ class UbuntuRuntime(private val context: Context) {
         "if [ -x /usr/local/bin/fix-jupyter-mobile ]; then",
         "    /usr/local/bin/fix-jupyter-mobile >/dev/null 2>&1 || true",
         "fi",
+        "(sleep 2 && /usr/local/bin/xdg-open \"http://127.0.0.1:8888\" >/dev/null 2>&1) &",
         "if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/python\" ] && \"\$CONDA_PREFIX/bin/python\" -c \"import jupyterlab\" 2>/dev/null; then",
         "    exec \"\$CONDA_PREFIX/bin/python\" -m jupyterlab --allow-root --no-browser --ip=127.0.0.1 --LabApp.expose_app_in_browser=True --JupyterNotebookApp.expose_app_in_browser=True \"\$@\"",
         "elif [ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c \"import jupyterlab\" 2>/dev/null; then",

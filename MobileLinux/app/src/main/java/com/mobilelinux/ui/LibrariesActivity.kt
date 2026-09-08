@@ -620,8 +620,7 @@ class LibrariesActivity : AppCompatActivity() {
         val url = pkg.launchUrl
         if (!url.isNullOrEmpty()) {
             try {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                startActivity(intent)
+                DevBrowserActivity.openUrl(this, url)
             } catch (e: Exception) {
                 Toast.makeText(this, "Could not open browser: ${e.message}", Toast.LENGTH_SHORT).show()
             }

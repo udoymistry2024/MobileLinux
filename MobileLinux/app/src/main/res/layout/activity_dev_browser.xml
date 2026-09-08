@@ -1,0 +1,296 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/layout_dev_browser_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/terminal_bg"
+    android:fitsSystemWindows="false">
+
+    <!-- Top Action Bar -->
+    <LinearLayout
+        android:id="@+id/browser_top_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="54dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@color/toolbar_bg"
+        android:paddingStart="6dp"
+        android:paddingEnd="6dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp">
+
+        <!-- Back to Terminal button -->
+        <ImageButton
+            android:id="@+id/btn_browser_close"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:src="@drawable/ic_close"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="@color/text_primary"
+            android:contentDescription="Close Browser" />
+
+        <!-- Address Bar Container -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="38dp"
+            android:layout_weight="1"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp"
+            android:background="@drawable/bg_search_bar"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="8dp"
+            android:paddingEnd="6dp">
+
+            <ImageView
+                android:id="@+id/iv_ssl_indicator"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_globe"
+                app:tint="@color/accent_blue"
+                android:contentDescription="Security Indicator" />
+
+            <EditText
+                android:id="@+id/et_browser_url"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_marginStart="6dp"
+                android:layout_marginEnd="4dp"
+                android:background="@null"
+                android:hint="Search Google or type URL (e.g. localhost:8888)"
+                android:textColorHint="@color/text_hint"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                android:singleLine="true"
+                android:maxLines="1"
+                android:inputType="textUri"
+                android:imeOptions="actionGo" />
+
+            <ImageButton
+                android:id="@+id/btn_clear_url"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_close"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                app:tint="@color/text_secondary"
+                android:visibility="gone"
+                android:contentDescription="Clear URL" />
+        </LinearLayout>
+
+        <!-- Reload Button -->
+        <ImageButton
+            android:id="@+id/btn_browser_refresh"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:src="@drawable/ic_refresh"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="@color/text_primary"
+            android:contentDescription="Refresh" />
+
+        <!-- Menu Button -->
+        <ImageButton
+            android:id="@+id/btn_browser_menu"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:src="@drawable/ic_more_vert"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="@color/text_primary"
+            android:contentDescription="Menu" />
+    </LinearLayout>
+
+    <!-- Page Loading Progress Bar -->
+    <ProgressBar
+        android:id="@+id/pb_browser"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="2.5dp"
+        android:max="100"
+        android:progressTint="@color/accent_blue"
+        android:visibility="gone" />
+
+    <!-- Quick Dev Port Shortcuts Bar -->
+    <HorizontalScrollView
+        android:id="@+id/hsv_quick_chips"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/sidebar_bg"
+        android:scrollbars="none"
+        android:paddingTop="4dp"
+        android:paddingBottom="5dp"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/chip_jupyter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="⚡ Jupyter (:8888)"
+                android:textSize="12sp"
+                android:textColor="@color/accent_yellow"
+                android:background="@drawable/bg_browser_chip"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:layout_marginEnd="6dp" />
+
+            <TextView
+                android:id="@+id/chip_port_3000"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Port 3000 (Node)"
+                android:textSize="12sp"
+                android:textColor="@color/accent_cyan"
+                android:background="@drawable/bg_browser_chip"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:layout_marginEnd="6dp" />
+
+            <TextView
+                android:id="@+id/chip_port_5000"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Port 5000 (Flask)"
+                android:textSize="12sp"
+                android:textColor="@color/accent_green"
+                android:background="@drawable/bg_browser_chip"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:layout_marginEnd="6dp" />
+
+            <TextView
+                android:id="@+id/chip_port_8000"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Port 8000 (FastAPI)"
+                android:textSize="12sp"
+                android:textColor="@color/accent_blue"
+                android:background="@drawable/bg_browser_chip"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:layout_marginEnd="6dp" />
+
+            <TextView
+                android:id="@+id/chip_port_8080"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Port 8080 (Web)"
+                android:textSize="12sp"
+                android:textColor="@color/text_primary"
+                android:background="@drawable/bg_browser_chip"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:layout_marginEnd="6dp" />
+
+            <TextView
+                android:id="@+id/chip_google"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Google"
+                android:textSize="12sp"
+                android:textColor="@color/text_secondary"
+                android:background="@drawable/bg_browser_chip"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:layout_marginEnd="6dp" />
+
+            <TextView
+                android:id="@+id/chip_github"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="GitHub"
+                android:textSize="12sp"
+                android:textColor="@color/text_secondary"
+                android:background="@drawable/bg_browser_chip"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp" />
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <!-- Main Content Frame -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <!-- Chromium WebView -->
+        <WebView
+            android:id="@+id/dev_web_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/terminal_bg" />
+
+        <!-- Error / Connection State Overlay -->
+        <LinearLayout
+            android:id="@+id/layout_browser_error"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="24dp"
+            android:background="@color/terminal_bg"
+            android:visibility="gone">
+
+            <ImageView
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:src="@drawable/ic_globe"
+                app:tint="@color/text_secondary"
+                android:layout_marginBottom="16dp"
+                android:contentDescription="Error Icon" />
+
+            <TextView
+                android:id="@+id/tv_error_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Could Not Connect"
+                android:textColor="@color/text_primary"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:id="@+id/tv_error_desc"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="The local server or webpage at this address may not be running yet."
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp"
+                android:gravity="center"
+                android:layout_marginBottom="20dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_retry_load"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Retry Connection"
+                android:textColor="@color/colorOnPrimary"
+                app:backgroundTint="@color/accent_blue"
+                app:cornerRadius="8dp" />
+        </LinearLayout>
+    </FrameLayout>
+
+</LinearLayout>

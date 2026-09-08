@@ -50,6 +50,7 @@ class MainActivity : AppCompatActivity() {
     private var linuxService: LinuxService? = null
     private var serviceConnected = false
     private var hasCreatedInitialSession = false
+    private var browserUrlObserver: com.mobilelinux.util.BrowserUrlTriggerObserver? = null
 
     // Android 13+ notification permission request
     private val notificationPermissionLauncher =
@@ -104,6 +105,16 @@ class MainActivity : AppCompatActivity() {
             viewModel.createSession("Main")
         }
         hasCreatedInitialSession = true
+
+        // Initialize terminal browser trigger observer
+        try {
+            val runtime = com.mobilelinux.runtime.UbuntuRuntime.getInstance(this)
+            val shmDir = runtime.ensureSharedMemoryReady()
+            val tmpDir = java.io.File(runtime.rootfsDir, "tmp")
+            browserUrlObserver = com.mobilelinux.util.BrowserUrlTriggerObserver(this, listOf(shmDir, tmpDir)).apply {
+                start()
+            }
+        } catch (ignored: Exception) {}
     }
 
     override fun onResume() {
@@ -254,6 +265,10 @@ class MainActivity : AppCompatActivity() {
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         if (drawerToggle.onOptionsItemSelected(item)) return true
         return when (item.itemId) {
+            R.id.action_open_browser -> {
+                openDevBrowser()
+                true
+            }
             R.id.action_new_session -> {
                 val session = viewModel.createSession()
                 showTerminalFragment(session)
@@ -288,9 +303,13 @@ class MainActivity : AppCompatActivity() {
     fun closeDrawer() = drawerLayout.closeDrawer(GravityCompat.START)
     fun openLibraries() = startActivity(Intent(this, LibrariesActivity::class.java))
     fun openSettings() = startActivity(Intent(this, SettingsActivity::class.java))
+    fun openDevBrowser(url: String = DevBrowserActivity.DEFAULT_HOME_URL) {
+        DevBrowserActivity.openUrl(this, url)
+    }
 
     override fun onDestroy() {
         super.onDestroy()
+        browserUrlObserver?.stop()
         if (serviceConnected) {
             try { unbindService(serviceConnection) } catch (e: Exception) { /* ignore */ }
         }

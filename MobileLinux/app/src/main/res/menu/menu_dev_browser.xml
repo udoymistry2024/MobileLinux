@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/menu_desktop_mode"
+        android:title="Desktop Site"
+        android:checkable="true"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/menu_view_console"
+        android:title="Console Logs"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/menu_copy_url"
+        android:title="Copy URL"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/menu_open_external"
+        android:title="Open in External Browser"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/menu_clear_cache"
+        android:title="Clear Cache &amp; Storage"
+        app:showAsAction="never" />
+
+</menu>

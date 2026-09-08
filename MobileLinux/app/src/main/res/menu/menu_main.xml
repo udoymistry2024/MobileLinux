@@ -3,6 +3,13 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
+        android:id="@+id/action_open_browser"
+        android:title="Browser"
+        android:icon="@drawable/ic_globe"
+        app:showAsAction="ifRoom"
+        android:orderInCategory="0" />
+
+    <item
         android:id="@+id/action_new_session"
         android:title="@string/action_new_session"
         android:icon="@drawable/ic_add_session"

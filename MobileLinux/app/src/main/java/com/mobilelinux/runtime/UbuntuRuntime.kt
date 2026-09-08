@@ -2088,7 +2088,7 @@ class UbuntuRuntime(private val context: Context) {
         "",
         "if ! command -v vncserver >/dev/null 2>&1 || ! command -v startxfce4 >/dev/null 2>&1; then",
         "    echo -e \"\\033[1;31m[MobileLinux]\\033[0m Desktop environment not installed.\"",
-        "    echo -e \"Run \\033[1;33msudo apt update && sudo apt install -y --no-install-recommends xfce4 xfce4-terminal tigervnc-standalone-server dbus-x11\\033[0m to install.\"",
+        "    echo -e \"Run \\033[1;33msudo apt update && sudo apt install -y --no-install-recommends xfce4 xfce4-terminal tigervnc-standalone-server tigervnc-common dbus-x11\\033[0m to install.\"",
         "    exit 1",
         "fi",
         "",

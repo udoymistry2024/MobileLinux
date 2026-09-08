@@ -342,12 +342,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun showInstallDesktopPrompt() {
         MaterialAlertDialogBuilder(this)
-            .setTitle("Install Desktop Mode?")
-            .setMessage("Desktop Mode requires the lightweight XFCE4 graphical desktop and TigerVNC standalone server (~250 MB download).\n\nWould you like to install and launch it now?")
-            .setPositiveButton("Install & Launch") { _, _ ->
+            .setTitle("Reinstall Desktop Mode?")
+            .setMessage("Desktop Mode is currently not installed. Would you like to reinstall and launch the XFCE4 desktop environment now?")
+            .setPositiveButton("Reinstall & Launch") { _, _ ->
                 startDesktopInstallation()
             }
-            .setNeutralButton("Open Package Store") { _, _ ->
+            .setNeutralButton("Libraries & Packages") { _, _ ->
                 openLibraries()
             }
             .setNegativeButton("Cancel", null)
@@ -404,6 +404,12 @@ class MainActivity : AppCompatActivity() {
                 val hasVnc = File(rootfs, "usr/bin/vncserver").exists() || File(rootfs, "usr/bin/Xvnc").exists()
 
                 if (hasXfce && hasVnc) {
+                    try {
+                        val prefs = getSharedPreferences("packages_state_cache", Context.MODE_PRIVATE)
+                        val set = (prefs.getStringSet("installed_ids", emptySet()) ?: emptySet()).toMutableSet()
+                        set.add("xfce4-desktop")
+                        prefs.edit().putStringSet("installed_ids", set).apply()
+                    } catch (ignored: Exception) {}
                     Toast.makeText(this@MainActivity, "Desktop Installed Successfully!", Toast.LENGTH_SHORT).show()
                     startActivity(Intent(this@MainActivity, DesktopActivity::class.java))
                 } else {

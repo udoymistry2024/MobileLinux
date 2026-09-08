@@ -242,6 +242,8 @@ class LibrariesActivity : AppCompatActivity() {
         // Instant Cache from SharedPreferences: shows installed status in 0ms on startup
         val prefs = getSharedPreferences("packages_state_cache", Context.MODE_PRIVATE)
         val savedInstalled = getCachedInstalledIds(prefs)
+        val hasExplicitCache = prefs.contains("installed_ids")
+        val isDesktopBinaryPresent = java.io.File(runtime.rootfsDir, "usr/bin/startxfce4").exists() || java.io.File(runtime.rootfsDir, "usr/bin/vncserver").exists()
 
         curated.forEach { pkg ->
             if (pkg.id == "miniconda") {
@@ -249,6 +251,11 @@ class LibrariesActivity : AppCompatActivity() {
                     pkg.isInstalled = true
                     pkg.isActivated = true
                     pkg.statusText = "Active & Ready (base)"
+                }
+            } else if (pkg.id == "xfce4-desktop") {
+                if (savedInstalled.contains("xfce4-desktop") || (!hasExplicitCache && isDesktopBinaryPresent) || isDesktopBinaryPresent) {
+                    pkg.isInstalled = true
+                    pkg.statusText = "Installed and ready"
                 }
             } else if (savedInstalled.contains(pkg.id)) {
                 pkg.isInstalled = true
@@ -523,11 +530,13 @@ class LibrariesActivity : AppCompatActivity() {
                                 val currentSet = getCachedInstalledIds(prefs)
                                 currentSet.add(pkg.id)
                                 prefs.edit().putStringSet("installed_ids", currentSet).apply()
-                                if (pkg.id == "jupyterlab" || pkg.id == "jupyter") {
+                                if (pkg.id == "xfce4-desktop" || pkg.id == "jupyterlab" || pkg.id == "jupyter") {
                                     withContext(Dispatchers.IO) {
                                         try {
                                             runtime.installCommandWrappers()
-                                            runtime.patchJupyterTemplatesForMobile()
+                                            if (pkg.id == "jupyterlab" || pkg.id == "jupyter") {
+                                                runtime.patchJupyterTemplatesForMobile()
+                                            }
                                         } catch (ignored: Exception) {}
                                     }
                                 }

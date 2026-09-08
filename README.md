@@ -92,7 +92,7 @@ Whether you are compiling C/C++ projects with `gcc`, running a **Miniforge / Con
 
 ### 1. Download & Install
 Download the latest signed release APK from [**GitHub Releases**](https://github.com/udoymistry2024/MobileLinux/releases):
-- **`MobileLinux-v1.5.5.apk`** (or `MobileLinux-latest.apk`)
+- **`MobileLinux-v1.5.5-stable.apk`** (or `MobileLinux-latest.apk`)
 
 Install the APK on any device running **Android 8.0 (Oreo) or higher** (Targeting Android 15 / API 35).
 

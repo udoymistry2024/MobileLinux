@@ -10,12 +10,13 @@
   [![Platform](https://img.shields.io/badge/Platform-Android%208.0%2B-3DDC84.svg?logo=android&logoColor=white)](https://github.com/udoymistry2024/MobileLinux/releases)
   [![OS: Ubuntu 24.04 LTS](https://img.shields.io/badge/Ubuntu-24.04%20LTS-E95420.svg?logo=ubuntu&logoColor=white)](https://ubuntu.com)
   [![Architecture](https://img.shields.io/badge/Arch-ARM64%20%7C%20ARMv7-007ACC.svg)](#architecture)
-  [![Version](https://img.shields.io/badge/Version-1.5.0-blueviolet.svg)](https://github.com/udoymistry2024/MobileLinux/releases)
+  [![Version](https://img.shields.io/badge/Version-1.5.1-blueviolet.svg)](https://github.com/udoymistry2024/MobileLinux/releases)
 
   <p align="center">
     <a href="#key-features">Key Features</a> •
     <a href="#comparison">Comparison</a> •
     <a href="#quick-start">Quick Start</a> •
+    <a href="#whats-new">What's New</a> •
     <a href="#architecture">Architecture</a> •
     <a href="#building-from-source">Build from Source</a> •
     <a href="#license">License</a>
@@ -91,7 +92,7 @@ Whether you are compiling C/C++ projects with `gcc`, running a **Miniforge / Con
 
 ### 1. Download & Install
 Download the latest signed release APK from [**GitHub Releases**](https://github.com/udoymistry2024/MobileLinux/releases):
-- **`MobileLinux-v1.4.9.apk`** (or `MobileLinux-latest.apk`)
+- **`MobileLinux-v1.5.1-beta.apk`** (or `MobileLinux-latest.apk`)
 
 Install the APK on any device running **Android 8.0 (Oreo) or higher** (Targeting Android 15 / API 35).
 
@@ -135,13 +136,18 @@ bash Miniforge3-Linux-aarch64.sh
 
 ---
 
-## 🆕 What's New in v1.4.9
+<a name="whats-new"></a>
+## 🆕 What's New
 
-- 🔍 **Comprehensive Audit of All 376 Packages:** Rigorously verified and repaired installation, uninstallation, and verification logic across all 10 categories in the Libraries & Packages store.
-- 🐍 **Smart Python CLI Architecture:** Direct terminal CLI commands (`numpy`, `pandas`, `scipy`, `sklearn`, `torch`, `matplotlib`, `seaborn`, `polars`, `sympy`) out-of-the-box with version display, interactive test shells, dynamic `pkg-install-python` wrapper generation, and shell `command_not_found_handle`.
-- 🛡️ **Universal Uninstallation Verification:** Fixed uninstallation verification to evaluate raw check commands rather than stripped binary names, eliminating false-negatives across Python modules, CLI flags, and filesystem paths.
-- 📦 **Repaired Standalone Package Installers:** Replaced placeholder commands with official ARM64 binary downloads (CockroachDB), added user-level PATH detection for Cargo/Rust and Bun (`~/.cargo/bin`, `~/.bun/bin`), and verified all build prerequisites.
-- ⚡ **Production-Ready Android 15 Release:** Signed release APK built with Target SDK 35, ProGuard optimizations, and baseline profile compilation.
+### v1.5.1 (Beta)
+- 🎨 **Setup Wizard Modernization & Visual Polish:** Redesigned initial setup, live progress, and completion screens with GitHub dark cards, system spec badges (`ARM64`, `Rootless PRoot`, `Noble 24.04`), and thumb-friendly bottom-anchored buttons.
+- 🐧 **New Frameless Squircle App Logo:** Integrated a high-resolution, transparent RGBA squircle penguin logo with seamless edge blending and zero white rectangular borders.
+- 📊 **4-Phase Live Installation Pipeline:** Interactive stage tracker displaying real-time extraction progress across PRoot 5.4 Engine, Ubuntu 24.04 ARM64 Rootfs, System Configuration, and Storage/APT integration.
+- 📱 **Full-Screen Responsive Layout:** Eliminated top-clustering on tall modern devices, distributing content gracefully with dynamic vertical spacers.
+
+### v1.5.0
+- 📓 **Jupyter Notebook 7 `/tree` Touch Fix:** Patched Lumino touch events, Chrome popup blocker bypass, mobile quick actions floating bar, and template patchers for unhindered mobile file navigation and notebook creation.
+- 🐍 **Miniconda3 / Conda Live Streaming & Auto-Activation:** Resolved 40% download stalls with live streaming progress, fast-path instant configuration, automatic `(base)` environment activation, and clean uninstallation syntax.
 
 ---
 
@@ -167,10 +173,10 @@ graph TD
     
     subgraph "Ubuntu 24.04 LTS Userland (glibc)"
         G --> K[Bash / Zsh Interactive Shell]
-        K --> L["APT Package Manager (apt-get)"]
-        K --> M[Python 3 / Miniconda / PyTorch]
-        K --> N[GCC / Clang / Make Build Tools]
-        K --> O[GNU Nano / Vim / Tmux]
+        G --> L["APT Package Manager (apt-get)"]
+        G --> M[Python 3 / Miniconda / PyTorch]
+        G --> N[GCC / Clang / Make Build Tools]
+        G --> O[GNU Nano / Vim / Tmux]
     end
 ```
 

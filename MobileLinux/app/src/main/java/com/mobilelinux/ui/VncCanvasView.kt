@@ -12,6 +12,7 @@ import android.graphics.RectF
 import android.util.AttributeSet
 import android.util.Log
 import android.view.GestureDetector
+import android.view.HapticFeedbackConstants
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -100,9 +101,31 @@ class VncCanvasView @JvmOverloads constructor(
     private var lastTouchX = 0f
     private var lastTouchY = 0f
     private var touchStartTime = 0L
+
+    // Tap-to-Drag (Double-tap & hold to drag / select text / move windows)
+    private var lastTapUpTime = 0L
+    private var lastTapUpX = 0f
+    private var lastTapUpY = 0f
+    private var isTapDragActive = false
+
+    // Two-finger gestures (2-finger tap = Right Click, 2-finger drag = Scroll)
     private var isTwoFingerGesture = false
-    private var initialTwoFingerDist = 0f
+    private var twoFingerDownTime = 0L
+    private var twoFingerMoved = false
     private var lastTwoFingerY = 0f
+
+    // Long-press for Right Click
+    private var hasPerformedLongPress = false
+    private val longPressHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val longPressRunnable = Runnable {
+        if (!isTwoFingerGesture && !isTapDragActive && isRunning.get()) {
+            hasPerformedLongPress = true
+            try {
+                performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            } catch (ignored: Exception) {}
+            sendRightClick()
+        }
+    }
 
     // Sensitivity & Acceleration for touch trackpad
     var pointerSensitivity: Float = 1.35f
@@ -524,13 +547,27 @@ class VncCanvasView @JvmOverloads constructor(
             val offsetX = (width - renderW) / 2f
             val offsetY = (height - renderH) / 2f
 
-            destRect.set(offsetX, offsetY, offsetX + renderW, offsetY + renderH)
+            // Fullscreen aspect-fill: if rendered width and height cover >= 88% of screen,
+            // expand to 100% full screen to eliminate any small black borders
+            val isNearFullWidth = (renderW / width.toFloat()) >= 0.88f
+            val isNearFullHeight = (renderH / height.toFloat()) >= 0.88f
+
+            if (isNearFullWidth && isNearFullHeight) {
+                destRect.set(0f, 0f, width.toFloat(), height.toFloat())
+            } else {
+                destRect.set(offsetX, offsetY, offsetX + renderW, offsetY + renderH)
+            }
             canvas.drawBitmap(bmp, null, destRect, bitmapPaint)
 
-            // Draw Virtual Mouse Cursor
+            // Draw Virtual Mouse Cursor with accurate screen translation
             if (isCursorVisible) {
-                val screenCursorX = offsetX + (cursorX * scale)
-                val screenCursorY = offsetY + (cursorY * scale)
+                val currentRenderW = destRect.width()
+                val currentRenderH = destRect.height()
+                val currentOffsetX = destRect.left
+                val currentOffsetY = destRect.top
+
+                val screenCursorX = currentOffsetX + (cursorX * (currentRenderW / fbWidth))
+                val screenCursorY = currentOffsetY + (cursorY * (currentRenderH / fbHeight))
 
                 canvas.save()
                 canvas.translate(screenCursorX, screenCursorY)
@@ -564,13 +601,31 @@ class VncCanvasView @JvmOverloads constructor(
                 lastTouchY = event.y
                 touchStartTime = System.currentTimeMillis()
                 isTwoFingerGesture = false
+                twoFingerMoved = false
+                hasPerformedLongPress = false
+
+                // Check for Tap-to-Drag (second touch down within 300ms of last tap within 80px)
+                val timeSinceLastTap = touchStartTime - lastTapUpTime
+                val distFromLastTap = abs(event.x - lastTapUpX) + abs(event.y - lastTapUpY)
+                if (timeSinceLastTap < 300 && distFromLastTap < 80) {
+                    isTapDragActive = true
+                    // Press left mouse button down immediately for dragging/selection
+                    currentButtonMask = currentButtonMask or 0x01
+                    sendPointer(currentButtonMask, cursorX.toInt(), cursorY.toInt())
+                } else {
+                    isTapDragActive = false
+                    // Schedule long press right click check
+                    longPressHandler.postDelayed(longPressRunnable, 500)
+                }
                 return true
             }
 
             MotionEvent.ACTION_POINTER_DOWN -> {
+                longPressHandler.removeCallbacks(longPressRunnable)
                 if (pointerCount == 2) {
                     isTwoFingerGesture = true
-                    initialTwoFingerDist = abs(event.getY(0) - event.getY(1))
+                    twoFingerMoved = false
+                    twoFingerDownTime = System.currentTimeMillis()
                     lastTwoFingerY = (event.getY(0) + event.getY(1)) / 2f
                 }
                 return true
@@ -581,11 +636,17 @@ class VncCanvasView @JvmOverloads constructor(
                     // Two-finger drag -> Scroll Wheel
                     val currentAvgY = (event.getY(0) + event.getY(1)) / 2f
                     val deltaY = currentAvgY - lastTwoFingerY
-                    if (abs(deltaY) > 20) {
+                    if (abs(deltaY) > 16) {
+                        twoFingerMoved = true
                         if (deltaY > 0) sendScrollDown() else sendScrollUp()
                         lastTwoFingerY = currentAvgY
                     }
-                } else if (pointerCount == 1) {
+                } else if (pointerCount == 1 && !hasPerformedLongPress) {
+                    val moveDist = abs(event.x - touchDownX) + abs(event.y - touchDownY)
+                    if (moveDist > 20) {
+                        longPressHandler.removeCallbacks(longPressRunnable)
+                    }
+
                     // Single-finger relative trackpad movement
                     val dx = (event.x - lastTouchX) * pointerSensitivity
                     val dy = (event.y - lastTouchY) * pointerSensitivity
@@ -604,9 +665,9 @@ class VncCanvasView @JvmOverloads constructor(
 
             MotionEvent.ACTION_POINTER_UP -> {
                 if (isTwoFingerGesture && pointerCount == 2) {
-                    val duration = System.currentTimeMillis() - touchStartTime
-                    // Two-finger tap -> Right Click
-                    if (duration < 350) {
+                    val duration = System.currentTimeMillis() - twoFingerDownTime
+                    // Two-finger tap -> Right Click!
+                    if (!twoFingerMoved && duration < 350) {
                         sendRightClick()
                     }
                 }
@@ -614,19 +675,43 @@ class VncCanvasView @JvmOverloads constructor(
             }
 
             MotionEvent.ACTION_UP -> {
+                longPressHandler.removeCallbacks(longPressRunnable)
                 val duration = System.currentTimeMillis() - touchStartTime
                 val dist = abs(event.x - touchDownX) + abs(event.y - touchDownY)
 
-                if (!isTwoFingerGesture && duration < 250 && dist < 20) {
+                if (isTapDragActive) {
+                    // Release Tap-to-Drag button
+                    isTapDragActive = false
+                    currentButtonMask = currentButtonMask and 0x01.inv()
+                    sendPointer(currentButtonMask, cursorX.toInt(), cursorY.toInt())
+                    lastTapUpTime = 0L // Reset
+                } else if (!isTwoFingerGesture && !hasPerformedLongPress && duration < 250 && dist < 25) {
                     // Single tap -> Left Click
                     sendLeftClick()
+                    lastTapUpTime = System.currentTimeMillis()
+                    lastTapUpX = event.x
+                    lastTapUpY = event.y
+                } else {
+                    lastTapUpTime = 0L
                 }
+
                 isTwoFingerGesture = false
+                twoFingerMoved = false
+                hasPerformedLongPress = false
                 return true
             }
 
             MotionEvent.ACTION_CANCEL -> {
+                longPressHandler.removeCallbacks(longPressRunnable)
+                if (isTapDragActive) {
+                    isTapDragActive = false
+                    currentButtonMask = currentButtonMask and 0x01.inv()
+                    sendPointer(currentButtonMask, cursorX.toInt(), cursorY.toInt())
+                }
                 isTwoFingerGesture = false
+                twoFingerMoved = false
+                hasPerformedLongPress = false
+                lastTapUpTime = 0L
                 return true
             }
         }

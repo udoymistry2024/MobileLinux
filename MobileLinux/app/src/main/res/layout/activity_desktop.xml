@@ -236,7 +236,7 @@
             android:visibility="gone">
 
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_retry_desktop"
+                android:id="@+id/btn_retry_error"
                 style="@style/Widget.Material3.Button"
                 android:layout_width="wrap_content"
                 android:layout_height="38dp"
@@ -250,7 +250,7 @@
                 app:cornerRadius="8dp" />
 
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_exit_desktop"
+                android:id="@+id/btn_exit_error"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="wrap_content"
                 android:layout_height="38dp"

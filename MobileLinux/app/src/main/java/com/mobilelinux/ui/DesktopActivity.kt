@@ -53,8 +53,8 @@ class DesktopActivity : AppCompatActivity(),
     private lateinit var tvLoadingSub: TextView
     private lateinit var progressLoading: ProgressBar
     private lateinit var layoutErrorActions: View
-    private lateinit var btnRetryDesktop: View
-    private lateinit var btnExitDesktop: View
+    private lateinit var btnRetryError: View
+    private lateinit var btnExitError: View
     private lateinit var scrollModifierBar: View
     private lateinit var dummyKeyInput: EditText
 
@@ -89,17 +89,17 @@ class DesktopActivity : AppCompatActivity(),
         tvLoadingSub = findViewById(R.id.tv_loading_sub)
         progressLoading = findViewById(R.id.progress_loading)
         layoutErrorActions = findViewById(R.id.layout_error_actions)
-        btnRetryDesktop = findViewById(R.id.btn_retry_desktop)
-        btnExitDesktop = findViewById(R.id.btn_exit_desktop)
+        btnRetryError = findViewById(R.id.btn_retry_error)
+        btnExitError = findViewById(R.id.btn_exit_error)
         scrollModifierBar = findViewById(R.id.scroll_modifier_bar)
         dummyKeyInput = findViewById(R.id.dummy_key_input)
 
-        btnRetryDesktop.setOnClickListener {
+        btnRetryError.setOnClickListener {
             vncCanvas.disconnect()
             runtime.stopDesktopProcess()
             startDesktopEnvironment()
         }
-        btnExitDesktop.setOnClickListener {
+        btnExitError.setOnClickListener {
             shutdownAndExit()
         }
 
@@ -205,11 +205,24 @@ class DesktopActivity : AppCompatActivity(),
         layoutLoading.visibility = View.VISIBLE
 
         lifecycleScope.launch(Dispatchers.IO) {
-            // Determine optimal widescreen resolution based on display
-            val dm = resources.displayMetrics
-            val w = maxOf(dm.widthPixels, dm.heightPixels)
-            val h = minOf(dm.widthPixels, dm.heightPixels)
-            val resolution = if (w >= 1920 && h >= 1080) "1920x1080" else if (w >= 1280) "1280x720" else "${w}x${h}"
+            // Query real hardware screen bounds to fill 100% of the mobile screen without black sidebars
+            val bounds = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                windowManager.currentWindowMetrics.bounds
+            } else {
+                val realDm = android.util.DisplayMetrics()
+                @Suppress("DEPRECATION")
+                windowManager.defaultDisplay.getRealMetrics(realDm)
+                android.graphics.Rect(0, 0, realDm.widthPixels, realDm.heightPixels)
+            }
+            val screenW = maxOf(bounds.width(), bounds.height())
+            val screenH = minOf(bounds.width(), bounds.height())
+
+            // Maintain exact phone aspect ratio while keeping height at max 1080p for optimal 60fps performance
+            val targetH = minOf(screenH, 1080)
+            val targetW = (screenW * targetH) / screenH
+            val finalW = if (targetW % 2 != 0) targetW + 1 else targetW
+            val finalH = if (targetH % 2 != 0) targetH + 1 else targetH
+            val resolution = "${finalW}x${finalH}"
 
             // Start desktop PRoot process that stays alive
             val proc = runtime.startDesktopProcess(resolution)

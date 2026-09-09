@@ -13,7 +13,9 @@
             android:summary="@string/pref_font_size_summary"
             android:defaultValue="14"
             app:min="8"
-            android:max="32" />
+            android:max="32"
+            app:showSeekBarValue="true"
+            app:updatesContinuously="true" />
 
         <ListPreference
             android:key="pref_color_scheme"
@@ -31,6 +33,7 @@
         <SwitchPreferenceCompat
             android:key="pref_keep_screen_on"
             android:title="@string/pref_keep_screen_on_title"
+            android:summary="Keep display awake while terminal is active"
             android:defaultValue="false" />
 
     </PreferenceCategory>

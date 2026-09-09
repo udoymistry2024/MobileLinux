@@ -161,6 +161,12 @@ object TerminalColors {
     )
 
     var currentScheme: ColorScheme = GITHUB_DARK
+        set(value) {
+            field = value
+            try {
+                contrastCache.clear()
+            } catch (ignored: Exception) {}
+        }
 
     fun getColorScheme(id: String): ColorScheme {
         return when (id) {

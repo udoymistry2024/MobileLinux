@@ -307,9 +307,22 @@ class TerminalView @JvmOverloads constructor(
         targetBuffer.onUpdate = { scheduleThrottledRedraw() }
         targetBuffer.onBell = {
             if (bellEnabled) {
-                try {
-                    performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                } catch (ignored: Exception) {}
+                post {
+                    try {
+                        isHapticFeedbackEnabled = true
+                        performHapticFeedback(
+                            HapticFeedbackConstants.KEYBOARD_TAP,
+                            HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+                        )
+                    } catch (ignored: Exception) {}
+                    try {
+                        val toneGen = android.media.ToneGenerator(android.media.AudioManager.STREAM_NOTIFICATION, 80)
+                        toneGen.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 100)
+                        postDelayed({
+                            try { toneGen.release() } catch (ignored: Exception) {}
+                        }, 200)
+                    } catch (ignored: Exception) {}
+                }
             }
         }
         targetBuffer.onHistoryCleared = {
@@ -1076,6 +1089,14 @@ class TerminalView @JvmOverloads constructor(
         override fun onScale(detector: ScaleGestureDetector): Boolean {
             textSizeSp = (textSizeSp * detector.scaleFactor).coerceIn(8f, 32f)
             return true
+        }
+
+        override fun onScaleEnd(detector: ScaleGestureDetector) {
+            super.onScaleEnd(detector)
+            try {
+                val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
+                prefs.edit().putInt("pref_font_size", kotlin.math.round(textSizeSp).toInt()).apply()
+            } catch (ignored: Exception) {}
         }
     }
 

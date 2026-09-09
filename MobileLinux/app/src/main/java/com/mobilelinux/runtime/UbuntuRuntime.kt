@@ -26,7 +26,16 @@ class UbuntuRuntime(private val context: Context) {
     val scriptsDir: File get() = assetExtractor.scriptsDir
     val prootBinary: File get() = assetExtractor.prootBinary
 
-    val isRooted: Boolean by lazy { RootDetector.isRooted() && RootDetector.canExecuteAsRoot() }
+    val isRooted: Boolean
+        get() {
+            return try {
+                val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
+                val rootPref = prefs.getBoolean("pref_root_mode", false)
+                rootPref && RootDetector.isRooted() && RootDetector.canExecuteAsRoot()
+            } catch (e: Exception) {
+                false
+            }
+        }
     val deviceAbi: String by lazy { RootDetector.getDeviceAbi() }
 
     init {

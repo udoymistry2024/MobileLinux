@@ -1420,51 +1420,126 @@ class UbuntuRuntime(private val context: Context) {
             stopDesktopAlias.setExecutable(true, false)
             stopDesktopAlias.setReadable(true, false)
 
-            // Desktop Application smart launchers & PRoot fixes (VLC root patch, LibreOffice theme, Firefox sandbox)
-            // Desktop Application smart launchers & PRoot fixes (VLC root patch, LibreOffice theme, Firefox sandbox)
+            // Desktop Application smart launchers & PRoot fixes (VLC root patch, LibreOffice oosplash bypass, Firefox sandbox)
+            val vlcBin = File(rootfsDir, "usr/bin/vlc")
+            val vlcReal = File(rootfsDir, "usr/bin/vlc.real")
             val vlcWrapper = File(usrLocalBin, "vlc")
-            if (File(rootfsDir, "usr/bin/vlc").exists()) {
-                safeWriteFile(
-                    vlcWrapper,
-                    "#!/bin/bash\n" +
-                    "if [ -f /usr/bin/vlc ]; then\n" +
-                    "    if grep -q 'geteuid' /usr/bin/vlc 2>/dev/null; then\n" +
-                    "        sed -i 's/geteuid/getppid/' /usr/bin/vlc 2>/dev/null || true\n" +
-                    "    fi\n" +
-                    "    exec /usr/bin/vlc \"\$@\"\n" +
+            if (vlcBin.exists() || vlcReal.exists()) {
+                try {
+                    if (vlcBin.exists() && !vlcReal.exists()) {
+                        val header = ByteArray(4)
+                        vlcBin.inputStream().use { it.read(header) }
+                        if (header.contentEquals(byteArrayOf(0x7F, 'E'.code.toByte(), 'L'.code.toByte(), 'F'.code.toByte()))) {
+                            vlcBin.renameTo(vlcReal)
+                        }
+                    }
+                } catch (ignored: Exception) {}
+
+                val vlcScript = "#!/bin/bash\n" +
+                    "export QT_X11_NO_MITSHM=1\n" +
+                    "export DISPLAY=\"\${DISPLAY:-:1}\"\n" +
+                    "export XDG_RUNTIME_DIR=\"\${XDG_RUNTIME_DIR:-/tmp}\"\n" +
+                    "REAL_VLC=\"/usr/bin/vlc.real\"\n" +
+                    "[ ! -f \"\$REAL_VLC\" ] && REAL_VLC=\"/usr/bin/vlc-bin\"\n" +
+                    "[ ! -f \"\$REAL_VLC\" ] && REAL_VLC=\"/usr/lib/vlc/vlc\"\n" +
+                    "if [ -f \"\$REAL_VLC\" ] && grep -q 'geteuid' \"\$REAL_VLC\" 2>/dev/null; then\n" +
+                    "    sed -i 's/geteuid/getppid/g' \"\$REAL_VLC\" 2>/dev/null || true\n" +
                     "fi\n" +
-                    "exit 1\n"
-                )
+                    "for lib in /usr/lib/*-linux-gnu*/libvlccore*; do\n" +
+                    "    if [ -f \"\$lib\" ] && grep -q 'geteuid' \"\$lib\" 2>/dev/null; then\n" +
+                    "        sed -i 's/geteuid/getppid/g' \"\$lib\" 2>/dev/null || true\n" +
+                    "    fi\n" +
+                    "done\n" +
+                    "if [ \"\$(id -u)\" = \"0\" ]; then\n" +
+                    "    if \"\$REAL_VLC\" --version >/dev/null 2>&1; then\n" +
+                    "        exec \"\$REAL_VLC\" \"\$@\"\n" +
+                    "    else\n" +
+                    "        chmod 777 /tmp/.X11-unix /tmp/.X11-unix/* 2>/dev/null || true\n" +
+                    "        xhost + >/dev/null 2>&1 || true\n" +
+                    "        exec su - ubuntu -c \"export DISPLAY='\$DISPLAY'; export QT_X11_NO_MITSHM=1; export XDG_RUNTIME_DIR=/tmp; '\$REAL_VLC' \\\"\\$@\\\"\"\n" +
+                    "    fi\n" +
+                    "else\n" +
+                    "    exec \"\$REAL_VLC\" \"\$@\"\n" +
+                    "fi\n"
+
+                safeWriteFile(vlcWrapper, vlcScript)
                 vlcWrapper.setExecutable(true, false)
                 vlcWrapper.setReadable(true, false)
+
+                if (vlcReal.exists()) {
+                    safeWriteFile(vlcBin, vlcScript)
+                    vlcBin.setExecutable(true, false)
+                    vlcBin.setReadable(true, false)
+                }
             } else {
                 if (vlcWrapper.exists()) vlcWrapper.delete()
             }
 
+            val loBin = File(rootfsDir, "usr/bin/libreoffice")
+            val sofficeBin = File(rootfsDir, "usr/lib/libreoffice/program/soffice.bin")
+            val oosplashFile = File(rootfsDir, "usr/lib/libreoffice/program/oosplash")
+            val oosplashOrig = File(rootfsDir, "usr/lib/libreoffice/program/oosplash.orig")
             val loWrapper = File(usrLocalBin, "libreoffice")
             val sofficeWrapper = File(usrLocalBin, "soffice")
-            if (File(rootfsDir, "usr/bin/libreoffice").exists() || File(rootfsDir, "usr/bin/soffice").exists()) {
-                safeWriteFile(
-                    loWrapper,
-                    "#!/bin/bash\n" +
-                    "export SAL_USE_VCLPLUGIN=gen\n" +
-                    "if [ -f /usr/bin/libreoffice ]; then\n" +
+
+            if (loBin.exists() || sofficeBin.exists() || File(rootfsDir, "usr/bin/soffice").exists()) {
+                val prodDir = File(rootfsDir, "prod")
+                ensureRealDirectory(prodDir)
+                val prodVersion = File(prodDir, "version")
+                if (!prodVersion.exists()) {
+                    safeWriteFile(prodVersion, "Linux version 5.10.0 MobileLinux\n")
+                }
+
+                try {
+                    if (oosplashFile.exists() && !oosplashOrig.exists()) {
+                        val header = ByteArray(4)
+                        oosplashFile.inputStream().use { it.read(header) }
+                        if (header.contentEquals(byteArrayOf(0x7F, 'E'.code.toByte(), 'L'.code.toByte(), 'F'.code.toByte()))) {
+                            oosplashFile.renameTo(oosplashOrig)
+                        }
+                    }
+                } catch (ignored: Exception) {}
+
+                val oosplashScript = "#!/bin/bash\n" +
+                    "DIR=\"\$(dirname \"\$0\")\"\n" +
+                    "mkdir -p /prod 2>/dev/null || true\n" +
+                    "[ ! -f /prod/version ] && touch /prod/version 2>/dev/null || true\n" +
+                    "rm -f /tmp/OSL_PIPE_* /tmp/.osl_* 2>/dev/null || true\n" +
+                    "if [ -z \"\$SAL_USE_VCLPLUGIN\" ]; then\n" +
+                    "    if [ -f \"\$DIR/libvclplug_gtk3lo.so\" ]; then\n" +
+                    "        export SAL_USE_VCLPLUGIN=gtk3\n" +
+                    "    else\n" +
+                    "        export SAL_USE_VCLPLUGIN=gen\n" +
+                    "    fi\n" +
+                    "fi\n" +
+                    "exec \"\$DIR/soffice.bin\" \"\$@\"\n"
+
+                safeWriteFile(oosplashFile, oosplashScript)
+                oosplashFile.setExecutable(true, false)
+                oosplashFile.setReadable(true, false)
+
+                val loScript = "#!/bin/bash\n" +
+                    "export DISPLAY=\"\${DISPLAY:-:1}\"\n" +
+                    "if [ -z \"\$SAL_USE_VCLPLUGIN\" ]; then\n" +
+                    "    if [ -f /usr/lib/libreoffice/program/libvclplug_gtk3lo.so ]; then\n" +
+                    "        export SAL_USE_VCLPLUGIN=gtk3\n" +
+                    "    else\n" +
+                    "        export SAL_USE_VCLPLUGIN=gen\n" +
+                    "    fi\n" +
+                    "fi\n" +
+                    "rm -f /tmp/OSL_PIPE_* /tmp/.osl_* 2>/dev/null || true\n" +
+                    "if [ -x /usr/lib/libreoffice/program/soffice ]; then\n" +
+                    "    exec /usr/lib/libreoffice/program/soffice \"\$@\"\n" +
+                    "elif [ -f /usr/bin/libreoffice ]; then\n" +
                     "    exec /usr/bin/libreoffice \"\$@\"\n" +
                     "fi\n" +
                     "exit 1\n"
-                )
+
+                safeWriteFile(loWrapper, loScript)
                 loWrapper.setExecutable(true, false)
                 loWrapper.setReadable(true, false)
 
-                safeWriteFile(
-                    sofficeWrapper,
-                    "#!/bin/bash\n" +
-                    "export SAL_USE_VCLPLUGIN=gen\n" +
-                    "if [ -f /usr/bin/soffice ]; then\n" +
-                    "    exec /usr/bin/soffice \"\$@\"\n" +
-                    "fi\n" +
-                    "exec /usr/local/bin/libreoffice \"\$@\"\n"
-                )
+                safeWriteFile(sofficeWrapper, loScript)
                 sofficeWrapper.setExecutable(true, false)
                 sofficeWrapper.setReadable(true, false)
             } else {
@@ -2628,8 +2703,10 @@ class UbuntuRuntime(private val context: Context) {
         "export DISPLAY=:1",
         "export LC_ALL=C.UTF-8",
         "export LANG=C.UTF-8",
-        "export SAL_USE_VCLPLUGIN=gen",
+        "export SAL_USE_VCLPLUGIN=\"\${SAL_USE_VCLPLUGIN:-gtk3}\"",
         "export MOZ_FAKE_NO_SANDBOX=1",
+        "export QT_X11_NO_MITSHM=1",
+        "export GDK_SYNCHRONIZE=1",
         "export XKL_XMODMAP_DISABLE=1",
         "H=\"\$(hostname 2>/dev/null || echo localhost)\"",
         "[ -z \"\$H\" ] && H=\"localhost\"",
@@ -2671,8 +2748,12 @@ class UbuntuRuntime(private val context: Context) {
         "export XKL_XMODMAP_DISABLE=1",
         "export LC_ALL=C.UTF-8",
         "export LANG=C.UTF-8",
-        "export SAL_USE_VCLPLUGIN=gen",
+        "export SAL_USE_VCLPLUGIN=\"\${SAL_USE_VCLPLUGIN:-gtk3}\"",
         "export MOZ_FAKE_NO_SANDBOX=1",
+        "export QT_X11_NO_MITSHM=1",
+        "export GDK_SYNCHRONIZE=1",
+        "xhost + >/dev/null 2>&1 || true",
+        "chmod 777 /tmp/.X11-unix /tmp/.X11-unix/* 2>/dev/null || true",
         "[ -r \"\$HOME/.Xresources\" ] && xrdb \"\$HOME/.Xresources\" 2>/dev/null",
         "exec dbus-launch --exit-with-session startxfce4",
         "XSTARTUP_EOF",
@@ -2685,9 +2766,79 @@ class UbuntuRuntime(private val context: Context) {
         "\$I_KNOW_THIS_IS_INSECURE = 1;",
         "CONF_EOF",
         "",
-        "# 7. Auto-patch desktop applications for PRoot compatibility",
-        "if [ -f /usr/bin/vlc ] && grep -q 'geteuid' /usr/bin/vlc 2>/dev/null; then",
-        "    sed -i 's/geteuid/getppid/' /usr/bin/vlc 2>/dev/null || true",
+        "# 7. Auto-patch desktop applications for PRoot & root compatibility",
+        "# VLC patch & wrapper",
+        "if [ -f /usr/bin/vlc ]; then",
+        "    if file /usr/bin/vlc 2>/dev/null | grep -q 'ELF'; then",
+        "        mv /usr/bin/vlc /usr/bin/vlc.real 2>/dev/null || true",
+        "    fi",
+        "    if [ -f /usr/bin/vlc.real ] && grep -q 'geteuid' /usr/bin/vlc.real 2>/dev/null; then",
+        "        sed -i 's/geteuid/getppid/g' /usr/bin/vlc.real 2>/dev/null || true",
+        "    fi",
+        "    for lib in /usr/lib/*-linux-gnu*/libvlccore*; do",
+        "        if [ -f \"\$lib\" ] && grep -q 'geteuid' \"\$lib\" 2>/dev/null; then",
+        "            sed -i 's/geteuid/getppid/g' \"\$lib\" 2>/dev/null || true",
+        "        fi",
+        "    done",
+        "    cat << 'VLC_EOF' > /usr/bin/vlc",
+        "#!/bin/bash",
+        "export QT_X11_NO_MITSHM=1",
+        "export DISPLAY=\"\${DISPLAY:-:1}\"",
+        "export XDG_RUNTIME_DIR=\"\${XDG_RUNTIME_DIR:-/tmp}\"",
+        "REAL_VLC=\"/usr/bin/vlc.real\"",
+        "[ ! -f \"\$REAL_VLC\" ] && REAL_VLC=\"/usr/bin/vlc-bin\"",
+        "[ ! -f \"\$REAL_VLC\" ] && REAL_VLC=\"/usr/lib/vlc/vlc\"",
+        "if [ -f \"\$REAL_VLC\" ] && grep -q 'geteuid' \"\$REAL_VLC\" 2>/dev/null; then",
+        "    sed -i 's/geteuid/getppid/g' \"\$REAL_VLC\" 2>/dev/null || true",
+        "fi",
+        "for lib in /usr/lib/*-linux-gnu*/libvlccore*; do",
+        "    if [ -f \"\$lib\" ] && grep -q 'geteuid' \"\$lib\" 2>/dev/null; then",
+        "        sed -i 's/geteuid/getppid/g' \"\$lib\" 2>/dev/null || true",
+        "    fi",
+        "done",
+        "if [ \"\$(id -u)\" = \"0\" ]; then",
+        "    if \"\$REAL_VLC\" --version >/dev/null 2>&1; then",
+        "        exec \"\$REAL_VLC\" \"\$@\"",
+        "    else",
+        "        chmod 777 /tmp/.X11-unix /tmp/.X11-unix/* 2>/dev/null || true",
+        "        xhost + >/dev/null 2>&1 || true",
+        "        exec su - ubuntu -c \"export DISPLAY='\$DISPLAY'; export QT_X11_NO_MITSHM=1; export XDG_RUNTIME_DIR=/tmp; '\$REAL_VLC' \\\"\\$@\\\"\"",
+        "    fi",
+        "else",
+        "    exec \"\$REAL_VLC\" \"\$@\"",
+        "fi",
+        "VLC_EOF",
+        "    chmod +x /usr/bin/vlc 2>/dev/null || true",
+        "    cp -f /usr/bin/vlc /usr/local/bin/vlc 2>/dev/null || true",
+        "fi",
+        "",
+        "# LibreOffice oosplash patch & dummy /prod",
+        "mkdir -p /prod 2>/dev/null || true",
+        "[ ! -f /prod/version ] && touch /prod/version 2>/dev/null || true",
+        "rm -f /tmp/OSL_PIPE_* /tmp/.osl_* 2>/dev/null || true",
+        "rm -f /etc/apparmor.d/usr.lib.libreoffice.program.* 2>/dev/null || true",
+        "if [ -f /usr/lib/libreoffice/program/soffice.bin ]; then",
+        "    if [ -f /usr/lib/libreoffice/program/oosplash ] && [ ! -f /usr/lib/libreoffice/program/oosplash.orig ]; then",
+        "        if file /usr/lib/libreoffice/program/oosplash 2>/dev/null | grep -q 'ELF'; then",
+        "            mv /usr/lib/libreoffice/program/oosplash /usr/lib/libreoffice/program/oosplash.orig 2>/dev/null || true",
+        "        fi",
+        "    fi",
+        "    cat << 'LO_EOF' > /usr/lib/libreoffice/program/oosplash",
+        "#!/bin/bash",
+        "DIR=\"\$(dirname \"\$0\")\"",
+        "mkdir -p /prod 2>/dev/null || true",
+        "[ ! -f /prod/version ] && touch /prod/version 2>/dev/null || true",
+        "rm -f /tmp/OSL_PIPE_* /tmp/.osl_* 2>/dev/null || true",
+        "if [ -z \"\$SAL_USE_VCLPLUGIN\" ]; then",
+        "    if [ -f \"\$DIR/libvclplug_gtk3lo.so\" ]; then",
+        "        export SAL_USE_VCLPLUGIN=gtk3",
+        "    else",
+        "        export SAL_USE_VCLPLUGIN=gen",
+        "    fi",
+        "fi",
+        "exec \"\$DIR/soffice.bin\" \"\$@\"",
+        "LO_EOF",
+        "    chmod +x /usr/lib/libreoffice/program/oosplash 2>/dev/null || true",
         "fi",
         "if [ -f /usr/bin/libreoffice ] && [ ! -f /usr/share/libreoffice/share/config/images_colibre.zip ]; then",
         "    (export DEBIAN_FRONTEND=noninteractive; apt-get update >/dev/null 2>&1 && apt-get install -y --no-install-recommends libreoffice-style-colibre fonts-dejavu-core >/dev/null 2>&1) &",

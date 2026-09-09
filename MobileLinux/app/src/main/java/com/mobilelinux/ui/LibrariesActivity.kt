@@ -621,7 +621,7 @@ class LibrariesActivity : AppCompatActivity() {
                             val currentSet = getCachedInstalledIds(prefs)
                             currentSet.add(pkg.id)
                             prefs.edit().putStringSet("installed_ids", currentSet).apply()
-                            if (pkg.id == "xfce4-desktop" || pkg.id == "jupyterlab" || pkg.id == "jupyter") {
+                            if (pkg.id == "xfce4-desktop" || pkg.id == "jupyterlab" || pkg.id == "jupyter" || pkg.category == PackageCategory.DESKTOP_APPS) {
                                 withContext(Dispatchers.IO) {
                                     try {
                                         runtime.installCommandWrappers()

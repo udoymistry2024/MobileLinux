@@ -12,8 +12,8 @@ android {
         applicationId = "com.mobilelinux.app"
         minSdk = 26          // Android 8.0 minimum
         targetSdk = 35       // Target Android 15
-        versionCode = 79
-        versionName = "1.6.5"
+        versionCode = 80
+        versionName = "1.6.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

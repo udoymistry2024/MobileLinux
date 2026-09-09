@@ -10,7 +10,7 @@
   [![Platform](https://img.shields.io/badge/Platform-Android%208.0%2B-3DDC84.svg?logo=android&logoColor=white)](https://github.com/udoymistry2024/MobileLinux/releases)
   [![OS: Ubuntu 24.04 LTS](https://img.shields.io/badge/Ubuntu-24.04%20LTS-E95420.svg?logo=ubuntu&logoColor=white)](https://ubuntu.com)
   [![Architecture](https://img.shields.io/badge/Arch-ARM64%20%7C%20ARMv7-007ACC.svg)](#architecture)
-  [![Version](https://img.shields.io/badge/Version-1.5.5--Stable-blueviolet.svg)](https://github.com/udoymistry2024/MobileLinux/releases)
+  [![Version](https://img.shields.io/badge/Version-1.6.0--Desktop+--Edition-blueviolet.svg)](https://github.com/udoymistry2024/MobileLinux/releases)
 
   <p align="center">
     <a href="#key-features">Key Features</a> •
@@ -92,7 +92,7 @@ Whether you are compiling C/C++ projects with `gcc`, running a **Miniforge / Con
 
 ### 1. Download & Install
 Download the latest signed release APK from [**GitHub Releases**](https://github.com/udoymistry2024/MobileLinux/releases):
-- **`MobileLinux-v1.5.5-stable.apk`** (or `MobileLinux-latest.apk`)
+- **`MobileLinux-v1.6.0.apk`** (or `MobileLinux-latest.apk`)
 
 Install the APK on any device running **Android 8.0 (Oreo) or higher** (Targeting Android 15 / API 35).
 
@@ -138,6 +138,22 @@ bash Miniforge3-Linux-aarch64.sh
 
 <a name="whats-new"></a>
 ## 🆕 What's New
+
+### v1.6.0 (Desktop+ Edition)
+- 🖥️ **Full Linux Desktop Mode (XFCE4 & TigerVNC):**
+  - Pre-installed lightweight XFCE4 graphical desktop environment powered by native TigerVNC standalone server.
+  - Fullscreen landscape mode with hardware-accelerated canvas, aspect-fill resolution, and floating HUD controls.
+  - Laptop touchpad gesture controls: single tap left-click, two-finger right-click, two-finger vertical scrolling, and pinch zoom.
+  - Physical OTG/Bluetooth mouse and keyboard support with native right-click pass-through.
+  - Resilient PRoot background session management with active TCP readiness checks and clean exit.
+- ⚡ **Zero-Delay Terminal Sessions:**
+  - Asynchronous background process initialization completely eliminates the 2-3s UI freeze when opening new terminal sessions with the `+` button.
+- 🐍 **Anaconda & Conda Lifecycle Overhaul:**
+  - Resolved the 100% progress hang on package installations; UI now confirms installation immediately.
+  - Eliminated circular recursion and false-positive binary detections.
+- ⚙️ **Settings & Stability Improvements:**
+  - Real-time font size scaling, audio terminal bell alerts, and screen awake persistence.
+  - Crash/freeze recovery on app launch after force-stop or background kills.
 
 ### v1.5.5 (Stable - Browser Edition)
 - 🌐 **Integrated Developer Browser & Jupyter Notebook Workstation:**

@@ -1421,66 +1421,75 @@ class UbuntuRuntime(private val context: Context) {
             stopDesktopAlias.setReadable(true, false)
 
             // Desktop Application smart launchers & PRoot fixes (VLC root patch, LibreOffice theme, Firefox sandbox)
+            // Desktop Application smart launchers & PRoot fixes (VLC root patch, LibreOffice theme, Firefox sandbox)
             val vlcWrapper = File(usrLocalBin, "vlc")
-            safeWriteFile(
-                vlcWrapper,
-                "#!/bin/bash\n" +
-                "if [ -f /usr/bin/vlc ]; then\n" +
-                "    if grep -q 'geteuid' /usr/bin/vlc 2>/dev/null; then\n" +
-                "        sed -i 's/geteuid/getppid/' /usr/bin/vlc 2>/dev/null || true\n" +
-                "    fi\n" +
-                "    exec /usr/bin/vlc \"\$@\"\n" +
-                "fi\n" +
-                "echo 'VLC is not installed. Install it from Libraries & Packages.' >&2\n" +
-                "exit 1\n"
-            )
-            vlcWrapper.setExecutable(true, false)
-            vlcWrapper.setReadable(true, false)
+            if (File(rootfsDir, "usr/bin/vlc").exists()) {
+                safeWriteFile(
+                    vlcWrapper,
+                    "#!/bin/bash\n" +
+                    "if [ -f /usr/bin/vlc ]; then\n" +
+                    "    if grep -q 'geteuid' /usr/bin/vlc 2>/dev/null; then\n" +
+                    "        sed -i 's/geteuid/getppid/' /usr/bin/vlc 2>/dev/null || true\n" +
+                    "    fi\n" +
+                    "    exec /usr/bin/vlc \"\$@\"\n" +
+                    "fi\n" +
+                    "exit 1\n"
+                )
+                vlcWrapper.setExecutable(true, false)
+                vlcWrapper.setReadable(true, false)
+            } else {
+                if (vlcWrapper.exists()) vlcWrapper.delete()
+            }
 
             val loWrapper = File(usrLocalBin, "libreoffice")
-            safeWriteFile(
-                loWrapper,
-                "#!/bin/bash\n" +
-                "export SAL_USE_VCLPLUGIN=gen\n" +
-                "if [ -f /usr/bin/libreoffice ]; then\n" +
-                "    exec /usr/bin/libreoffice \"\$@\"\n" +
-                "fi\n" +
-                "echo 'LibreOffice is not installed. Install it from Libraries & Packages.' >&2\n" +
-                "exit 1\n"
-            )
-            loWrapper.setExecutable(true, false)
-            loWrapper.setReadable(true, false)
-
             val sofficeWrapper = File(usrLocalBin, "soffice")
-            safeWriteFile(
-                sofficeWrapper,
-                "#!/bin/bash\n" +
-                "export SAL_USE_VCLPLUGIN=gen\n" +
-                "if [ -f /usr/bin/soffice ]; then\n" +
-                "    exec /usr/bin/soffice \"\$@\"\n" +
-                "fi\n" +
-                "exec /usr/local/bin/libreoffice \"\$@\"\n"
-            )
-            sofficeWrapper.setExecutable(true, false)
-            sofficeWrapper.setReadable(true, false)
+            if (File(rootfsDir, "usr/bin/libreoffice").exists() || File(rootfsDir, "usr/bin/soffice").exists()) {
+                safeWriteFile(
+                    loWrapper,
+                    "#!/bin/bash\n" +
+                    "export SAL_USE_VCLPLUGIN=gen\n" +
+                    "if [ -f /usr/bin/libreoffice ]; then\n" +
+                    "    exec /usr/bin/libreoffice \"\$@\"\n" +
+                    "fi\n" +
+                    "exit 1\n"
+                )
+                loWrapper.setExecutable(true, false)
+                loWrapper.setReadable(true, false)
+
+                safeWriteFile(
+                    sofficeWrapper,
+                    "#!/bin/bash\n" +
+                    "export SAL_USE_VCLPLUGIN=gen\n" +
+                    "if [ -f /usr/bin/soffice ]; then\n" +
+                    "    exec /usr/bin/soffice \"\$@\"\n" +
+                    "fi\n" +
+                    "exec /usr/local/bin/libreoffice \"\$@\"\n"
+                )
+                sofficeWrapper.setExecutable(true, false)
+                sofficeWrapper.setReadable(true, false)
+            } else {
+                if (loWrapper.exists()) loWrapper.delete()
+                if (sofficeWrapper.exists()) sofficeWrapper.delete()
+            }
 
             val ffWrapper = File(usrLocalBin, "firefox")
-            safeWriteFile(
-                ffWrapper,
-                "#!/bin/bash\n" +
-                "export MOZ_FAKE_NO_SANDBOX=1\n" +
-                "if [ -x /usr/lib/firefox/firefox ]; then\n" +
-                "    exec /usr/lib/firefox/firefox \"\$@\"\n" +
-                "elif [ -x /usr/bin/firefox-esr ]; then\n" +
-                "    exec /usr/bin/firefox-esr \"\$@\"\n" +
-                "elif [ -f /usr/bin/firefox ] && grep -vq 'snap' /usr/bin/firefox 2>/dev/null; then\n" +
-                "    exec /usr/bin/firefox \"\$@\"\n" +
-                "fi\n" +
-                "echo 'Firefox is not installed. Install native Firefox from Libraries & Packages.' >&2\n" +
-                "exit 1\n"
-            )
-            ffWrapper.setExecutable(true, false)
-            ffWrapper.setReadable(true, false)
+            if (File(rootfsDir, "usr/lib/firefox/firefox").exists() || File(rootfsDir, "usr/bin/firefox-esr").exists()) {
+                safeWriteFile(
+                    ffWrapper,
+                    "#!/bin/bash\n" +
+                    "export MOZ_FAKE_NO_SANDBOX=1\n" +
+                    "if [ -x /usr/lib/firefox/firefox ]; then\n" +
+                    "    exec /usr/lib/firefox/firefox \"\$@\"\n" +
+                    "elif [ -x /usr/bin/firefox-esr ]; then\n" +
+                    "    exec /usr/bin/firefox-esr \"\$@\"\n" +
+                    "fi\n" +
+                    "exit 1\n"
+                )
+                ffWrapper.setExecutable(true, false)
+                ffWrapper.setReadable(true, false)
+            } else {
+                if (ffWrapper.exists()) ffWrapper.delete()
+            }
 
             // Multi-Environment Python Installer, Uninstaller & Conda Synchronizer
             val pkgInstallPythonFile = File(usrLocalBin, "pkg-install-python")

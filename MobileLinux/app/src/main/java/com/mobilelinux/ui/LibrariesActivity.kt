@@ -840,6 +840,12 @@ class LibrariesActivity : AppCompatActivity() {
                         }
                         editor.apply()
 
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            try {
+                                runtime.installCommandWrappers()
+                            } catch (ignored: Exception) {}
+                        }
+
                         adapter.updateItem(pkg.id)
                         Toast.makeText(
                             this@LibrariesActivity,

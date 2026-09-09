@@ -58,7 +58,7 @@ object PackageRepository {
         sb.append("    local id=\"").append(d).append("1\"\n")
         sb.append("    local cmd=\"").append(d).append("2\"\n")
         sb.append("    if [ \"").append(d).append("id\" = \"miniconda\" ]; then\n")
-        sb.append("        if type conda >/dev/null 2>&1 || [ -x /home/ubuntu/miniforge3/bin/conda ] || [ -x /home/ubuntu/miniconda3/bin/conda ] || [ -x /home/ubuntu/anaconda3/bin/conda ] || [ -x /root/miniconda3/bin/conda ] || [ -x /root/miniforge3/bin/conda ] || [ -x /root/anaconda3/bin/conda ] || [ -x /opt/conda/bin/conda ]; then\n")
+        sb.append("        if [ -x /home/ubuntu/miniforge3/bin/conda ] || [ -x /home/ubuntu/miniconda3/bin/conda ] || [ -x /home/ubuntu/anaconda3/bin/conda ] || [ -x /root/miniconda3/bin/conda ] || [ -x /root/miniforge3/bin/conda ] || [ -x /root/anaconda3/bin/conda ] || [ -x /opt/conda/bin/conda ]; then\n")
         sb.append("            return 0\n")
         sb.append("        else\n")
         sb.append("            return 1\n")
@@ -1184,7 +1184,7 @@ object PackageRepository {
                     "if which curl >/dev/null 2>&1; then (curl -fSL https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh -o /home/ubuntu/.miniforge.sh || curl -fSL https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh -o /home/ubuntu/.miniforge.sh); else (wget -O /home/ubuntu/.miniforge.sh https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh || wget -O /home/ubuntu/.miniforge.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh); fi && " +
                     "bash /home/ubuntu/.miniforge.sh -b -p /home/ubuntu/miniforge3 -u && rm -f /home/ubuntu/.miniforge.sh && " +
                     "/home/ubuntu/miniforge3/bin/conda init bash && /home/ubuntu/miniforge3/bin/conda config --set always_copy true && /home/ubuntu/miniforge3/bin/conda config --set auto_activate_base true; fi",
-            checkInstalledCommand = "command -v conda >/dev/null 2>&1 || [ -x /home/ubuntu/miniforge3/bin/conda ] || [ -x /home/ubuntu/miniconda3/bin/conda ] || [ -x /home/ubuntu/anaconda3/bin/conda ] || [ -x /root/miniconda3/bin/conda ] || [ -x /root/miniforge3/bin/conda ] || [ -x /root/anaconda3/bin/conda ] || [ -x /opt/conda/bin/conda ]",
+            checkInstalledCommand = "[ -x /home/ubuntu/miniforge3/bin/conda ] || [ -x /home/ubuntu/miniconda3/bin/conda ] || [ -x /home/ubuntu/anaconda3/bin/conda ] || [ -x /root/miniconda3/bin/conda ] || [ -x /root/miniforge3/bin/conda ] || [ -x /root/anaconda3/bin/conda ] || [ -x /opt/conda/bin/conda ]",
             launchUrl = null
         ),
         LinuxPackage(

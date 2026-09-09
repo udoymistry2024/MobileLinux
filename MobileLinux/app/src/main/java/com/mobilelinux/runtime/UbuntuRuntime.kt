@@ -660,10 +660,14 @@ class UbuntuRuntime(private val context: Context) {
 
                 val bashBashrc = File(etcDir, "bash.bashrc")
                 val pathExportLine = "export PATH=\"/home/ubuntu/.local/bin:/root/.local/bin:/home/ubuntu/go/bin:/root/go/bin:/home/ubuntu/.cargo/bin:/root/.cargo/bin:/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:\$PATH\"\n"
-                val cmdNotFoundContent = "\n# MobileLinux Smart Command Not Found Handler for Python libraries\n" +
+                val cmdNotFoundContent = "\n# MobileLinux Smart Command Not Found Handler for Python libraries & Conda\n" +
                     "command_not_found_handle() {\n" +
                     "    local cmd=\"\$1\"\n" +
                     "    local arg=\"\$2\"\n" +
+                    "    if [ \"\$cmd\" = \"conda\" ] || [ \"\$cmd\" = \"mamba\" ]; then\n" +
+                    "        echo \"conda: command not found (Miniconda / Miniforge not installed yet. You can install it from Libraries & Packages)\" >&2\n" +
+                    "        return 127\n" +
+                    "    fi\n" +
                     "    local py=\"\"\n" +
                     "    if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/python\" ]; then\n" +
                     "        py=\"\$CONDA_PREFIX/bin/python\"\n" +
@@ -850,6 +854,17 @@ class UbuntuRuntime(private val context: Context) {
 
             // 5. Clean APT and DPKG locks
             cleanupAptLocks()
+
+            // 6. Ensure false-positive Conda/Mamba wrappers are deleted if Conda is not installed
+            if (!isCondaInstalled()) {
+                val usrLocalBin = File(rootfsDir, "usr/local/bin")
+                if (usrLocalBin.exists()) {
+                    val cw = File(usrLocalBin, "conda")
+                    if (cw.exists()) cw.delete()
+                    val mw = File(usrLocalBin, "mamba")
+                    if (mw.exists()) mw.delete()
+                }
+            }
 
             Log.d(TAG, "Stale PRoot artifacts and IPC locks cleaned successfully")
         } catch (e: Exception) {
@@ -1294,16 +1309,21 @@ class UbuntuRuntime(private val context: Context) {
                 mlAptConf.setReadable(true, false)
             } catch (ignored: Exception) {}
 
-            // Conda and Mamba CLI wrappers
+            // Conda and Mamba CLI wrappers - ONLY present when Conda is physically installed on disk!
             val condaWrapperFile = File(usrLocalBin, "conda")
-            safeWriteFile(condaWrapperFile, getCondaWrapperScript())
-            condaWrapperFile.setExecutable(true, false)
-            condaWrapperFile.setReadable(true, false)
-
             val mambaWrapperFile = File(usrLocalBin, "mamba")
-            safeWriteFile(mambaWrapperFile, getMambaWrapperScript())
-            mambaWrapperFile.setExecutable(true, false)
-            mambaWrapperFile.setReadable(true, false)
+            if (isCondaInstalled()) {
+                safeWriteFile(condaWrapperFile, getCondaWrapperScript())
+                condaWrapperFile.setExecutable(true, false)
+                condaWrapperFile.setReadable(true, false)
+
+                safeWriteFile(mambaWrapperFile, getMambaWrapperScript())
+                mambaWrapperFile.setExecutable(true, false)
+                mambaWrapperFile.setReadable(true, false)
+            } else {
+                if (condaWrapperFile.exists()) condaWrapperFile.delete()
+                if (mambaWrapperFile.exists()) mambaWrapperFile.delete()
+            }
 
             // install-tools & pkg-install utilities
             val installToolsFile = File(usrLocalBin, "install-tools")
@@ -2423,18 +2443,13 @@ class UbuntuRuntime(private val context: Context) {
             removeCondaFromBashrc(File(rootfsDir, "root/.bashrc"))
             removeCondaFromBashrc(File(rootfsDir, "etc/bash.bashrc"))
 
-            // Restore clean conda dispatcher wrapper
+            // Clean conda and mamba wrappers from /usr/local/bin to prevent false-positive checks
             val usrLocalBin = File(rootfsDir, "usr/local/bin")
             if (usrLocalBin.exists()) {
                 val condaWrapper = File(usrLocalBin, "conda")
-                safeWriteFile(condaWrapper, getCondaWrapperScript())
-                condaWrapper.setExecutable(true, false)
-                condaWrapper.setReadable(true, false)
-
+                if (condaWrapper.exists()) condaWrapper.delete()
                 val mambaWrapper = File(usrLocalBin, "mamba")
-                safeWriteFile(mambaWrapper, getMambaWrapperScript())
-                mambaWrapper.setExecutable(true, false)
-                mambaWrapper.setReadable(true, false)
+                if (mambaWrapper.exists()) mambaWrapper.delete()
             }
             true
         } catch (e: Exception) {

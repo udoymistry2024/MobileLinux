@@ -312,13 +312,21 @@ class LibrariesActivity : AppCompatActivity() {
 
         curated.forEach { pkg ->
             if (pkg.id == "miniconda") {
-                if (savedInstalled.contains("miniconda") || isCondaBinaryPresent) {
+                if (isCondaBinaryPresent) {
                     pkg.isInstalled = true
                     pkg.isActivated = isCondaActivePresent
                     pkg.statusText = if (isCondaActivePresent) "Active & Ready (base)" else "Installed. Click Activate to enable."
-                    if (isCondaBinaryPresent && !savedInstalled.contains("miniconda")) {
+                    if (!savedInstalled.contains("miniconda")) {
                         savedInstalled.add("miniconda")
                         prefs.edit().putStringSet("installed_ids", savedInstalled).putBoolean("conda_active", isCondaActivePresent).apply()
+                    }
+                } else {
+                    pkg.isInstalled = false
+                    pkg.isActivated = false
+                    pkg.statusText = "Ready to install"
+                    if (savedInstalled.contains("miniconda")) {
+                        savedInstalled.remove("miniconda")
+                        prefs.edit().putStringSet("installed_ids", savedInstalled).putBoolean("conda_active", false).apply()
                     }
                 }
             } else if (pkg.id == "xfce4-desktop") {
@@ -382,7 +390,7 @@ class LibrariesActivity : AppCompatActivity() {
                 // Real verification of Conda binary existence (0ms host filesystem check OR command)
                 val realCondaInstalled = runtime.isCondaInstalled() || (
                     runtime.runCommand(
-                        "type conda >/dev/null 2>&1 || [ -x /home/ubuntu/miniforge3/bin/conda ] || [ -x /home/ubuntu/miniconda3/bin/conda ] || [ -x /root/miniconda3/bin/conda ] || [ -x /opt/conda/bin/conda ]"
+                        "[ -x /home/ubuntu/miniforge3/bin/conda ] || [ -x /home/ubuntu/miniconda3/bin/conda ] || [ -x /home/ubuntu/anaconda3/bin/conda ] || [ -x /root/miniconda3/bin/conda ] || [ -x /root/miniforge3/bin/conda ] || [ -x /root/anaconda3/bin/conda ] || [ -x /opt/conda/bin/conda ]"
                     ).first == 0
                 )
 
@@ -402,6 +410,8 @@ class LibrariesActivity : AppCompatActivity() {
                 val finalInstalledIds = installedIds.toMutableSet()
                 if (realCondaInstalled) {
                     finalInstalledIds.add("miniconda")
+                } else {
+                    finalInstalledIds.remove("miniconda")
                 }
 
                 // Update persistent disk cache with verified scan results
@@ -556,7 +566,7 @@ class LibrariesActivity : AppCompatActivity() {
                 val isCondaDetected = (pkg.id == "miniconda") && (
                     runtime.isCondaInstalled() || withContext(Dispatchers.IO) {
                         runtime.runCommand(
-                            "type conda >/dev/null 2>&1 || [ -x /home/ubuntu/miniforge3/bin/conda ] || [ -x /home/ubuntu/miniconda3/bin/conda ] || [ -x /root/miniconda3/bin/conda ] || [ -x /opt/conda/bin/conda ]"
+                            "[ -x /home/ubuntu/miniforge3/bin/conda ] || [ -x /home/ubuntu/miniconda3/bin/conda ] || [ -x /home/ubuntu/anaconda3/bin/conda ] || [ -x /root/miniconda3/bin/conda ] || [ -x /root/miniforge3/bin/conda ] || [ -x /root/anaconda3/bin/conda ] || [ -x /opt/conda/bin/conda ]"
                         ).first == 0
                     }
                 )
@@ -880,7 +890,7 @@ class LibrariesActivity : AppCompatActivity() {
             try {
                 // Verify real conda binary exists using host check + guest command
                 val isPresent = runtime.isCondaInstalled() || runtime.runCommand(
-                    "type conda >/dev/null 2>&1 || [ -x /home/ubuntu/miniforge3/bin/conda ] || [ -x /home/ubuntu/miniconda3/bin/conda ] || [ -x /root/miniconda3/bin/conda ] || [ -x /opt/conda/bin/conda ]"
+                    "[ -x /home/ubuntu/miniforge3/bin/conda ] || [ -x /home/ubuntu/miniconda3/bin/conda ] || [ -x /home/ubuntu/anaconda3/bin/conda ] || [ -x /root/miniconda3/bin/conda ] || [ -x /root/miniforge3/bin/conda ] || [ -x /root/anaconda3/bin/conda ] || [ -x /opt/conda/bin/conda ]"
                 ).first == 0
 
                 if (!isPresent) {

@@ -57,6 +57,13 @@ object PackageRepository {
         sb.append("fast_check() {\n")
         sb.append("    local id=\"").append(d).append("1\"\n")
         sb.append("    local cmd=\"").append(d).append("2\"\n")
+        sb.append("    if [ \"").append(d).append("id\" = \"miniconda\" ]; then\n")
+        sb.append("        if type conda >/dev/null 2>&1 || [ -x /home/ubuntu/miniforge3/bin/conda ] || [ -x /home/ubuntu/miniconda3/bin/conda ] || [ -x /home/ubuntu/anaconda3/bin/conda ] || [ -x /root/miniconda3/bin/conda ] || [ -x /root/miniforge3/bin/conda ] || [ -x /root/anaconda3/bin/conda ] || [ -x /opt/conda/bin/conda ]; then\n")
+        sb.append("            return 0\n")
+        sb.append("        else\n")
+        sb.append("            return 1\n")
+        sb.append("        fi\n")
+        sb.append("    fi\n")
         sb.append("    if [ \"").append(d).append("id\" = \"jupyterlab\" ]; then\n")
         sb.append("        if [[ \"").append(d).append("ALL_PY\" == *\"PY:notebook\"* ]] || [[ \"").append(d).append("ALL_PY\" == *\"PY:jupyterlab\"* ]]; then\n")
         sb.append("            return 0\n")
@@ -106,13 +113,14 @@ object PackageRepository {
                 return "echo '[MobileLinux] [ 20%] Deactivating and removing Conda...'; " +
                         "conda deactivate 2>/dev/null || true; " +
                         "echo '[MobileLinux] [ 50%] Removing Conda directories...'; " +
-                        "rm -rf /home/ubuntu/miniforge3 /home/ubuntu/miniconda3 /root/miniconda3 /root/miniforge3 /home/ubuntu/.conda /root/.conda /opt/conda /home/ubuntu/.condarc /root/.condarc 2>/dev/null || true; " +
+                        "rm -rf /home/ubuntu/miniforge3 /home/ubuntu/miniconda3 /home/ubuntu/anaconda3 /root/miniconda3 /root/miniforge3 /root/anaconda3 /opt/conda /opt/anaconda3 /home/ubuntu/.conda /root/.conda /home/ubuntu/.condarc /root/.condarc /home/ubuntu/.miniforge.sh /home/ubuntu/.miniforge_installer.sh /root/.miniforge.sh /root/.miniforge_installer.sh /tmp/miniforge.sh /tmp/Miniforge3-Linux-aarch64.sh 2>/dev/null || true; " +
                         "echo '[MobileLinux] [ 75%] Cleaning shell configuration...'; " +
                         "sed -i '/# >>> conda initialize >>>/,/# <<< conda initialize <<</d' /home/ubuntu/.bashrc /root/.bashrc /etc/bash.bashrc 2>/dev/null || true; " +
+                        "sed -i '/# >>> MobileLinux: Auto-activate Conda environment >>>/,/# <<< MobileLinux: Auto-activate Conda environment <<</d' /home/ubuntu/.bashrc /root/.bashrc /etc/bash.bashrc 2>/dev/null || true; " +
                         "sed -i '/# MobileLinux: Auto-activate Conda environment/,/fi/d' /home/ubuntu/.bashrc /root/.bashrc /etc/bash.bashrc 2>/dev/null || true; " +
-                        "sed -i '/miniforge3/d; /miniconda3/d' /home/ubuntu/.bashrc /root/.bashrc /etc/bash.bashrc 2>/dev/null || true; " +
-                        "rm -f /usr/local/bin/conda /usr/local/bin/mamba /home/ubuntu/.local/bin/conda /root/.local/bin/conda 2>/dev/null || true; " +
-                        "echo '[MobileLinux] [100%] ✓ Conda permanently uninstalled and cleaned!'"
+                        "sed -i '/miniforge3/d; /miniconda3/d; /anaconda3/d' /home/ubuntu/.bashrc /root/.bashrc /etc/bash.bashrc 2>/dev/null || true; " +
+                        "rm -f /home/ubuntu/.local/bin/conda /root/.local/bin/conda /home/ubuntu/.local/bin/mamba /root/.local/bin/mamba 2>/dev/null || true; " +
+                        "echo '[MobileLinux] [100%] ✓ Conda permanently uninstalled and cleaned!'; exit 0"
             }
             "jupyterlab" -> {
                 return "echo '[MobileLinux] Purging JupyterLab & Notebook...'; " +
@@ -1176,7 +1184,7 @@ object PackageRepository {
                     "if which curl >/dev/null 2>&1; then (curl -fSL https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh -o /home/ubuntu/.miniforge.sh || curl -fSL https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh -o /home/ubuntu/.miniforge.sh); else (wget -O /home/ubuntu/.miniforge.sh https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh || wget -O /home/ubuntu/.miniforge.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh); fi && " +
                     "bash /home/ubuntu/.miniforge.sh -b -p /home/ubuntu/miniforge3 -u && rm -f /home/ubuntu/.miniforge.sh && " +
                     "/home/ubuntu/miniforge3/bin/conda init bash && /home/ubuntu/miniforge3/bin/conda config --set always_copy true && /home/ubuntu/miniforge3/bin/conda config --set auto_activate_base true; fi",
-            checkInstalledCommand = "[ -x /home/ubuntu/miniforge3/bin/conda ] || [ -x /root/miniconda3/bin/conda ] || [ -x /opt/conda/bin/conda ]",
+            checkInstalledCommand = "command -v conda >/dev/null 2>&1 || [ -x /home/ubuntu/miniforge3/bin/conda ] || [ -x /home/ubuntu/miniconda3/bin/conda ] || [ -x /home/ubuntu/anaconda3/bin/conda ] || [ -x /root/miniconda3/bin/conda ] || [ -x /root/miniforge3/bin/conda ] || [ -x /root/anaconda3/bin/conda ] || [ -x /opt/conda/bin/conda ]",
             launchUrl = null
         ),
         LinuxPackage(

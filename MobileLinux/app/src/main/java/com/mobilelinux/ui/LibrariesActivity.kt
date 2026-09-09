@@ -11,6 +11,7 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.view.MenuItem
 import android.view.View
+import android.view.WindowManager
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -84,6 +85,68 @@ class LibrariesActivity : AppCompatActivity() {
 
         loadPackages()
         scanInstalledPackages()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Synchronize package states with real disk filesystem when returning to screen
+        val isCondaPresent = runtime.isCondaInstalled()
+        val isCondaActive = runtime.isCondaActive()
+        val isDesktopPresent = runtime.isDesktopInstalled()
+        var stateChanged = false
+
+        allPackages.forEach { pkg ->
+            if (pkg.id == "miniconda" && !pkg.isInstalling && !pkg.isUninstalling && !pkg.isActivating) {
+                if (isCondaPresent && !pkg.isInstalled) {
+                    pkg.isInstalled = true
+                    pkg.isActivated = isCondaActive
+                    pkg.statusText = if (isCondaActive) "Active & Ready (base)" else "Installed. Click Activate to enable."
+                    stateChanged = true
+                    val prefs = getSharedPreferences("packages_state_cache", Context.MODE_PRIVATE)
+                    val currentSet = getCachedInstalledIds(prefs)
+                    currentSet.add("miniconda")
+                    prefs.edit().putStringSet("installed_ids", currentSet).putBoolean("conda_active", isCondaActive).apply()
+                } else if (!isCondaPresent && pkg.isInstalled) {
+                    pkg.isInstalled = false
+                    pkg.isActivated = false
+                    pkg.statusText = "Ready to install"
+                    stateChanged = true
+                    val prefs = getSharedPreferences("packages_state_cache", Context.MODE_PRIVATE)
+                    val currentSet = getCachedInstalledIds(prefs)
+                    currentSet.remove("miniconda")
+                    prefs.edit().putStringSet("installed_ids", currentSet).putBoolean("conda_active", false).apply()
+                }
+
+                // If Conda is physically present but not active in .bashrc / .condarc, auto-activate it in the background
+                if (isCondaPresent && !isCondaActive) {
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        try {
+                            runtime.configureCondaEnvironment()
+                            withContext(Dispatchers.Main) {
+                                pkg.isActivated = true
+                                pkg.statusText = "Active & Ready (base)"
+                                val prefs = getSharedPreferences("packages_state_cache", Context.MODE_PRIVATE)
+                                prefs.edit().putBoolean("conda_active", true).apply()
+                                adapter.updateItem(pkg.id)
+                            }
+                        } catch (ignored: Exception) {}
+                    }
+                }
+            } else if (pkg.id == "xfce4-desktop" && !pkg.isInstalling && !pkg.isUninstalling) {
+                if (isDesktopPresent && !pkg.isInstalled) {
+                    pkg.isInstalled = true
+                    pkg.statusText = "Installed and ready"
+                    stateChanged = true
+                } else if (!isDesktopPresent && pkg.isInstalled) {
+                    pkg.isInstalled = false
+                    pkg.statusText = "Ready to install"
+                    stateChanged = true
+                }
+            }
+        }
+        if (stateChanged) {
+            applyFilters()
+        }
     }
 
     private fun initViews() {
@@ -243,14 +306,20 @@ class LibrariesActivity : AppCompatActivity() {
         val prefs = getSharedPreferences("packages_state_cache", Context.MODE_PRIVATE)
         val savedInstalled = getCachedInstalledIds(prefs)
         val hasExplicitCache = prefs.contains("installed_ids")
+        val isCondaBinaryPresent = runtime.isCondaInstalled()
+        val isCondaActivePresent = runtime.isCondaActive()
         val isDesktopBinaryPresent = runtime.isDesktopInstalled()
 
         curated.forEach { pkg ->
             if (pkg.id == "miniconda") {
-                if (savedInstalled.contains("miniconda")) {
+                if (savedInstalled.contains("miniconda") || isCondaBinaryPresent) {
                     pkg.isInstalled = true
-                    pkg.isActivated = true
-                    pkg.statusText = "Active & Ready (base)"
+                    pkg.isActivated = isCondaActivePresent
+                    pkg.statusText = if (isCondaActivePresent) "Active & Ready (base)" else "Installed. Click Activate to enable."
+                    if (isCondaBinaryPresent && !savedInstalled.contains("miniconda")) {
+                        savedInstalled.add("miniconda")
+                        prefs.edit().putStringSet("installed_ids", savedInstalled).putBoolean("conda_active", isCondaActivePresent).apply()
+                    }
                 }
             } else if (pkg.id == "xfce4-desktop") {
                 if (savedInstalled.contains("xfce4-desktop") || (!hasExplicitCache && isDesktopBinaryPresent) || isDesktopBinaryPresent) {
@@ -310,15 +379,19 @@ class LibrariesActivity : AppCompatActivity() {
                     .map { it.substringAfter("INSTALLED:").trim() }
                     .toSet()
 
-                // Real verification of Conda binary existence
-                val realCondaInstalled = runtime.runCommand(
-                    "[ -x /home/ubuntu/miniforge3/bin/conda ] || [ -x /root/miniconda3/bin/conda ] || [ -x /opt/conda/bin/conda ]"
-                ).first == 0
+                // Real verification of Conda binary existence (0ms host filesystem check OR command)
+                val realCondaInstalled = runtime.isCondaInstalled() || (
+                    runtime.runCommand(
+                        "type conda >/dev/null 2>&1 || [ -x /home/ubuntu/miniforge3/bin/conda ] || [ -x /home/ubuntu/miniconda3/bin/conda ] || [ -x /root/miniconda3/bin/conda ] || [ -x /opt/conda/bin/conda ]"
+                    ).first == 0
+                )
 
                 // Check whether Conda is already activated in .bashrc and .condarc
-                var isCondaActivated = realCondaInstalled && runtime.runCommand(
-                    "grep -q 'conda initialize' /home/ubuntu/.bashrc 2>/dev/null && [ -f /home/ubuntu/.condarc ]"
-                ).first == 0
+                var isCondaActivated = realCondaInstalled && (
+                    runtime.isCondaActive() || runtime.runCommand(
+                        "grep -q 'conda initialize' /home/ubuntu/.bashrc 2>/dev/null && [ -f /home/ubuntu/.condarc ]"
+                    ).first == 0
+                )
 
                 // Auto-activate & auto-repair Conda if binary exists so user never has to manually init
                 if (realCondaInstalled && !isCondaActivated) {
@@ -411,6 +484,9 @@ class LibrariesActivity : AppCompatActivity() {
         pkg.statusText = "Starting installation..."
         adapter.updateItem(pkg.id)
 
+        // Keep screen on during package installations (especially large extractions like Conda)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
         Toast.makeText(this, "Starting installation of ${pkg.name}...", Toast.LENGTH_SHORT).show()
 
         lifecycleScope.launch(Dispatchers.IO) {
@@ -476,90 +552,92 @@ class LibrariesActivity : AppCompatActivity() {
                     }
                 }
 
+                val isSuccessExit = result.first == 0
+                val isCondaDetected = (pkg.id == "miniconda") && (
+                    runtime.isCondaInstalled() || withContext(Dispatchers.IO) {
+                        runtime.runCommand(
+                            "type conda >/dev/null 2>&1 || [ -x /home/ubuntu/miniforge3/bin/conda ] || [ -x /home/ubuntu/miniconda3/bin/conda ] || [ -x /root/miniconda3/bin/conda ] || [ -x /opt/conda/bin/conda ]"
+                        ).first == 0
+                    }
+                )
+
                 withContext(Dispatchers.Main) {
                     pkg.isInstalling = false
-                    if (result.first == 0) {
-                        val prefs = getSharedPreferences("packages_state_cache", Context.MODE_PRIVATE)
+                    val prefs = getSharedPreferences("packages_state_cache", Context.MODE_PRIVATE)
 
-                        if (pkg.id == "miniconda") {
-                            val checkConda = withContext(Dispatchers.IO) {
-                                runtime.runCommand(
-                                    "[ -x /home/ubuntu/miniforge3/bin/conda ] || [ -x /root/miniconda3/bin/conda ] || [ -x /opt/conda/bin/conda ]"
-                                )
+                    if (pkg.id == "miniconda") {
+                        if (isCondaDetected) {
+                            pkg.isInstalled = true
+                            pkg.isActivated = true
+                            pkg.progressPercent = 100
+                            pkg.statusText = "Active & Ready (base)"
+                            val currentSet = getCachedInstalledIds(prefs)
+                            currentSet.add(pkg.id)
+                            prefs.edit().putStringSet("installed_ids", currentSet).putBoolean("conda_active", true).apply()
+                            withContext(Dispatchers.IO) {
+                                runtime.configureCondaEnvironment()
                             }
-                            if (checkConda.first == 0) {
-                                pkg.isInstalled = true
-                                pkg.isActivated = true
-                                pkg.progressPercent = 100
-                                pkg.statusText = "Active & Ready (base)"
-                                val currentSet = getCachedInstalledIds(prefs)
-                                currentSet.add(pkg.id)
-                                prefs.edit().putStringSet("installed_ids", currentSet).putBoolean("conda_active", true).apply()
-                                withContext(Dispatchers.IO) {
-                                    runtime.configureCondaEnvironment()
-                                }
-                                adapter.updateItem(pkg.id)
-                                Toast.makeText(
-                                    this@LibrariesActivity,
-                                    "Miniconda3 / Conda installed and activated successfully! (base) is active.",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            } else {
-                                pkg.isInstalled = false
-                                pkg.isActivated = false
-                                pkg.progressPercent = -1
-                                pkg.statusText = "Install completed but binary missing"
-                                val currentSet = getCachedInstalledIds(prefs)
-                                currentSet.remove(pkg.id)
-                                prefs.edit().putStringSet("installed_ids", currentSet).apply()
-                                adapter.updateItem(pkg.id)
-                                Toast.makeText(
-                                    this@LibrariesActivity,
-                                    "Conda installation finished, but binary not found.",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
+                            adapter.updateItem(pkg.id)
+                            Toast.makeText(
+                                this@LibrariesActivity,
+                                "Miniconda3 / Conda installed and activated successfully! (base) is active.",
+                                Toast.LENGTH_LONG
+                            ).show()
                         } else {
-                            val checkResult = withContext(Dispatchers.IO) {
-                                runtime.runCommand(pkg.checkInstalledCommand)
-                            }
-                            if (checkResult.first == 0) {
-                                pkg.isInstalled = true
-                                pkg.progressPercent = 100
-                                pkg.statusText = "Installed and ready"
-                                val currentSet = getCachedInstalledIds(prefs)
-                                currentSet.add(pkg.id)
-                                prefs.edit().putStringSet("installed_ids", currentSet).apply()
-                                if (pkg.id == "xfce4-desktop" || pkg.id == "jupyterlab" || pkg.id == "jupyter") {
-                                    withContext(Dispatchers.IO) {
-                                        try {
-                                            runtime.installCommandWrappers()
-                                            if (pkg.id == "jupyterlab" || pkg.id == "jupyter") {
-                                                runtime.patchJupyterTemplatesForMobile()
-                                            }
-                                        } catch (ignored: Exception) {}
-                                    }
+                            pkg.isInstalled = false
+                            pkg.isActivated = false
+                            pkg.progressPercent = -1
+                            pkg.statusText = if (isSuccessExit) "Install completed but binary missing" else "Install failed (Exit code: ${result.first})"
+                            val currentSet = getCachedInstalledIds(prefs)
+                            currentSet.remove(pkg.id)
+                            prefs.edit().putStringSet("installed_ids", currentSet).putBoolean("conda_active", false).apply()
+                            adapter.updateItem(pkg.id)
+                            Toast.makeText(
+                                this@LibrariesActivity,
+                                if (isSuccessExit) "Conda installation finished, but binary not found." else "Failed to install Conda. Exit code: ${result.first}",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    } else if (isSuccessExit) {
+                        val checkResult = withContext(Dispatchers.IO) {
+                            runtime.runCommand(pkg.checkInstalledCommand)
+                        }
+                        if (checkResult.first == 0) {
+                            pkg.isInstalled = true
+                            pkg.progressPercent = 100
+                            pkg.statusText = "Installed and ready"
+                            val currentSet = getCachedInstalledIds(prefs)
+                            currentSet.add(pkg.id)
+                            prefs.edit().putStringSet("installed_ids", currentSet).apply()
+                            if (pkg.id == "xfce4-desktop" || pkg.id == "jupyterlab" || pkg.id == "jupyter") {
+                                withContext(Dispatchers.IO) {
+                                    try {
+                                        runtime.installCommandWrappers()
+                                        if (pkg.id == "jupyterlab" || pkg.id == "jupyter") {
+                                            runtime.patchJupyterTemplatesForMobile()
+                                        }
+                                    } catch (ignored: Exception) {}
                                 }
-                                adapter.updateItem(pkg.id)
-                                Toast.makeText(
-                                    this@LibrariesActivity,
-                                    "${pkg.name} installed successfully.",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            } else {
-                                pkg.isInstalled = false
-                                pkg.progressPercent = -1
-                                pkg.statusText = "Install completed, check failed"
-                                val currentSet = getCachedInstalledIds(prefs)
-                                currentSet.remove(pkg.id)
-                                prefs.edit().putStringSet("installed_ids", currentSet).apply()
-                                adapter.updateItem(pkg.id)
-                                Toast.makeText(
-                                    this@LibrariesActivity,
-                                    "${pkg.name} install process completed, but package check failed.",
-                                    Toast.LENGTH_LONG
-                                ).show()
                             }
+                            adapter.updateItem(pkg.id)
+                            Toast.makeText(
+                                this@LibrariesActivity,
+                                "${pkg.name} installed successfully.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        } else {
+                            pkg.isInstalled = false
+                            pkg.progressPercent = -1
+                            pkg.statusText = "Install completed, check failed"
+                            val currentSet = getCachedInstalledIds(prefs)
+                            currentSet.remove(pkg.id)
+                            prefs.edit().putStringSet("installed_ids", currentSet).apply()
+                            adapter.updateItem(pkg.id)
+                            Toast.makeText(
+                                this@LibrariesActivity,
+                                "${pkg.name} install process completed, but package check failed.",
+                                Toast.LENGTH_LONG
+                            ).show()
                         }
                     } else {
                         android.util.Log.e("LibrariesActivity", "Install error for ${pkg.id} (code ${result.first}): ${result.second}")
@@ -599,6 +677,9 @@ class LibrariesActivity : AppCompatActivity() {
             } finally {
                 tickerJob.cancel()
                 withContext(Dispatchers.Main) {
+                    if (installQueue.isEmpty()) {
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    }
                     processNextInQueue()
                 }
             }
@@ -684,6 +765,11 @@ class LibrariesActivity : AppCompatActivity() {
                     )
                 }
 
+                if (pkg.id == "miniconda") {
+                    // Host-level purge to instantly and completely remove conda directories and configs
+                    runtime.purgeCondaFromHost()
+                }
+
                 val uninstallCmd = PackageRepository.getUninstallCommand(pkg)
                 android.util.Log.d("LibrariesActivity", "Executing uninstall: $uninstallCmd")
                 val result = runtime.runCommand(uninstallCmd, timeoutSeconds = 90L) { line ->
@@ -704,9 +790,19 @@ class LibrariesActivity : AppCompatActivity() {
                 }
                 android.util.Log.d("LibrariesActivity", "Uninstall result code: ${result.first}")
 
+                if (pkg.id == "miniconda") {
+                    // Clean up any remaining host files just in case
+                    runtime.purgeCondaFromHost()
+                }
+
                 // Verify via checkInstalledCommand with timeout
                 val verifyResult = withContext(Dispatchers.IO) {
-                    runtime.runCommand(pkg.checkInstalledCommand, timeoutSeconds = 15L)
+                    if (pkg.id == "miniconda") {
+                        val stillOnHost = runtime.isCondaInstalled()
+                        if (stillOnHost) Pair(0, "") else runtime.runCommand(pkg.checkInstalledCommand, timeoutSeconds = 10L)
+                    } else {
+                        runtime.runCommand(pkg.checkInstalledCommand, timeoutSeconds = 15L)
+                    }
                 }
                 val isStillInstalled = verifyResult.first == 0
 
@@ -780,11 +876,12 @@ class LibrariesActivity : AppCompatActivity() {
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                // Verify real conda binary exists
-                val checkConda = runtime.runCommand(
-                    "[ -x /home/ubuntu/miniforge3/bin/conda ] || [ -x /root/miniconda3/bin/conda ] || [ -x /opt/conda/bin/conda ]"
-                )
-                if (checkConda.first != 0) {
+                // Verify real conda binary exists using host check + guest command
+                val isPresent = runtime.isCondaInstalled() || runtime.runCommand(
+                    "type conda >/dev/null 2>&1 || [ -x /home/ubuntu/miniforge3/bin/conda ] || [ -x /home/ubuntu/miniconda3/bin/conda ] || [ -x /root/miniconda3/bin/conda ] || [ -x /opt/conda/bin/conda ]"
+                ).first == 0
+
+                if (!isPresent) {
                     withContext(Dispatchers.Main) {
                         pkg.isActivating = false
                         pkg.isInstalled = false
@@ -806,21 +903,7 @@ class LibrariesActivity : AppCompatActivity() {
                     Toast.makeText(this@LibrariesActivity, "Activating Conda base environment...", Toast.LENGTH_SHORT).show()
                 }
 
-                // Ensure miniforge3 permissions and binaries are executable
-                runtime.runCommand("chmod -R u+rx /home/ubuntu/miniforge3/bin 2>/dev/null || true")
-
-                // Run conda init and configure settings inside container
-                val initCmd = listOf(
-                    "if [ -x /home/ubuntu/miniforge3/bin/conda ]; then",
-                    "    /home/ubuntu/miniforge3/bin/conda init bash",
-                    "    /home/ubuntu/miniforge3/bin/conda config --set always_copy true",
-                    "    /home/ubuntu/miniforge3/bin/conda config --set auto_activate_base true",
-                    "    /usr/local/bin/conda-sync-packages 2>/dev/null || true",
-                    "fi"
-                ).joinToString("\n")
-                runtime.runCommand(initCmd)
-
-                // Inject and verify .bashrc & .condarc & command wrappers
+                // Inject and verify .bashrc & .condarc & command wrappers via UbuntuRuntime
                 runtime.configureCondaEnvironment()
 
                 withContext(Dispatchers.Main) {

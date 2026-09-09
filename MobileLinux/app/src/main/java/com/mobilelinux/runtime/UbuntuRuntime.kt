@@ -1734,17 +1734,23 @@ class UbuntuRuntime(private val context: Context) {
             val candidatePaths = listOf(
                 "/home/ubuntu/miniforge3",
                 "/home/ubuntu/miniconda3",
+                "/home/ubuntu/anaconda3",
                 "/root/miniconda3",
                 "/root/miniforge3",
-                "/opt/conda"
+                "/root/anaconda3",
+                "/opt/conda",
+                "/opt/anaconda3"
             )
 
             var detectedContainerDir: String? = null
             for (candidate in candidatePaths) {
-                val condaBin = File(rootfsDir, "${candidate.removePrefix("/")}/bin/conda")
-                if (condaBin.exists()) {
-                    condaBin.setExecutable(true, false)
-                    condaBin.setReadable(true, false)
+                val relBin = "${candidate.removePrefix("/")}/bin/conda"
+                val condaBin = File(rootfsDir, relBin)
+                if (condaBin.exists() || existsNoFollow(relBin)) {
+                    try {
+                        condaBin.setExecutable(true, false)
+                        condaBin.setReadable(true, false)
+                    } catch (ignored: Exception) {}
                     detectedContainerDir = candidate
                     break
                 }
@@ -1777,7 +1783,7 @@ class UbuntuRuntime(private val context: Context) {
             }
 
             // 3. Configure .bashrc for root user
-            val rootCondaDir = if (File(rootfsDir, "root/miniconda3/bin/conda").exists()) {
+            val rootCondaDir = if (File(rootfsDir, "root/miniconda3/bin/conda").exists() || existsNoFollow("root/miniconda3/bin/conda")) {
                 "/root/miniconda3"
             } else {
                 detectedContainerDir
@@ -1795,8 +1801,9 @@ class UbuntuRuntime(private val context: Context) {
             condaWrapper.setExecutable(true, false)
             condaWrapper.setReadable(true, false)
 
-            val mambaBin = File(rootfsDir, "${detectedContainerDir.removePrefix("/")}/bin/mamba")
-            if (mambaBin.exists()) {
+            val mambaRel = "${detectedContainerDir.removePrefix("/")}/bin/mamba"
+            val mambaBin = File(rootfsDir, mambaRel)
+            if (mambaBin.exists() || existsNoFollow(mambaRel)) {
                 val mambaWrapper = File(usrLocalBin, "mamba")
                 safeWriteFile(mambaWrapper, "#!/bin/sh\nexec $detectedContainerDir/bin/mamba \"\$@\"\n")
                 mambaWrapper.setExecutable(true, false)
@@ -1819,7 +1826,16 @@ class UbuntuRuntime(private val context: Context) {
 
             val condaInitMarkerStart = "# >>> conda initialize >>>"
             val condaInitMarkerEnd = "# <<< conda initialize <<<"
-            val autoActivateMarker = "# MobileLinux: Auto-activate Conda environment"
+            val autoActivateMarkerStart = "# >>> MobileLinux: Auto-activate Conda environment >>>"
+            val autoActivateMarkerEnd = "# <<< MobileLinux: Auto-activate Conda environment <<<"
+            val legacyAutoActivateMarker = "# MobileLinux: Auto-activate Conda environment"
+
+            // Clean legacy auto-activate block if present to avoid stray fi issues
+            if (content.contains(legacyAutoActivateMarker) && !content.contains(autoActivateMarkerStart)) {
+                content = content.replace(Regex("(?s)# MobileLinux: Auto-activate Conda environment.*?\\bfi\\s*\\bfi\\s*"), "")
+                content = content.replace(Regex("(?s)# MobileLinux: Auto-activate Conda environment.*?\\bfi\\s*"), "")
+                modified = true
+            }
 
             val condaSetupBlock = buildString {
                 append("\n$condaInitMarkerStart\n")
@@ -1839,19 +1855,20 @@ class UbuntuRuntime(private val context: Context) {
             }
 
             val autoActivateBlock = buildString {
-                append("\n$autoActivateMarker\n")
+                append("\n$autoActivateMarkerStart\n")
                 append("if [ -z \"\$CONDA_DEFAULT_ENV\" ] && type conda >/dev/null 2>&1; then\n")
                 append("    if ! grep -q \"conda-manager default-env\" \"\$HOME/.bashrc\" 2>/dev/null; then\n")
                 append("        conda activate base 2>/dev/null || true\n")
                 append("    fi\n")
                 append("fi\n")
+                append("$autoActivateMarkerEnd\n")
             }
 
             if (!content.contains(condaInitMarkerStart)) {
                 content = content.trimEnd() + "\n" + condaSetupBlock + autoActivateBlock
                 modified = true
             } else {
-                if (!content.contains(autoActivateMarker)) {
+                if (!content.contains(autoActivateMarkerStart)) {
                     content = content.trimEnd() + "\n" + autoActivateBlock
                     modified = true
                 }
@@ -1869,7 +1886,7 @@ class UbuntuRuntime(private val context: Context) {
                         val actualEnd = if (endIdx != -1) endIdx + 1 else content.length
                         val extractedConda = content.substring(startIdx, actualEnd)
                         content = (content.substring(0, startIdx) + content.substring(actualEnd)).trimEnd() + "\n\n" + extractedConda
-                        if (!content.contains(autoActivateMarker)) {
+                        if (!content.contains(autoActivateMarkerStart)) {
                             content += "\n" + autoActivateBlock
                         }
                         modified = true
@@ -1877,7 +1894,27 @@ class UbuntuRuntime(private val context: Context) {
                 }
             }
 
+            // Clean any orphaned stray 'fi' line left by legacy uninstallation bugs
+            val lines = content.lines()
+            val sanitized = mutableListOf<String>()
+            for (line in lines) {
+                if (line.trim() == "fi") {
+                    val ifCount = sanitized.count {
+                        val t = it.trim()
+                        t.startsWith("if ") || t.startsWith("if [") || t.startsWith("if [") || t.startsWith("if [[")
+                    }
+                    val fiCount = sanitized.count { it.trim() == "fi" }
+                    if (fiCount < ifCount) {
+                        sanitized.add(line)
+                    } else {
+                        modified = true // Dropped orphaned fi
+                    }
+                } else {
+                    sanitized.add(line)
+                }
+            }
             if (modified) {
+                content = sanitized.joinToString("\n")
                 safeWriteFile(bashrcFile, content)
                 bashrcFile.setReadable(true, false)
                 bashrcFile.setWritable(true, false)
@@ -2120,22 +2157,22 @@ class UbuntuRuntime(private val context: Context) {
         "exec /usr/local/bin/jupyter-start \"\$@\"\n"
     ).joinToString("\n")
 
+    fun existsNoFollow(relPath: String): Boolean {
+        val f = File(rootfsDir, relPath.removePrefix("/"))
+        if (f.exists()) return true
+        return try {
+            java.nio.file.Files.exists(f.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS)
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     /**
      * Checks if XFCE4 Desktop and TigerVNC binaries are installed.
      * Accounts for symlinks (/usr/bin/vncserver -> /etc/alternatives/vncserver)
      * that cannot be followed by standard Java File.exists() from the Android host JVM.
      */
     fun isDesktopInstalled(): Boolean {
-        fun existsNoFollow(relPath: String): Boolean {
-            val f = File(rootfsDir, relPath)
-            if (f.exists()) return true
-            return try {
-                java.nio.file.Files.exists(f.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS)
-            } catch (e: Exception) {
-                false
-            }
-        }
-
         val hasXfce = existsNoFollow("usr/bin/startxfce4") ||
                       existsNoFollow("usr/bin/xfce4-session") ||
                       existsNoFollow("usr/bin/xfwm4")
@@ -2146,6 +2183,181 @@ class UbuntuRuntime(private val context: Context) {
                      existsNoFollow("usr/bin/Xvnc")
 
         return hasXfce && hasVnc
+    }
+
+    /**
+     * Instantly checks (0ms) if Conda (Miniforge3, Miniconda3, Anaconda) binary is present on disk.
+     * Checks all known candidate paths directly on the host rootfs.
+     */
+    fun isCondaInstalled(): Boolean {
+        val candidatePaths = listOf(
+            "home/ubuntu/miniforge3/bin/conda",
+            "home/ubuntu/miniforge3/condabin/conda",
+            "home/ubuntu/miniconda3/bin/conda",
+            "home/ubuntu/miniconda3/condabin/conda",
+            "home/ubuntu/anaconda3/bin/conda",
+            "home/ubuntu/anaconda3/condabin/conda",
+            "root/miniconda3/bin/conda",
+            "root/miniconda3/condabin/conda",
+            "root/miniforge3/bin/conda",
+            "root/miniforge3/condabin/conda",
+            "root/anaconda3/bin/conda",
+            "opt/conda/bin/conda",
+            "opt/conda/condabin/conda",
+            "opt/anaconda3/bin/conda"
+        )
+        for (rel in candidatePaths) {
+            val f = File(rootfsDir, rel)
+            if (f.exists() || existsNoFollow(rel)) {
+                try {
+                    f.setExecutable(true, false)
+                    f.setReadable(true, false)
+                } catch (ignored: Exception) {}
+                return true
+            }
+        }
+        return false
+    }
+
+    /**
+     * Checks whether Conda is fully initialized and activated for bash sessions.
+     */
+    fun isCondaActive(): Boolean {
+        if (!isCondaInstalled()) return false
+        val bashrc = File(rootfsDir, "home/ubuntu/.bashrc")
+        val condarc = File(rootfsDir, "home/ubuntu/.condarc")
+        val rootCondarc = File(rootfsDir, "root/.condarc")
+        return (condarc.exists() || rootCondarc.exists()) &&
+                bashrc.exists() &&
+                bashrc.readText().contains("conda initialize")
+    }
+
+    /**
+     * Returns the File directory of the installed Conda distribution, or null if not installed.
+     */
+    fun getCondaInstallDir(): File? {
+        val candidateDirs = listOf(
+            "home/ubuntu/miniforge3",
+            "home/ubuntu/miniconda3",
+            "home/ubuntu/anaconda3",
+            "root/miniconda3",
+            "root/miniforge3",
+            "root/anaconda3",
+            "opt/conda",
+            "opt/anaconda3"
+        )
+        for (rel in candidateDirs) {
+            val dir = File(rootfsDir, rel)
+            val bin = File(dir, "bin/conda")
+            val condabin = File(dir, "condabin/conda")
+            if (bin.exists() || condabin.exists() || existsNoFollow("$rel/bin/conda") || existsNoFollow("$rel/condabin/conda")) {
+                return dir
+            }
+        }
+        return null
+    }
+
+    /**
+     * Permanently and cleanly purges Conda from the host filesystem.
+     * Deletes all conda folders, environments, caches, and cleanly strips .bashrc blocks
+     * without leaving stray 'fi' or syntax errors.
+     */
+    fun purgeCondaFromHost(): Boolean {
+        return try {
+            val dirsToRemove = listOf(
+                "home/ubuntu/miniforge3",
+                "home/ubuntu/miniconda3",
+                "home/ubuntu/anaconda3",
+                "root/miniconda3",
+                "root/miniforge3",
+                "root/anaconda3",
+                "opt/conda",
+                "opt/anaconda3",
+                "home/ubuntu/.conda",
+                "root/.conda"
+            )
+            for (rel in dirsToRemove) {
+                val f = File(rootfsDir, rel)
+                if (f.exists()) {
+                    f.deleteRecursively()
+                }
+            }
+
+            val filesToRemove = listOf(
+                "home/ubuntu/.condarc",
+                "root/.condarc",
+                "home/ubuntu/.miniforge.sh",
+                "home/ubuntu/.miniforge_installer.sh",
+                "root/.miniforge.sh",
+                "root/.miniforge_installer.sh",
+                "tmp/miniforge.sh",
+                "tmp/Miniforge3-Linux-aarch64.sh"
+            )
+            for (rel in filesToRemove) {
+                File(rootfsDir, rel).delete()
+            }
+
+            // Clean .bashrc on both user and root
+            removeCondaFromBashrc(File(rootfsDir, "home/ubuntu/.bashrc"))
+            removeCondaFromBashrc(File(rootfsDir, "root/.bashrc"))
+            removeCondaFromBashrc(File(rootfsDir, "etc/bash.bashrc"))
+
+            // Restore clean conda dispatcher wrapper
+            val usrLocalBin = File(rootfsDir, "usr/local/bin")
+            if (usrLocalBin.exists()) {
+                val condaWrapper = File(usrLocalBin, "conda")
+                safeWriteFile(condaWrapper, getCondaWrapperScript())
+                condaWrapper.setExecutable(true, false)
+                condaWrapper.setReadable(true, false)
+
+                val mambaWrapper = File(usrLocalBin, "mamba")
+                safeWriteFile(mambaWrapper, getMambaWrapperScript())
+                mambaWrapper.setExecutable(true, false)
+                mambaWrapper.setReadable(true, false)
+            }
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "purgeCondaFromHost error: ${e.message}")
+            false
+        }
+    }
+
+    private fun removeCondaFromBashrc(bashrcFile: File) {
+        if (!bashrcFile.exists()) return
+        try {
+            var text = bashrcFile.readText()
+            // 1. Remove # >>> conda initialize >>> ... # <<< conda initialize <<<
+            text = text.replace(Regex("(?s)# >>> conda initialize >>>.*?# <<< conda initialize <<<\\s*"), "")
+            // 2. Remove MobileLinux auto-activate block (both old and new markers)
+            text = text.replace(Regex("(?s)# >>> MobileLinux: Auto-activate Conda environment >>>.*?# <<< MobileLinux: Auto-activate Conda environment <<<\\s*"), "")
+            text = text.replace(Regex("(?s)# MobileLinux: Auto-activate Conda environment.*?\\bfi\\s*\\bfi\\s*"), "")
+            text = text.replace(Regex("(?s)# MobileLinux: Auto-activate Conda environment.*?\\bfi\\s*"), "")
+            // 3. Remove lines with miniforge3, miniconda3, anaconda3
+            val filteredLines = text.lines().filter { line ->
+                val trimmed = line.trim()
+                !trimmed.contains("miniforge3") &&
+                !trimmed.contains("miniconda3") &&
+                !trimmed.contains("anaconda3")
+            }
+            // 4. Clean any orphaned 'fi' line
+            val cleanLines = mutableListOf<String>()
+            for (line in filteredLines) {
+                val t = line.trim()
+                if (t == "fi") {
+                    val ifCount = cleanLines.count {
+                        val itT = it.trim()
+                        itT.startsWith("if ") || itT.startsWith("if [") || itT.startsWith("if [[")
+                    }
+                    val fiCount = cleanLines.count { it.trim() == "fi" }
+                    if (fiCount < ifCount) {
+                        cleanLines.add(line)
+                    }
+                } else {
+                    cleanLines.add(line)
+                }
+            }
+            safeWriteFile(bashrcFile, cleanLines.joinToString("\n"))
+        } catch (ignored: Exception) {}
     }
 
     @Volatile
@@ -3300,29 +3512,29 @@ class UbuntuRuntime(private val context: Context) {
         "echo -e \"\\033[1;36m[MobileLinux] [  5%] Preparing Miniforge3 / Conda installer...\\033[0m\"",
         "",
         "# 1. Fast Path: If already installed, immediately configure, auto-activate and exit successfully",
-        "if [ -x \"\$CONDA_BIN\" ] || [ -x \"/root/miniconda3/bin/conda\" ] || [ -x \"/opt/conda/bin/conda\" ]; then",
-        "    if [ ! -x \"\$CONDA_BIN\" ] && [ -x \"/root/miniconda3/bin/conda\" ]; then",
-        "        INSTALL_DIR=\"/root/miniconda3\"",
-        "        CONDA_BIN=\"\$INSTALL_DIR/bin/conda\"",
-        "    elif [ ! -x \"\$CONDA_BIN\" ] && [ -x \"/opt/conda/bin/conda\" ]; then",
-        "        INSTALL_DIR=\"/opt/conda\"",
-        "        CONDA_BIN=\"\$INSTALL_DIR/bin/conda\"",
+        "for cand in /home/ubuntu/miniforge3 /home/ubuntu/miniconda3 /home/ubuntu/anaconda3 /root/miniconda3 /root/miniforge3 /root/anaconda3 /opt/conda /opt/anaconda3; do",
+        "    if [ -x \"\$cand/bin/conda\" ] || [ -x \"\$cand/condabin/conda\" ]; then",
+        "        INSTALL_DIR=\"\$cand\"",
+        "        CONDA_BIN=\"\$cand/bin/conda\"",
+        "        break",
         "    fi",
+        "done",
+        "",
+        "if [ -x \"\$CONDA_BIN\" ] || [ -x \"\$INSTALL_DIR/bin/conda\" ]; then",
         "    echo -e \"\\033[1;32m[MobileLinux] [ 80%] Conda already installed at \$INSTALL_DIR. Configuring...\\033[0m\"",
-        "    mkdir -p /usr/local/bin",
-        "    cat > /usr/local/bin/conda << 'EOF_WRAP'",
+        "    mkdir -p /usr/local/bin /home/ubuntu /root",
+        "    cat > /usr/local/bin/conda << EOF_WRAP",
         "#!/bin/sh",
-        "exec /home/ubuntu/miniforge3/bin/conda \"\$@\"",
+        "exec \"\$CONDA_BIN\" \"\\\$@\"",
         "EOF_WRAP",
         "    chmod +x /usr/local/bin/conda 2>/dev/null || true",
         "    if [ -x \"\$INSTALL_DIR/bin/mamba\" ]; then",
-        "        cat > /usr/local/bin/mamba << 'EOF_MAMBA'",
+        "        cat > /usr/local/bin/mamba << EOF_MAMBA",
         "#!/bin/sh",
-        "exec /home/ubuntu/miniforge3/bin/mamba \"\$@\"",
+        "exec \"\$INSTALL_DIR/bin/mamba\" \"\\\$@\"",
         "EOF_MAMBA",
         "        chmod +x /usr/local/bin/mamba 2>/dev/null || true",
         "    fi",
-        "    mkdir -p /home/ubuntu /root",
         "    cat << 'EOF_RC' > /home/ubuntu/.condarc",
         "always_copy: true",
         "auto_activate_base: true",
@@ -3346,25 +3558,27 @@ class UbuntuRuntime(private val context: Context) {
         "rm -f \"\$TMP_INSTALLER\" /tmp/miniforge.sh /tmp/Miniforge3-Linux-aarch64.sh",
         "",
         "# 4. Download with live percentage reporting",
-        "URL1=\"https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh\"",
-        "URL2=\"https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh\"",
+        "export URL1=\"https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh\"",
+        "export URL2=\"https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh\"",
+        "export CONDA_DST=\"\$TMP_INSTALLER\"",
         "DOWNLOAD_OK=0",
         "",
         "echo -e \"\\033[1;36m[MobileLinux] [ 10%] Downloading Conda installer (ARM64)...\\033[0m\"",
         "",
         "# Try Python 3 streaming downloader for clean, live percentage feedback",
         "if command -v python3 >/dev/null 2>&1; then",
-        "    python3 -c \"",
-        "import sys, time, urllib.request",
-        "urls = ['\\\$URL1', '\\\$URL2']",
-        "dst = '\\\$TMP_INSTALLER'",
+        "    python3 -c '",
+        "import os, sys, time, urllib.request",
+        "urls = [u for u in [os.environ.get(\"URL1\", \"\"), os.environ.get(\"URL2\", \"\")] if u]",
+        "dst = os.environ.get(\"CONDA_DST\", \"/home/ubuntu/.miniforge_installer.sh\")",
         "done = False",
         "for url in urls:",
         "    try:",
-        "        print(f'[MobileLinux] [ 12%] Connecting to mirror: {url.split(\\\"/\\\")[2]}...', flush=True)",
-        "        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Linux; Android)'})",
-        "        with urllib.request.urlopen(req, timeout=30) as resp, open(dst, 'wb') as out:",
-        "            total = int(resp.headers.get('content-length', 0))",
+        "        host = url.split(\"/\")[2] if len(url.split(\"/\")) > 2 else \"mirror\"",
+        "        print(f\"[MobileLinux] [ 12%] Connecting to mirror: {host}...\", flush=True)",
+        "        req = urllib.request.Request(url, headers={\"User-Agent\": \"Mozilla/5.0 (Linux; Android)\"})",
+        "        with urllib.request.urlopen(req, timeout=30) as resp, open(dst, \"wb\") as out:",
+        "            total = int(resp.headers.get(\"content-length\", 0))",
         "            downloaded = 0",
         "            last_pct = 12",
         "            last_t = time.time()",
@@ -3379,17 +3593,17 @@ class UbuntuRuntime(private val context: Context) {
         "                    if pct >= last_pct + 4 or (now - last_t) >= 2.0:",
         "                        mb = downloaded // 1048576",
         "                        tot_mb = total // 1048576",
-        "                        print(f'[MobileLinux] [ {pct}%] Downloading Conda installer: {mb}MB / {tot_mb}MB ({pct}%)...', flush=True)",
+        "                        print(f\"[MobileLinux] [ {pct}%] Downloading Conda installer: {mb}MB / {tot_mb}MB ({pct}%)...\", flush=True)",
         "                        last_pct = pct",
         "                        last_t = now",
         "            done = True",
         "            break",
         "    except Exception as e:",
-        "        print(f'[MobileLinux] Mirror download notice: {e}', flush=True)",
+        "        print(f\"[MobileLinux] Mirror download notice: {e}\", flush=True)",
         "        continue",
         "if not done:",
         "    sys.exit(1)",
-        "\" && DOWNLOAD_OK=1",
+        "' && DOWNLOAD_OK=1",
         "fi",
         "",
         "# Fallback to curl or wget if Python downloader was not used or failed",
@@ -3429,21 +3643,23 @@ class UbuntuRuntime(private val context: Context) {
         "",
         "# 5. Run the installer",
         "echo -e \"\\033[1;36m[MobileLinux] [ 65%] Unpacking Conda packages into \$INSTALL_DIR (this may take 1-2 minutes)...\\033[0m\"",
+        "mkdir -p \"\$INSTALL_DIR\" /home/ubuntu /root",
         "bash \"\$TMP_INSTALLER\" -b -p \"\$INSTALL_DIR\" -u",
         "rm -f \"\$TMP_INSTALLER\"",
         "",
         "# 6. Verify installation",
-        "if [ ! -x \"\$CONDA_BIN\" ]; then",
+        "if [ ! -x \"\$CONDA_BIN\" ] && [ ! -f \"\$CONDA_BIN\" ]; then",
         "    echo -e \"\\033[1;31m[MobileLinux] Installation finished but \$CONDA_BIN not found.\\033[0m\"",
         "    exit 1",
         "fi",
         "",
+        "chmod +x \"\$CONDA_BIN\" 2>/dev/null || true",
         "chmod -R u+rx \"\$INSTALL_DIR/bin\" 2>/dev/null || true",
         "echo -e \"\\033[1;36m[MobileLinux] [ 85%] Extracting Conda package binaries complete.\\033[0m\"",
         "",
         "# 7. Configure Conda & Auto-activation",
         "echo -e \"\\033[1;36m[MobileLinux] [ 88%] Configuring Conda & auto-activation...\\033[0m\"",
-        "mkdir -p /home/ubuntu /root",
+        "mkdir -p /home/ubuntu /root /usr/local/bin",
         "cat << 'EOF' > /home/ubuntu/.condarc",
         "always_copy: true",
         "auto_activate_base: true",
@@ -3451,8 +3667,7 @@ class UbuntuRuntime(private val context: Context) {
         "EOF",
         "cp -f /home/ubuntu/.condarc /root/.condarc 2>/dev/null || true",
         "",
-        "# Global command symlinks in /usr/local/bin",
-        "mkdir -p /usr/local/bin",
+        "# Global command wrappers in /usr/local/bin",
         "cat > /usr/local/bin/conda << 'EOF_WRAP'",
         "#!/bin/sh",
         "exec /home/ubuntu/miniforge3/bin/conda \"\$@\"",
@@ -3469,6 +3684,10 @@ class UbuntuRuntime(private val context: Context) {
         "",
         "# Run conda init",
         "\"\$CONDA_BIN\" init bash 2>/dev/null || true",
+        "",
+        "# Clean any legacy auto-activate block to prevent stray fi",
+        "sed -i '/# >>> MobileLinux: Auto-activate Conda environment >>>/,/# <<< MobileLinux: Auto-activate Conda environment <<</d' /home/ubuntu/.bashrc /root/.bashrc 2>/dev/null || true",
+        "sed -i '/# MobileLinux: Auto-activate Conda environment/,/fi/d' /home/ubuntu/.bashrc /root/.bashrc 2>/dev/null || true",
         "",
         "# Inject conda initialize block into /home/ubuntu/.bashrc if missing",
         "if ! grep -q \"conda initialize\" /home/ubuntu/.bashrc 2>/dev/null; then",
@@ -3488,21 +3707,29 @@ class UbuntuRuntime(private val context: Context) {
         "fi",
         "unset __conda_setup",
         "# <<< conda initialize <<<",
-        "",
-        "# MobileLinux: Auto-activate Conda environment",
-        "if [ -z \"\$CONDA_DEFAULT_ENV\" ] && type conda >/dev/null 2>&1; then",
-        "    conda activate base 2>/dev/null || true",
-        "fi",
         "BASHRC_EOF",
         "fi",
         "",
-        "# Inject into /root/.bashrc as well",
-        "if ! grep -q \"conda initialize\" /root/.bashrc 2>/dev/null; then",
-        "    cp -f /home/ubuntu/.bashrc /root/.bashrc 2>/dev/null || true",
+        "# Inject cleanly bounded MobileLinux auto-activate block",
+        "if ! grep -q \"MobileLinux: Auto-activate Conda environment\" /home/ubuntu/.bashrc 2>/dev/null; then",
+        "    cat >> /home/ubuntu/.bashrc << 'BASHRC_AA'",
+        "",
+        "# >>> MobileLinux: Auto-activate Conda environment >>>",
+        "if [ -z \"\$CONDA_DEFAULT_ENV\" ] && type conda >/dev/null 2>&1; then",
+        "    if ! grep -q \"conda-manager default-env\" \"\$HOME/.bashrc\" 2>/dev/null; then",
+        "        conda activate base 2>/dev/null || true",
+        "    fi",
+        "fi",
+        "# <<< MobileLinux: Auto-activate Conda environment <<<",
+        "BASHRC_AA",
         "fi",
         "",
+        "# Mirror to /root/.bashrc as well",
+        "cp -f /home/ubuntu/.bashrc /root/.bashrc 2>/dev/null || true",
+        "",
         "echo -e \"\\033[1;36m[MobileLinux] [ 95%] Finalizing Conda setup...\\033[0m\"",
-        "echo -e \"\\033[1;32m[MobileLinux] [100%] ✓ Miniforge3 / Conda installed successfully and activated!\\033[0m\\n\"\n"
+        "echo -e \"\\033[1;32m[MobileLinux] [100%] ✓ Miniforge3 / Conda installed successfully and activated!\\033[0m\\n\"",
+        "exit 0\n"
     ).joinToString("\n")
 
     private fun getInstallJupyterScript(): String = listOf(

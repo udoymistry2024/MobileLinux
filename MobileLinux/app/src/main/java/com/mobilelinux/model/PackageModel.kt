@@ -2,6 +2,7 @@ package com.mobilelinux.model
 
 enum class PackageCategory(val displayName: String) {
     ALL("All"),
+    DESKTOP_APPS("Desktop Apps"),
     CYBER_SECURITY("Cyber Security"),
     DATA_SCIENCE("AI & Data Science"),
     RUNTIMES("Languages & Runtimes"),

@@ -713,6 +713,10 @@ class LibrariesActivity : AppCompatActivity() {
     }
 
     private fun launchPackage(pkg: LinuxPackage) {
+        if (pkg.category == PackageCategory.DESKTOP_APPS || pkg.id == "xfce4-desktop") {
+            startActivity(Intent(this, DesktopActivity::class.java))
+            return
+        }
         if (pkg.id == "jupyterlab") {
             lifecycleScope.launch(Dispatchers.IO) {
                 try {

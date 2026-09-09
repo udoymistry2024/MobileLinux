@@ -220,7 +220,7 @@ class PackagesAdapter(
                         btnInstall.visibility = View.GONE
                         layoutInstalled.visibility = View.VISIBLE
                         btnUninstall.visibility = View.VISIBLE
-                        btnLaunch.visibility = if (pkg.launchUrl != null) View.VISIBLE else View.GONE
+                        btnLaunch.visibility = if (pkg.launchUrl != null || pkg.category == com.mobilelinux.model.PackageCategory.DESKTOP_APPS) View.VISIBLE else View.GONE
                         tvStatus.text = if (pkg.statusText.isNotEmpty() && !pkg.statusText.contains("Uninstall", ignoreCase = true)) pkg.statusText else "Installed and ready"
                     }
                     else -> {

@@ -8,7 +8,8 @@ package com.mobilelinux.model
 object PackageRepository {
 
     fun getCuratedPackages(): List<LinuxPackage> {
-        return cyberSecurityPackages +
+        return desktopPackages +
+               cyberSecurityPackages +
                dataSciencePackages +
                runtimesPackages +
                devToolsPackages +
@@ -2225,18 +2226,83 @@ object PackageRepository {
         )
     }
 
+    val desktopPackages: List<LinuxPackage> by lazy {
+        listOf(
+            LinuxPackage(
+                id = "xfce4-desktop",
+                name = "XFCE4 Desktop & TigerVNC",
+                category = PackageCategory.DESKTOP_APPS,
+                version = "4.18",
+                description = "Complete lightweight graphical Linux Desktop Environment with TigerVNC standalone server, window manager, and terminal (Pre-installed).",
+                installCommand = "export DEBIAN_FRONTEND=noninteractive; sudo apt-get update && sudo apt-get install -y --no-install-recommends xfce4 xfce4-terminal tigervnc-standalone-server tigervnc-common dbus-x11",
+                checkInstalledCommand = "command -v startxfce4 && (command -v vncserver || command -v tigervncserver)",
+                uninstallCommand = "echo '[MobileLinux] [ 20%] Stopping active desktop sessions...'; desktop-stop 2>/dev/null || true; vncserver -kill :1 2>/dev/null || true; pkill -9 -f xfce4 2>/dev/null || true; pkill -9 -f Xvnc 2>/dev/null || true; pkill -9 -f xfwm4 2>/dev/null || true; pkill -9 -f dbus-daemon 2>/dev/null || true; echo '[MobileLinux] [ 40%] Purging XFCE4 and TigerVNC packages...'; export DEBIAN_FRONTEND=noninteractive; sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true; sudo apt-get -o DPkg::Lock::Timeout=60 purge -y xfce4 xfce4-terminal tigervnc-standalone-server tigervnc-common dbus-x11 2>&1 || true; echo '[MobileLinux] [ 70%] Removing orphaned dependencies...'; sudo apt-get -o DPkg::Lock::Timeout=60 autoremove -y --purge 2>&1 || true; sudo apt-get clean 2>/dev/null || true; echo '[MobileLinux] [ 90%] Cleaning desktop caches and configurations...'; rm -rf /home/ubuntu/.vnc /root/.vnc /home/ubuntu/.config/xfce4 /root/.config/xfce4 /tmp/.X11-unix /tmp/.X*-lock 2>/dev/null || true; sudo rm -f /usr/bin/startxfce4 /usr/bin/vncserver /usr/bin/tigervncserver /usr/bin/xfce4-session 2>/dev/null || true; echo '[MobileLinux] [100%] Desktop Mode uninstalled cleanly!'"
+            ),
+            LinuxPackage(
+                id = "firefox-gui",
+                name = "Firefox Web Browser (GUI)",
+                category = PackageCategory.DESKTOP_APPS,
+                version = "Latest (Native DEB)",
+                description = "Fast, open-source graphical web browser with tabs, extensions, and hardware rendering for the desktop environment.",
+                installCommand = "echo '[MobileLinux] [ 20%] Adding Mozilla PPA for native Firefox...'; export DEBIAN_FRONTEND=noninteractive; sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true; sudo apt-get update && sudo apt-get install -y --no-install-recommends software-properties-common ca-certificates wget gpg 2>&1; sudo add-apt-repository -y ppa:mozillateam/ppa 2>&1; printf 'Package: *\\nPin: release o=LP-PPA-mozillateam\\nPin-Priority: 1001\\n' | sudo tee /etc/apt/preferences.d/mozillateamppa >/dev/null; echo '[MobileLinux] [ 60%] Updating package lists...'; sudo apt-get update 2>&1; echo '[MobileLinux] [ 80%] Installing Firefox GUI browser...'; sudo apt-get install -y --no-install-recommends firefox 2>&1; echo '[MobileLinux] [100%] Firefox installed successfully!'",
+                checkInstalledCommand = "command -v firefox",
+                uninstallCommand = "echo '[MobileLinux] [ 30%] Purging Firefox...'; export DEBIAN_FRONTEND=noninteractive; sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true; sudo apt-get purge -y firefox 2>&1 || true; sudo rm -f /etc/apt/preferences.d/mozillateamppa /etc/apt/sources.list.d/mozillateam*.list 2>/dev/null || true; echo '[MobileLinux] [ 70%] Removing unused dependencies...'; sudo apt-get autoremove -y --purge 2>&1 || true; sudo apt-get clean 2>/dev/null || true; echo '[MobileLinux] [100%] Firefox uninstalled cleanly!'"
+            ),
+            LinuxPackage(
+                id = "webapp-manager",
+                name = "WebApp Manager (Web to Desktop App)",
+                category = PackageCategory.DESKTOP_APPS,
+                version = "1.3.4",
+                description = "Convert any website or web application into a standalone desktop application with its own launcher icon, isolated profile, and window.",
+                installCommand = "echo '[MobileLinux] [ 20%] Downloading WebApp Manager...'; export DEBIAN_FRONTEND=noninteractive; sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true; sudo apt-get update && sudo apt-get install -y --no-install-recommends wget python3 python3-gi gir1.2-gtk-3.0 2>&1; wget -q \"https://mirrors.kernel.org/linuxmint-packages/pool/main/w/webapp-manager/webapp-manager_1.3.4_all.deb\" -O /tmp/webapp-manager.deb; echo '[MobileLinux] [ 60%] Installing WebApp Manager...'; sudo apt-get install -y /tmp/webapp-manager.deb 2>&1 || sudo apt-get install -f -y 2>&1; rm -f /tmp/webapp-manager.deb; echo '[MobileLinux] [100%] WebApp Manager installed successfully!'",
+                checkInstalledCommand = "command -v webapp-manager",
+                uninstallCommand = "echo '[MobileLinux] [ 30%] Purging WebApp Manager...'; export DEBIAN_FRONTEND=noninteractive; sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true; sudo apt-get purge -y webapp-manager 2>&1 || true; rm -f /tmp/webapp-manager.deb 2>/dev/null || true; echo '[MobileLinux] [ 70%] Removing unused dependencies...'; sudo apt-get autoremove -y --purge 2>&1 || true; sudo apt-get clean 2>/dev/null || true; echo '[MobileLinux] [100%] WebApp Manager uninstalled cleanly!'"
+            ),
+            LinuxPackage(
+                id = "libreoffice-suite",
+                name = "LibreOffice Productivity Suite",
+                category = PackageCategory.DESKTOP_APPS,
+                version = "Latest",
+                description = "Full-featured graphical office suite with Writer (word processor), Calc (spreadsheets), and Impress (presentations) for documents and office work.",
+                installCommand = "echo '[MobileLinux] [ 20%] Installing LibreOffice Suite (Writer, Calc, Impress)...'; export DEBIAN_FRONTEND=noninteractive; sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true; sudo apt-get update && sudo apt-get install -y --no-install-recommends libreoffice-writer libreoffice-calc libreoffice-impress libreoffice-gtk3 2>&1; echo '[MobileLinux] [100%] LibreOffice installed successfully!'",
+                checkInstalledCommand = "command -v libreoffice || command -v soffice",
+                uninstallCommand = "echo '[MobileLinux] [ 30%] Purging LibreOffice...'; export DEBIAN_FRONTEND=noninteractive; sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true; sudo apt-get purge -y \"libreoffice*\" 2>&1 || true; echo '[MobileLinux] [ 70%] Removing unused dependencies...'; sudo apt-get autoremove -y --purge 2>&1 || true; sudo apt-get clean 2>/dev/null || true; echo '[MobileLinux] [100%] LibreOffice uninstalled cleanly!'"
+            ),
+            LinuxPackage(
+                id = "gimp-gui",
+                name = "GIMP Graphic & Image Editor",
+                category = PackageCategory.DESKTOP_APPS,
+                version = "Latest",
+                description = "GNU Image Manipulation Program for photo editing, banner design, image composition, and creative graphic artwork.",
+                installCommand = "echo '[MobileLinux] [ 20%] Installing GIMP Image Editor...'; export DEBIAN_FRONTEND=noninteractive; sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true; sudo apt-get update && sudo apt-get install -y --no-install-recommends gimp 2>&1; echo '[MobileLinux] [100%] GIMP installed successfully!'",
+                checkInstalledCommand = "command -v gimp",
+                uninstallCommand = "echo '[MobileLinux] [ 30%] Purging GIMP...'; export DEBIAN_FRONTEND=noninteractive; sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true; sudo apt-get purge -y gimp 2>&1 || true; echo '[MobileLinux] [ 70%] Removing unused dependencies...'; sudo apt-get autoremove -y --purge 2>&1 || true; sudo apt-get clean 2>/dev/null || true; echo '[MobileLinux] [100%] GIMP uninstalled cleanly!'"
+            ),
+            LinuxPackage(
+                id = "evince-gui",
+                name = "Evince Document & PDF Viewer",
+                category = PackageCategory.DESKTOP_APPS,
+                version = "Latest",
+                description = "Fast, lightweight document viewer supporting PDF, PostScript, and TIFF for reading bills, invoices, menus, and reports.",
+                installCommand = "echo '[MobileLinux] [ 20%] Installing Evince Document & PDF Viewer...'; export DEBIAN_FRONTEND=noninteractive; sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true; sudo apt-get update && sudo apt-get install -y --no-install-recommends evince 2>&1; echo '[MobileLinux] [100%] Evince Document Viewer installed successfully!'",
+                checkInstalledCommand = "command -v evince",
+                uninstallCommand = "echo '[MobileLinux] [ 30%] Purging Evince...'; export DEBIAN_FRONTEND=noninteractive; sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true; sudo apt-get purge -y evince 2>&1 || true; echo '[MobileLinux] [ 70%] Removing unused dependencies...'; sudo apt-get autoremove -y --purge 2>&1 || true; sudo apt-get clean 2>/dev/null || true; echo '[MobileLinux] [100%] Evince uninstalled cleanly!'"
+            ),
+            LinuxPackage(
+                id = "vlc-gui",
+                name = "VLC Media Player (GUI)",
+                category = PackageCategory.DESKTOP_APPS,
+                version = "Latest",
+                description = "Multi-platform media player and streaming server supporting audio playback, background video, and multimedia streams.",
+                installCommand = "echo '[MobileLinux] [ 20%] Installing VLC Media Player...'; export DEBIAN_FRONTEND=noninteractive; sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true; sudo apt-get update && sudo apt-get install -y --no-install-recommends vlc 2>&1; echo '[MobileLinux] [100%] VLC Media Player installed successfully!'",
+                checkInstalledCommand = "command -v vlc",
+                uninstallCommand = "echo '[MobileLinux] [ 30%] Purging VLC...'; export DEBIAN_FRONTEND=noninteractive; sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true; sudo apt-get purge -y vlc 2>&1 || true; echo '[MobileLinux] [ 70%] Removing unused dependencies...'; sudo apt-get autoremove -y --purge 2>&1 || true; sudo apt-get clean 2>/dev/null || true; echo '[MobileLinux] [100%] VLC uninstalled cleanly!'"
+            )
+        )
+    }
+
     private val devToolsPackages: List<LinuxPackage> by lazy {
         listOf(
-        LinuxPackage(
-            id = "xfce4-desktop",
-            name = "XFCE4 Desktop & TigerVNC",
-            category = PackageCategory.DEV_TOOLS,
-            version = "4.18",
-            description = "Complete lightweight graphical Linux Desktop Environment with TigerVNC standalone server, window manager, and terminal (Pre-installed).",
-            installCommand = "export DEBIAN_FRONTEND=noninteractive; sudo apt-get update && sudo apt-get install -y --no-install-recommends xfce4 xfce4-terminal tigervnc-standalone-server tigervnc-common dbus-x11",
-            checkInstalledCommand = "command -v startxfce4 && (command -v vncserver || command -v tigervncserver)",
-            uninstallCommand = "echo '[MobileLinux] [ 20%] Stopping active desktop sessions...'; desktop-stop 2>/dev/null || true; vncserver -kill :1 2>/dev/null || true; pkill -9 -f xfce4 2>/dev/null || true; pkill -9 -f Xvnc 2>/dev/null || true; pkill -9 -f xfwm4 2>/dev/null || true; pkill -9 -f dbus-daemon 2>/dev/null || true; echo '[MobileLinux] [ 40%] Purging XFCE4 and TigerVNC packages...'; export DEBIAN_FRONTEND=noninteractive; sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true; sudo apt-get -o DPkg::Lock::Timeout=60 purge -y xfce4 xfce4-terminal tigervnc-standalone-server tigervnc-common dbus-x11 2>&1 || true; echo '[MobileLinux] [ 70%] Removing orphaned dependencies...'; sudo apt-get -o DPkg::Lock::Timeout=60 autoremove -y --purge 2>&1 || true; sudo apt-get clean 2>/dev/null || true; echo '[MobileLinux] [ 90%] Cleaning desktop caches and configurations...'; rm -rf /home/ubuntu/.vnc /root/.vnc /home/ubuntu/.config/xfce4 /root/.config/xfce4 /tmp/.X11-unix /tmp/.X*-lock 2>/dev/null || true; sudo rm -f /usr/bin/startxfce4 /usr/bin/vncserver /usr/bin/tigervncserver /usr/bin/xfce4-session 2>/dev/null || true; echo '[MobileLinux] [100%] ✓ Desktop Mode uninstalled cleanly!'"
-        ),
         LinuxPackage(
             id = "antigravity-cli",
             name = "Google Anti-Gravity CLI (agy)",

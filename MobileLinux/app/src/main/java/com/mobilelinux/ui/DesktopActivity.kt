@@ -24,10 +24,13 @@ import androidx.lifecycle.lifecycleScope
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.mobilelinux.R
 import com.mobilelinux.runtime.UbuntuRuntime
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.net.Socket
 
 /**
  * Fullscreen Landscape Activity for Desktop Mode.
@@ -93,10 +96,11 @@ class DesktopActivity : AppCompatActivity(),
 
         btnRetryDesktop.setOnClickListener {
             vncCanvas.disconnect()
+            runtime.stopDesktopProcess()
             startDesktopEnvironment()
         }
         btnExitDesktop.setOnClickListener {
-            confirmExit()
+            shutdownAndExit()
         }
 
         vncCanvas.connectionListener = this
@@ -207,18 +211,49 @@ class DesktopActivity : AppCompatActivity(),
             val h = minOf(dm.widthPixels, dm.heightPixels)
             val resolution = if (w >= 1920 && h >= 1080) "1920x1080" else if (w >= 1280) "1280x720" else "${w}x${h}"
 
-            // Execute desktop-start script inside Ubuntu container
-            val result = runtime.runCommand("/usr/local/bin/desktop-start $resolution") { line ->
-                Log.d(TAG, "desktop-start: $line")
+            // Start desktop PRoot process that stays alive
+            val proc = runtime.startDesktopProcess(resolution)
+
+            // Stream log lines in background for real-time debugging
+            launch(Dispatchers.IO) {
+                try {
+                    proc.inputStream.bufferedReader().useLines { lines ->
+                        lines.forEach { line ->
+                            Log.d(TAG, "desktop-proc: $line")
+                        }
+                    }
+                } catch (ignored: Exception) {}
+            }
+
+            // Direct TCP socket polling from Android to verify port 5901 readiness
+            var isReady = false
+            for (i in 0 until 40) { // Poll for up to 8 seconds (40 x 200ms)
+                if (!proc.isAlive) {
+                    Log.e(TAG, "Desktop process died prematurely with exit code: ${try { proc.exitValue() } catch(e: Exception) { -1 }}")
+                    break
+                }
+                try {
+                    val testSocket = Socket("127.0.0.1", VncCanvasView.DEFAULT_VNC_PORT)
+                    testSocket.close()
+                    isReady = true
+                    break
+                } catch (e: Exception) {
+                    delay(200)
+                }
             }
 
             withContext(Dispatchers.Main) {
-                if (result.first == 0 || result.second.contains("SUCCESS") || result.second.contains("started")) {
+                if (isReady) {
                     tvLoadingStatus.text = "Connecting to desktop session..."
                     tvLoadingSub.text = "Establishing high-speed VNC connection..."
                     vncCanvas.connect("127.0.0.1", VncCanvasView.DEFAULT_VNC_PORT)
                 } else {
-                    val errMsg = result.second.lines().findLast { it.isNotBlank() } ?: "Failed to start display server."
+                    val exitCode = try { proc.exitValue() } catch (e: Exception) { -1 }
+                    val errMsg = if (!proc.isAlive) {
+                        "Display server process ended unexpectedly (code $exitCode)."
+                    } else {
+                        "Display server timed out while binding to port 5901."
+                    }
                     tvLoadingStatus.text = "Desktop Startup Failed"
                     tvLoadingSub.text = errMsg
                     progressLoading.visibility = View.GONE
@@ -392,29 +427,31 @@ class DesktopActivity : AppCompatActivity(),
     }
 
     private fun shutdownAndExit() {
+        if (isExiting) return
         isExiting = true
         vncCanvas.disconnect()
+        runtime.stopDesktopProcess()
+        finish()
 
-        // Asynchronously stop VNC and kill desktop processes to guarantee 100% memory release
-        lifecycleScope.launch(Dispatchers.IO) {
+        // Asynchronously stop VNC and clean processes in background without blocking UI
+        val app = applicationContext
+        CoroutineScope(Dispatchers.IO).launch {
             try {
-                runtime.runCommand("/usr/local/bin/desktop-stop")
-            } catch (e: Exception) {
-                Log.e(TAG, "Error running desktop-stop: ${e.message}")
-            }
-            withContext(Dispatchers.Main) {
-                finish()
-            }
+                val rt = UbuntuRuntime.getInstance(app)
+                rt.runCommand("/usr/local/bin/desktop-stop")
+            } catch (ignored: Exception) {}
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
         vncCanvas.disconnect()
-        // Ensure background VNC server is terminated when activity is destroyed
-        lifecycleScope.launch(Dispatchers.IO) {
+        runtime.stopDesktopProcess()
+        val app = applicationContext
+        CoroutineScope(Dispatchers.IO).launch {
             try {
-                runtime.runCommand("/usr/local/bin/desktop-stop")
+                val rt = UbuntuRuntime.getInstance(app)
+                rt.runCommand("/usr/local/bin/desktop-stop")
             } catch (ignored: Exception) {}
             withContext(Dispatchers.Main) {
                 System.gc()

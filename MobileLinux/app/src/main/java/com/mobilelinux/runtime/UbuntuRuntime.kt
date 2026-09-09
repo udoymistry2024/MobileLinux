@@ -2148,6 +2148,42 @@ class UbuntuRuntime(private val context: Context) {
         return hasXfce && hasVnc
     }
 
+    @Volatile
+    private var desktopProcess: Process? = null
+
+    fun startDesktopProcess(resolution: String): Process {
+        stopDesktopProcess()
+        ensureBashConfigured()
+        installCommandWrappers()
+
+        val usrLocalBin = File(rootfsDir, "usr/local/bin")
+        ensureRealDirectory(usrLocalBin)
+        val desktopStartFile = File(usrLocalBin, "desktop-start")
+        safeWriteFile(desktopStartFile, getDesktopStartScript())
+        desktopStartFile.setExecutable(true, false)
+        desktopStartFile.setReadable(true, false)
+
+        val proc = createSessionProcess(
+            sessionId = "desktop_${System.currentTimeMillis()}",
+            cols = 120,
+            rows = 40,
+            execCommand = "/usr/local/bin/desktop-start $resolution"
+        )
+        desktopProcess = proc
+        return proc
+    }
+
+    fun stopDesktopProcess() {
+        try {
+            desktopProcess?.destroyForcibly()
+        } catch (ignored: Exception) {}
+        desktopProcess = null
+    }
+
+    fun isDesktopProcessRunning(): Boolean {
+        return desktopProcess?.isAlive == true
+    }
+
     private fun getDesktopStartScript(): String = listOf(
         "#!/bin/bash",
         "# MobileLinux - XFCE4 Graphical Desktop Environment Launcher",
@@ -2158,6 +2194,11 @@ class UbuntuRuntime(private val context: Context) {
         "# 1. Environment & Hostname Setup",
         "export USER=\"\${USER:-ubuntu}\"",
         "export HOME=\"\${HOME:-/home/ubuntu}\"",
+        "export DISPLAY=:1",
+        "export LC_ALL=C.UTF-8",
+        "export LANG=C.UTF-8",
+        "export SAL_USE_VCLPLUGIN=gen",
+        "export XKL_XMODMAP_DISABLE=1",
         "H=\"\$(hostname 2>/dev/null || echo localhost)\"",
         "[ -z \"\$H\" ] && H=\"localhost\"",
         "if [ -w /etc/hosts ]; then",
@@ -2177,7 +2218,6 @@ class UbuntuRuntime(private val context: Context) {
         "fi",
         "",
         "# 3. Clean stale locks, sockets, and processes from prior crashed sessions",
-        "vncserver -kill :1 >/dev/null 2>&1 || tigervncserver -kill :1 >/dev/null 2>&1 || true",
         "pkill -9 -f Xtigervnc >/dev/null 2>&1 || true",
         "pkill -9 -f Xvnc >/dev/null 2>&1 || true",
         "pkill -9 -f xfce4 >/dev/null 2>&1 || true",
@@ -2195,6 +2235,7 @@ class UbuntuRuntime(private val context: Context) {
         "#!/bin/bash",
         "unset SESSION_MANAGER",
         "unset DBUS_SESSION_BUS_ADDRESS",
+        "export DISPLAY=:1",
         "export XKL_XMODMAP_DISABLE=1",
         "export LC_ALL=C.UTF-8",
         "export LANG=C.UTF-8",
@@ -2214,20 +2255,29 @@ class UbuntuRuntime(private val context: Context) {
         "# 7. Desired resolution",
         "RES=\"\${1:-1280x720}\"",
         "",
-        "# 8. Start display server",
-        "STARTED=0",
-        "",
-        "# Primary attempt: launch native Xtigervnc or Xvnc directly",
+        "# 8. Start display server in background",
+        "VNC_PID=\"\"",
         "for xbin in /usr/bin/Xtigervnc /usr/bin/Xvnc; do",
         "    if [ -x \"\$xbin\" ]; then",
         "        echo \"[MobileLinux] Launching native \$xbin on display :1...\"",
-        "        \"\$xbin\" :1 -geometry \"\$RES\" -depth 24 -rfbport 5901 -SecurityTypes None -ac -pn > \"\$HOME/.vnc/desktop.log\" 2>&1 &",
+        "        \"\$xbin\" :1 -geometry \"\$RES\" -depth 24 -rfbport 5901 -SecurityTypes None -ac > \"\$HOME/.vnc/desktop.log\" 2>&1 &",
+        "        VNC_PID=\$!",
         "        break",
         "    fi",
         "done",
         "",
-        "# Wait up to 3 seconds for direct launch",
-        "for i in \$(seq 1 15); do",
+        "if [ -z \"\$VNC_PID\" ]; then",
+        "    VNC_WRAPPER=\"\$(command -v tigervncserver || command -v vncserver)\"",
+        "    if [ -n \"\$VNC_WRAPPER\" ]; then",
+        "        echo \"[MobileLinux] Launching wrapper \$VNC_WRAPPER on display :1...\"",
+        "        \"\$VNC_WRAPPER\" :1 -geometry \"\$RES\" -depth 24 -SecurityTypes None --I-KNOW-THIS-IS-INSECURE > \"\$HOME/.vnc/desktop.log\" 2>&1 &",
+        "        VNC_PID=\$!",
+        "    fi",
+        "fi",
+        "",
+        "# 9. Wait for display :1 / port 5901 readiness",
+        "STARTED=0",
+        "for i in \$(seq 1 25); do",
         "    sleep 0.2",
         "    if [ -e /tmp/.X11-unix/X1 ] || (echo > /dev/tcp/127.0.0.1/5901) 2>/dev/null; then",
         "        STARTED=1",
@@ -2235,40 +2285,20 @@ class UbuntuRuntime(private val context: Context) {
         "    fi",
         "done",
         "",
-        "# Secondary fallback: try tigervncserver wrapper with security override",
-        "if [ \$STARTED -eq 0 ]; then",
-        "    echo \"[MobileLinux] Direct launch failed, trying VNC wrapper with security override...\"",
-        "    VNC_WRAPPER=\"\$(command -v tigervncserver || command -v vncserver)\"",
-        "    if [ -n \"\$VNC_WRAPPER\" ]; then",
-        "        \"\$VNC_WRAPPER\" :1 -geometry \"\$RES\" -depth 24 -SecurityTypes None --I-KNOW-THIS-IS-INSECURE > \"\$HOME/.vnc/desktop.log\" 2>&1 &",
-        "        for i in \$(seq 1 15); do",
-        "            sleep 0.2",
-        "            if [ -e /tmp/.X11-unix/X1 ] || (echo > /dev/tcp/127.0.0.1/5901) 2>/dev/null; then",
-        "                STARTED=1",
-        "                break",
-        "            fi",
-        "        done",
-        "    fi",
-        "fi",
-        "",
-        "# 9. Verify startup and launch XFCE desktop session",
+        "# 10. Launch XFCE desktop in the foreground to keep the PRoot container alive",
         "if [ \$STARTED -eq 1 ]; then",
-        "    export DISPLAY=:1",
-        "    export LC_ALL=C.UTF-8",
-        "    export LANG=C.UTF-8",
-        "    export SAL_USE_VCLPLUGIN=gen",
-        "    export XKL_XMODMAP_DISABLE=1",
-        "",
-        "    if ! pgrep -f \"xfce4-session\" >/dev/null 2>&1 && ! pgrep -f \"startxfce4\" >/dev/null 2>&1; then",
-        "        echo \"[MobileLinux] Starting XFCE4 session on display :1...\"",
-        "        if command -v startxfce4 >/dev/null 2>&1; then",
-        "            dbus-launch --exit-with-session startxfce4 > \"\$HOME/.vnc/xsession.log\" 2>&1 &",
-        "        elif command -v xfce4-session >/dev/null 2>&1; then",
-        "            dbus-launch --exit-with-session xfce4-session > \"\$HOME/.vnc/xsession.log\" 2>&1 &",
-        "        fi",
+        "    echo -e \"\\033[1;32m[MobileLinux]\\033[0m Desktop display :1 ready on port 5901.\"",
+        "    [ -r \"\$HOME/.Xresources\" ] && xrdb \"\$HOME/.Xresources\" 2>/dev/null",
+        "    if command -v startxfce4 >/dev/null 2>&1; then",
+        "        echo \"[MobileLinux] Executing XFCE4 desktop session...\"",
+        "        exec dbus-launch --exit-with-session startxfce4",
+        "    elif command -v xfce4-session >/dev/null 2>&1; then",
+        "        echo \"[MobileLinux] Executing xfce4-session...\"",
+        "        exec dbus-launch --exit-with-session xfce4-session",
+        "    elif [ -n \"\$VNC_PID\" ]; then",
+        "        echo \"[MobileLinux] Waiting on display server process...\"",
+        "        wait \$VNC_PID",
         "    fi",
-        "    echo -e \"\\033[1;32m[MobileLinux]\\033[0m Desktop started successfully on :1 (port 5901) with resolution \$RES.\"",
-        "    exit 0",
         "else",
         "    echo -e \"\\033[1;31m[MobileLinux]\\033[0m Failed to start TigerVNC server. Check ~/.vnc/desktop.log:\"",
         "    cat \"\$HOME/.vnc/desktop.log\" 2>/dev/null | tail -n 25",
@@ -2281,14 +2311,14 @@ class UbuntuRuntime(private val context: Context) {
         "# MobileLinux - XFCE4 Graphical Desktop Shutdown & Memory Release",
         "echo -e \"\\033[1;36m┌─[MobileLinux]─[Stopping Desktop Environment]\\033[0m\"",
         "echo -e \"\\033[1;36m│\\033[0m Releasing RAM and CPU...\"",
-        "vncserver -kill :1 >/dev/null 2>&1 || tigervncserver -kill :1 >/dev/null 2>&1 || true",
-        "pkill -9 -f xfce4 >/dev/null 2>&1 || true",
         "pkill -9 -f Xtigervnc >/dev/null 2>&1 || true",
         "pkill -9 -f Xvnc >/dev/null 2>&1 || true",
+        "pkill -9 -f xfce4 >/dev/null 2>&1 || true",
         "pkill -9 -f xfwm4 >/dev/null 2>&1 || true",
         "pkill -9 -f dbus-daemon >/dev/null 2>&1 || true",
         "pkill -9 -f dbus-launch >/dev/null 2>&1 || true",
         "pkill -9 -f thunar >/dev/null 2>&1 || true",
+        "vncserver -kill :1 >/dev/null 2>&1 || tigervncserver -kill :1 >/dev/null 2>&1 || true",
         "rm -rf /tmp/.X11-unix/X1 /tmp/.X1-lock \"\$HOME/.vnc\"/*.pid /tmp/.X*-lock /tmp/.X11-unix/X* /tmp/tigervnc.* 2>/dev/null || true",
         "echo -e \"\\033[1;32m│\\033[0m Desktop stopped cleanly. 100% memory released.\"",
         "echo -e \"\\033[1;36m└──────────────────────────────────────────────\\033[0m\"\n"

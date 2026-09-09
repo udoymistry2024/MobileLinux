@@ -518,7 +518,15 @@ class UbuntuRuntime(private val context: Context) {
      * Ensures /root/.bashrc, /root/.profile, and /root/mobilelinux-shell.sh
      * are properly written with interactive PTY support and shared folder symlinks.
      */
-    private fun ensureBashConfigured() {
+    @Volatile
+    private var isBashConfiguredOnce = false
+
+    fun resetBashConfiguredFlag() {
+        isBashConfiguredOnce = false
+    }
+
+    private fun ensureBashConfigured(force: Boolean = false) {
+        if (isBashConfiguredOnce && !force) return
         try {
             ensureSharedMemoryReady()
             val etcDir = File(rootfsDir, "etc")
@@ -782,6 +790,7 @@ class UbuntuRuntime(private val context: Context) {
             } catch (e: Exception) {
                 Log.w(TAG, "Machine-id notice: ${e.message}")
             }
+            isBashConfiguredOnce = true
         } catch (e: Exception) {
             Log.w(TAG, "Notice: ensureBashConfigured: ${e.message}")
         }
@@ -922,10 +931,13 @@ class UbuntuRuntime(private val context: Context) {
     ): Process {
         Log.d(TAG, "Creating session: $sessionId, mode=${if (isRooted) "chroot" else "proot"}")
 
-        // Clean stale proot locks / sockets before starting new session
-        cleanupStaleProotArtifacts()
+        // Only clean stale proot locks / sockets before the very first session (to wipe crash remnants)
+        // If sessions are already active, skip to avoid deleting IPC locks of active sessions
+        if (!isBashConfiguredOnce) {
+            cleanupStaleProotArtifacts()
+        }
 
-        // Ensure .bashrc, .profile, and shell launcher are in place
+        // Ensure .bashrc, .profile, and shell launcher are in place (cached in-memory after first run)
         ensureBashConfigured()
 
         // Auto-install essential terminal tools in background if online & interactive session

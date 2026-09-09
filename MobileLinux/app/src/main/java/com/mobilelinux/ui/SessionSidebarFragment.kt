@@ -79,8 +79,13 @@ class SessionSidebarFragment : Fragment() {
 
         // New session button
         btnNewSession.setOnClickListener {
-            viewModel.createSession()
-            (activity as? MainActivity)?.closeDrawer()
+            viewLifecycleOwner.lifecycleScope.launch {
+                val session = viewModel.createSessionAsync()
+                (activity as? MainActivity)?.apply {
+                    showTerminalFragment(session)
+                    closeDrawer()
+                }
+            }
         }
 
         // Settings button

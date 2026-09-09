@@ -303,7 +303,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun showTerminalFragment(session: TerminalSession) {
+    internal fun showTerminalFragment(session: TerminalSession) {
         toolbar.subtitle = session.name
         val current = supportFragmentManager.findFragmentById(R.id.fragment_terminal)
         if (current is TerminalFragment) {
@@ -325,9 +325,11 @@ class MainActivity : AppCompatActivity() {
                 true
             }
             R.id.action_new_session -> {
-                val session = viewModel.createSession()
-                showTerminalFragment(session)
-                closeDrawer()
+                lifecycleScope.launch {
+                    val session = viewModel.createSessionAsync()
+                    showTerminalFragment(session)
+                    closeDrawer()
+                }
                 true
             }
             R.id.action_desktop_mode -> {

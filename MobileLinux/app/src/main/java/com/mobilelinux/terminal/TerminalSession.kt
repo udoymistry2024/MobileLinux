@@ -49,7 +49,18 @@ class SessionProcess(
     fun kill() {
         readerJob?.cancel()
         try {
-            process.destroy()
-        } catch (e: Exception) { /* ignore */ }
+            outputStream.close()
+        } catch (ignored: Exception) {}
+        try {
+            inputStream.close()
+        } catch (ignored: Exception) {}
+        try {
+            errorStream.close()
+        } catch (ignored: Exception) {}
+        try {
+            process.destroyForcibly()
+        } catch (e: Exception) {
+            try { process.destroy() } catch (ignored: Exception) {}
+        }
     }
 }

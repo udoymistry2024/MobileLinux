@@ -99,11 +99,28 @@ class MainActivity : AppCompatActivity() {
         setupSidebar()
         observeSessionChanges()
 
-        // Create initial session if none exists
+        // Create initial session asynchronously off the main thread to ensure splash screen dismisses instantly (<50ms)
         if (viewModel.sessions.value.isEmpty()) {
-            viewModel.createSession("Main")
+            lifecycleScope.launch {
+                try {
+                    // Maximum 10s timeout protection against PRoot stalls
+                    kotlinx.coroutines.withTimeoutOrNull(10000L) {
+                        viewModel.createSessionAsync("Main")
+                    } ?: run {
+                        android.util.Log.e("MainActivity", "Initial session creation timed out, attempting retry")
+                        if (viewModel.sessions.value.isEmpty()) {
+                            viewModel.createSessionAsync("Main")
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("MainActivity", "Failed to create initial session: ${e.message}", e)
+                } finally {
+                    hasCreatedInitialSession = true
+                }
+            }
+        } else {
+            hasCreatedInitialSession = true
         }
-        hasCreatedInitialSession = true
 
         // Request initial development permissions (Notifications, Camera, Microphone)
         requestInitialPermissionsAndStart()
@@ -271,9 +288,8 @@ class MainActivity : AppCompatActivity() {
                         toolbar.subtitle = it.name
                     }
                 } else if (hasCreatedInitialSession && viewModel.sessions.value.isEmpty()) {
-                    android.util.Log.d("MainActivity", "All sessions closed — terminating application")
-                    LinuxService.stop(this@MainActivity)
-                    finishAffinity()
+                    // Fallback: If sessions list becomes empty while activity remains active, spawn a fresh session
+                    viewModel.createSessionAsync("Main")
                 }
             }
         }

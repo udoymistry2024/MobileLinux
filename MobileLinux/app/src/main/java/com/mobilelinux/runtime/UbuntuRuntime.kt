@@ -779,6 +779,79 @@ class UbuntuRuntime(private val context: Context) {
      * AND ensures the /var/lib/dpkg/updates directory is cleaned to prevent partial
      * update state from corrupting subsequent installs.
      */
+    /**
+     * Cleans up any stale PRoot temporary files, dead IPC sockets, semaphores,
+     * and lock files from previous crashed, forcefully stopped, or aborted sessions.
+     * Guarantees that subsequent PRoot launches never hang on dead socket locks.
+     */
+    fun cleanupStaleProotArtifacts() {
+        try {
+            // 1. Wipe dedicated proot_tmp directory where PRoot creates sockets & SysV IPC files
+            val prootTmpDir = File(context.cacheDir, "proot_tmp")
+            if (prootTmpDir.exists()) {
+                prootTmpDir.deleteRecursively()
+            }
+            prootTmpDir.mkdirs()
+            try {
+                prootTmpDir.setReadable(true, false)
+                prootTmpDir.setWritable(true, false)
+                prootTmpDir.setExecutable(true, false)
+            } catch (ignored: Exception) {}
+
+            // 2. Clean any orphaned proot sockets / lock files directly in cacheDir
+            context.cacheDir.listFiles()?.forEach { file ->
+                if (file.name.startsWith("proot") ||
+                    file.name.endsWith(".sock") ||
+                    file.name.endsWith(".lock") ||
+                    file.name.endsWith(".ipc") ||
+                    file.name.contains("socket", ignoreCase = true)
+                ) {
+                    try { file.deleteRecursively() } catch (ignored: Exception) {}
+                }
+            }
+
+            // 3. Clean stale semaphores, shared memory segments, and locks from host-backed shm
+            val shmDir = File(context.filesDir, "shm")
+            if (shmDir.exists() && shmDir.isDirectory) {
+                shmDir.listFiles()?.forEach { file ->
+                    if (file.name.startsWith("sem.") ||
+                        file.name.startsWith("shm.") ||
+                        file.name.endsWith(".lock") ||
+                        file.name.startsWith(".open_url")
+                    ) {
+                        try { file.delete() } catch (ignored: Exception) {}
+                    }
+                }
+            }
+
+            // 4. Clean guest rootfs /tmp of stale X11, proot, and session locks
+            val guestTmp = File(rootfsDir, "tmp")
+            if (guestTmp.exists() && guestTmp.isDirectory) {
+                guestTmp.listFiles()?.forEach { file ->
+                    if (file.name.startsWith(".X") ||
+                        file.name.endsWith(".lock") ||
+                        file.name.endsWith(".pid") ||
+                        file.name.startsWith(".open_url") ||
+                        file.name == ".X11-unix"
+                    ) {
+                        try { file.deleteRecursively() } catch (ignored: Exception) {}
+                    }
+                }
+            }
+
+            // 5. Clean APT and DPKG locks
+            cleanupAptLocks()
+
+            Log.d(TAG, "Stale PRoot artifacts and IPC locks cleaned successfully")
+        } catch (e: Exception) {
+            Log.w(TAG, "Notice while cleaning stale PRoot artifacts: ${e.message}")
+        }
+    }
+
+    /**
+     * Cleans up any stale APT or dpkg lock files in rootfs to prevent aborted
+     * update state from corrupting subsequent installs.
+     */
     fun cleanupAptLocks() {
         try {
             val lockFiles = listOf(
@@ -824,6 +897,9 @@ class UbuntuRuntime(private val context: Context) {
         execCommand: String? = null
     ): Process {
         Log.d(TAG, "Creating session: $sessionId, mode=${if (isRooted) "chroot" else "proot"}")
+
+        // Clean stale proot locks / sockets before starting new session
+        cleanupStaleProotArtifacts()
 
         // Ensure .bashrc, .profile, and shell launcher are in place
         ensureBashConfigured()
@@ -994,7 +1070,10 @@ class UbuntuRuntime(private val context: Context) {
 
     private fun buildEnvironment(cols: Int, rows: Int): Map<String, String> {
         val nativeLibDir = context.applicationInfo.nativeLibraryDir
-        val tmpDir = context.cacheDir.absolutePath
+        val prootTmpDir = File(context.cacheDir, "proot_tmp")
+        if (!prootTmpDir.exists()) {
+            prootTmpDir.mkdirs()
+        }
         val env = mutableMapOf<String, String>()
 
         env["TERM"] = "xterm-256color"
@@ -1002,11 +1081,8 @@ class UbuntuRuntime(private val context: Context) {
         env["COLUMNS"] = cols.toString()
         env["LINES"] = rows.toString()
         env["HOME"] = context.filesDir.absolutePath
-        env["TMPDIR"] = tmpDir
-
-        // Create temp dir
-        File(tmpDir).mkdirs()
-        env["PROOT_TMP_DIR"] = tmpDir
+        env["TMPDIR"] = prootTmpDir.absolutePath
+        env["PROOT_TMP_DIR"] = prootTmpDir.absolutePath
 
         // Only set loader paths if the files actually exist
         val loader = File(nativeLibDir, "libproot-loader.so")

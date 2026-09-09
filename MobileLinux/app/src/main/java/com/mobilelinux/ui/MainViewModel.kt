@@ -20,6 +20,10 @@ class MainViewModel(private val terminalManager: TerminalManager) : ViewModel() 
         return terminalManager.createSession(name)
     }
 
+    suspend fun createSessionAsync(name: String? = null): TerminalSession {
+        return terminalManager.createSessionAsync(name)
+    }
+
     fun setActiveSession(sessionId: String) {
         terminalManager.setActiveSession(sessionId)
     }

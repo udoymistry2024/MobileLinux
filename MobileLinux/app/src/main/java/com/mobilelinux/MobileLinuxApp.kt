@@ -54,13 +54,23 @@ class MobileLinuxApp : Application() {
         super.onCreate()
         instance = this
 
+        // Early sanitation: ensure dead sockets and stale locks from any previous crash / force-stop are purged
+        try {
+            val prootTmp = java.io.File(cacheDir, "proot_tmp")
+            if (prootTmp.exists()) {
+                prootTmp.deleteRecursively()
+            }
+            prootTmp.mkdirs()
+        } catch (ignored: Exception) {}
+
         detectDeviceMemory()
 
         // Background singleton & runtime pre-warming to keep main thread completely unblocked
         appScope.launch {
             try {
                 Log.d(TAG, "Pre-warming runtime components for ${totalRamMb}MB RAM device...")
-                com.mobilelinux.runtime.UbuntuRuntime.getInstance(this@MobileLinuxApp)
+                val runtime = com.mobilelinux.runtime.UbuntuRuntime.getInstance(this@MobileLinuxApp)
+                runtime.cleanupStaleProotArtifacts()
                 com.mobilelinux.model.PackageRepository.getCuratedPackages()
                 Log.d(TAG, "Pre-warming completed.")
             } catch (e: Exception) {

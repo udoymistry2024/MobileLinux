@@ -108,6 +108,14 @@ class TerminalManager(private val context: Context) {
         return session
     }
 
+    /**
+     * Asynchronously creates a session on Dispatchers.IO to prevent freezing the UI thread / splash screen.
+     */
+    suspend fun createSessionAsync(name: String? = null, cols: Int? = null, rows: Int? = null): TerminalSession =
+        withContext(Dispatchers.IO) {
+            createSession(name, cols, rows)
+        }
+
     private fun startSessionReader(sessionProcess: SessionProcess) {
         // Wire terminal emulator response (e.g. cursor position report) to session stdin
         sessionProcess.terminalBuffer.onResponse = { data ->
@@ -182,6 +190,13 @@ class TerminalManager(private val context: Context) {
             _activeSessionId.value = updated.lastOrNull()?.id
         }
 
+        // When all sessions have closed, clean up stale sockets and locks immediately
+        if (updated.isEmpty()) {
+            CoroutineScope(Dispatchers.IO).launch {
+                runtime.cleanupStaleProotArtifacts()
+            }
+        }
+
         // Keep at least one session alive only if explicitly requested
         if (autoCreateFallback && updated.isEmpty()) {
             createSession("Main")
@@ -233,7 +248,10 @@ class TerminalManager(private val context: Context) {
         sessionProcesses.clear()
         _sessions.value = emptyList()
         _activeSessionId.value = null
-        Log.d(TAG, "All sessions killed")
+        CoroutineScope(Dispatchers.IO).launch {
+            runtime.cleanupStaleProotArtifacts()
+        }
+        Log.d(TAG, "All sessions killed and proot artifacts cleaned")
     }
 
     /**

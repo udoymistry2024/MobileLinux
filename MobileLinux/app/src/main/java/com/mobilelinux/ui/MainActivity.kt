@@ -101,6 +101,7 @@ class MainActivity : AppCompatActivity() {
 
         // Create initial session asynchronously off the main thread to ensure splash screen dismisses instantly (<50ms)
         if (viewModel.sessions.value.isEmpty()) {
+            toolbar.subtitle = "Starting..."
             lifecycleScope.launch {
                 try {
                     // Maximum 10s timeout protection against PRoot stalls
@@ -120,6 +121,13 @@ class MainActivity : AppCompatActivity() {
             }
         } else {
             hasCreatedInitialSession = true
+            viewModel.activeSessionId.value?.let { sid ->
+                val session = viewModel.sessions.value.find { it.id == sid }
+                session?.let {
+                    showTerminalFragment(it)
+                    toolbar.subtitle = it.name
+                }
+            }
         }
 
         // Request initial development permissions (Notifications, Camera, Microphone)

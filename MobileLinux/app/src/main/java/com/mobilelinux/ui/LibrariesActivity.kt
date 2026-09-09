@@ -574,15 +574,17 @@ class LibrariesActivity : AppCompatActivity() {
                             val currentSet = getCachedInstalledIds(prefs)
                             currentSet.add(pkg.id)
                             prefs.edit().putStringSet("installed_ids", currentSet).putBoolean("conda_active", true).apply()
-                            withContext(Dispatchers.IO) {
-                                runtime.configureCondaEnvironment()
-                            }
+                            // Update UI immediately in 0ms so progress bar and spinner disappear instantly
                             adapter.updateItem(pkg.id)
                             Toast.makeText(
                                 this@LibrariesActivity,
                                 "Miniconda3 / Conda installed and activated successfully! (base) is active.",
                                 Toast.LENGTH_LONG
                             ).show()
+                            // Run Conda configuration in background without blocking UI
+                            lifecycleScope.launch(Dispatchers.IO) {
+                                runtime.configureCondaEnvironment()
+                            }
                         } else {
                             pkg.isInstalled = false
                             pkg.isActivated = false

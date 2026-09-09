@@ -1196,7 +1196,18 @@ class UbuntuRuntime(private val context: Context) {
         }
     }
 
+    @Volatile
+    private var isInstallingWrappers = false
+
+    @Volatile
+    private var isInstallingBashEnvs = false
+
+    @Volatile
+    private var isConfiguringConda = false
+
     fun installCommandWrappers() {
+        if (isInstallingWrappers) return
+        isInstallingWrappers = true
         try {
             val usrLocalBin = File(rootfsDir, "usr/local/bin")
             ensureRealDirectory(usrLocalBin)
@@ -1509,10 +1520,9 @@ class UbuntuRuntime(private val context: Context) {
                 }
             } catch (ignored: Exception) {}
 
-            // Synchronize Jupyter mobile configs, netlink shims, and shell environments
+            // Synchronize Jupyter mobile configs and netlink shims
             try {
                 installJupyterAndNetlinkFixes()
-                installBashEnvironments()
             } catch (e: Exception) {
                 Log.w(TAG, "Notice: sync configs in installCommandWrappers: ${e.message}")
             }
@@ -1520,10 +1530,14 @@ class UbuntuRuntime(private val context: Context) {
             Log.d(TAG, "Command wrappers installed ✓")
         } catch (e: Exception) {
             Log.w(TAG, "Wrappers install notice: ${e.message}")
+        } finally {
+            isInstallingWrappers = false
         }
     }
 
     private fun installBashEnvironments() {
+        if (isInstallingBashEnvs) return
+        isInstallingBashEnvs = true
         try {
             val ubuntuHome = File(rootfsDir, "home/ubuntu")
             ensureRealDirectory(ubuntuHome)
@@ -1806,6 +1820,8 @@ class UbuntuRuntime(private val context: Context) {
             Log.d(TAG, "Bash environments configured ✓")
         } catch (e: Exception) {
             Log.w(TAG, "Bash environment install notice: ${e.message}")
+        } finally {
+            isInstallingBashEnvs = false
         }
     }
 
@@ -1815,6 +1831,8 @@ class UbuntuRuntime(private val context: Context) {
      * activated when any terminal session starts, without requiring manual activation commands.
      */
     fun configureCondaEnvironment() {
+        if (isConfiguringConda) return
+        isConfiguringConda = true
         try {
             val candidatePaths = listOf(
                 "/home/ubuntu/miniforge3",
@@ -1895,12 +1913,30 @@ class UbuntuRuntime(private val context: Context) {
                 mambaWrapper.setReadable(true, false)
             }
 
-            // 5. Mirror wrappers into discovered Conda bin directories
-            installCommandWrappers()
+            // 5. Mirror wrappers into discovered Conda bin directories directly without recursion
+            try {
+                val condaBinDir = File(rootfsDir, "${detectedContainerDir.removePrefix("/")}/bin")
+                if (condaBinDir.exists() && condaBinDir.isDirectory) {
+                    val toolsToLink = listOf(
+                        "pkg-install-python", "pkg-uninstall-python", "conda-sync-packages", "conda-sync",
+                        "conda-manager", "install-jupyter", "jupyter", "jupyter-start", "jupyter-restart", "jupyter-notebook", "jupyter-lab",
+                        "fix-jupyter-mobile", "xdg-open", "x-www-browser", "sensible-browser", "www-browser",
+                        "desktop-start", "start-desktop", "desktop-stop", "stop-desktop"
+                    ) + pythonCliConfigs.map { it.cmdName }
+                    for (tool in toolsToLink) {
+                        val targetLink = File(condaBinDir, tool)
+                        safeWriteFile(targetLink, "#!/bin/sh\nexec /usr/local/bin/$tool \"\$@\"\n")
+                        targetLink.setExecutable(true, false)
+                        targetLink.setReadable(true, false)
+                    }
+                }
+            } catch (ignored: Exception) {}
 
             Log.d(TAG, "Conda environment configured & auto-activated for: $detectedContainerDir")
         } catch (e: Exception) {
             Log.w(TAG, "configureCondaEnvironment notice: ${e.message}")
+        } finally {
+            isConfiguringConda = false
         }
     }
 
@@ -1925,17 +1961,17 @@ class UbuntuRuntime(private val context: Context) {
             val condaSetupBlock = buildString {
                 append("\n$condaInitMarkerStart\n")
                 append("# !! Contents within this block are managed by 'conda init' !!\n")
-                append("__conda_setup=\"\$('$condaBin' 'shell.bash' 'hook' 2> /dev/null)\"\n")
-                append("if [ $? -eq 0 ]; then\n")
-                append("    eval \"\$__conda_setup\"\n")
+                append("if [ -f \"$condaDir/etc/profile.d/conda.sh\" ]; then\n")
+                append("    . \"$condaDir/etc/profile.d/conda.sh\"\n")
                 append("else\n")
-                append("    if [ -f \"$condaDir/etc/profile.d/conda.sh\" ]; then\n")
-                append("        . \"$condaDir/etc/profile.d/conda.sh\"\n")
+                append("    __conda_setup=\"\$('$condaBin' 'shell.bash' 'hook' 2> /dev/null)\"\n")
+                append("    if [ $? -eq 0 ]; then\n")
+                append("        eval \"\$__conda_setup\"\n")
                 append("    else\n")
                 append("        export PATH=\"$condaDir/bin:\$PATH\"\n")
                 append("    fi\n")
+                append("    unset __conda_setup\n")
                 append("fi\n")
-                append("unset __conda_setup\n")
                 append("$condaInitMarkerEnd\n")
             }
 
@@ -3780,17 +3816,17 @@ class UbuntuRuntime(private val context: Context) {
         "",
         "# >>> conda initialize >>>",
         "# !! Contents within this block are managed by 'conda init' !!",
-        "__conda_setup=\"\$('/home/ubuntu/miniforge3/bin/conda' 'shell.bash' 'hook' 2> /dev/null)\"",
-        "if [ \$? -eq 0 ]; then",
-        "    eval \"\$__conda_setup\"",
+        "if [ -f \"/home/ubuntu/miniforge3/etc/profile.d/conda.sh\" ]; then",
+        "    . \"/home/ubuntu/miniforge3/etc/profile.d/conda.sh\"",
         "else",
-        "    if [ -f \"/home/ubuntu/miniforge3/etc/profile.d/conda.sh\" ]; then",
-        "        . \"/home/ubuntu/miniforge3/etc/profile.d/conda.sh\"",
+        "    __conda_setup=\"\$('/home/ubuntu/miniforge3/bin/conda' 'shell.bash' 'hook' 2> /dev/null)\"",
+        "    if [ \$? -eq 0 ]; then",
+        "        eval \"\$__conda_setup\"",
         "    else",
         "        export PATH=\"/home/ubuntu/miniforge3/bin:\$PATH\"",
         "    fi",
+        "    unset __conda_setup",
         "fi",
-        "unset __conda_setup",
         "# <<< conda initialize <<<",
         "BASHRC_EOF",
         "fi",

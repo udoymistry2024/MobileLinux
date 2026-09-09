@@ -183,6 +183,7 @@ class VncCanvasView @JvmOverloads constructor(
     }
 
     private fun runVncClient(host: String, port: Int) {
+        var errored = false
         try {
             // Retry loop for server startup readiness (TigerVNC might take ~1-2 seconds to boot)
             var socket: Socket? = null
@@ -362,6 +363,7 @@ class VncCanvasView @JvmOverloads constructor(
 
         } catch (e: Exception) {
             if (isRunning.get()) {
+                errored = true
                 Log.e(TAG, "VNC Client loop error: ${e.message}", e)
                 post {
                     statusMessage = "Connection lost: ${e.message}"
@@ -372,7 +374,9 @@ class VncCanvasView @JvmOverloads constructor(
         } finally {
             isRunning.set(false)
             try { vncSocket?.close() } catch (ignored: Exception) {}
-            post { connectionListener?.onDisconnected(statusMessage) }
+            if (!errored) {
+                post { connectionListener?.onDisconnected(statusMessage) }
+            }
         }
     }
 
@@ -535,9 +539,11 @@ class VncCanvasView @JvmOverloads constructor(
                 canvas.restore()
             }
         } else {
-            // Draw loading/connecting message
+            // Draw dark background; only draw text if no external overlay listener is attached
             canvas.drawColor(Color.parseColor("#0D1117"))
-            canvas.drawText(statusMessage, width / 2f, height / 2f, statusPaint)
+            if (connectionListener == null && statusMessage.isNotEmpty()) {
+                canvas.drawText(statusMessage, width / 2f, height / 2f, statusPaint)
+            }
         }
     }
 

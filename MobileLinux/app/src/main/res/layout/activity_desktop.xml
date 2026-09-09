@@ -218,12 +218,50 @@
             android:textStyle="bold" />
 
         <TextView
+            android:id="@+id/tv_loading_sub"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:text="Initializing local display server :1"
             android:textColor="#8B949E"
             android:textSize="12sp" />
+
+        <LinearLayout
+            android:id="@+id/layout_error_actions"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_retry_desktop"
+                style="@style/Widget.Material3.Button"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:layout_marginEnd="10dp"
+                android:backgroundTint="#238636"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:text="Retry"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp"
+                app:cornerRadius="8dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_exit_desktop"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:strokeColor="#DA3633"
+                android:text="Exit"
+                android:textColor="#F85149"
+                android:textSize="13sp"
+                app:cornerRadius="8dp" />
+        </LinearLayout>
     </LinearLayout>
 
 </FrameLayout>

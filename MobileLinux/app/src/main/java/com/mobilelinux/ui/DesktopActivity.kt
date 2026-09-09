@@ -12,6 +12,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
+import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -46,6 +47,11 @@ class DesktopActivity : AppCompatActivity(),
     private lateinit var floatingControls: FloatingDesktopControlsView
     private lateinit var layoutLoading: View
     private lateinit var tvLoadingStatus: TextView
+    private lateinit var tvLoadingSub: TextView
+    private lateinit var progressLoading: ProgressBar
+    private lateinit var layoutErrorActions: View
+    private lateinit var btnRetryDesktop: View
+    private lateinit var btnExitDesktop: View
     private lateinit var scrollModifierBar: View
     private lateinit var dummyKeyInput: EditText
 
@@ -77,8 +83,21 @@ class DesktopActivity : AppCompatActivity(),
         floatingControls = findViewById(R.id.floating_controls)
         layoutLoading = findViewById(R.id.layout_loading)
         tvLoadingStatus = findViewById(R.id.tv_loading_status)
+        tvLoadingSub = findViewById(R.id.tv_loading_sub)
+        progressLoading = findViewById(R.id.progress_loading)
+        layoutErrorActions = findViewById(R.id.layout_error_actions)
+        btnRetryDesktop = findViewById(R.id.btn_retry_desktop)
+        btnExitDesktop = findViewById(R.id.btn_exit_desktop)
         scrollModifierBar = findViewById(R.id.scroll_modifier_bar)
         dummyKeyInput = findViewById(R.id.dummy_key_input)
+
+        btnRetryDesktop.setOnClickListener {
+            vncCanvas.disconnect()
+            startDesktopEnvironment()
+        }
+        btnExitDesktop.setOnClickListener {
+            confirmExit()
+        }
 
         vncCanvas.connectionListener = this
         floatingControls.listener = this
@@ -175,7 +194,10 @@ class DesktopActivity : AppCompatActivity(),
     }
 
     private fun startDesktopEnvironment() {
+        progressLoading.visibility = View.VISIBLE
+        layoutErrorActions.visibility = View.GONE
         tvLoadingStatus.text = "Initializing XFCE4 Desktop & TigerVNC..."
+        tvLoadingSub.text = "Starting local display server :1..."
         layoutLoading.visibility = View.VISIBLE
 
         lifecycleScope.launch(Dispatchers.IO) {
@@ -193,11 +215,14 @@ class DesktopActivity : AppCompatActivity(),
             withContext(Dispatchers.Main) {
                 if (result.first == 0 || result.second.contains("SUCCESS") || result.second.contains("started")) {
                     tvLoadingStatus.text = "Connecting to desktop session..."
+                    tvLoadingSub.text = "Establishing high-speed VNC connection..."
                     vncCanvas.connect("127.0.0.1", VncCanvasView.DEFAULT_VNC_PORT)
                 } else {
-                    // Try connecting anyway in case VNC server was already running
-                    tvLoadingStatus.text = "Connecting to display :1..."
-                    vncCanvas.connect("127.0.0.1", VncCanvasView.DEFAULT_VNC_PORT)
+                    val errMsg = result.second.lines().findLast { it.isNotBlank() } ?: "Failed to start display server."
+                    tvLoadingStatus.text = "Desktop Startup Failed"
+                    tvLoadingSub.text = errMsg
+                    progressLoading.visibility = View.GONE
+                    layoutErrorActions.visibility = View.VISIBLE
                 }
             }
         }
@@ -207,20 +232,28 @@ class DesktopActivity : AppCompatActivity(),
 
     override fun onConnected(width: Int, height: Int) {
         layoutLoading.visibility = View.GONE
+        progressLoading.visibility = View.VISIBLE
+        layoutErrorActions.visibility = View.GONE
         Toast.makeText(this, "Desktop Connected (${width}x${height})", Toast.LENGTH_SHORT).show()
     }
 
     override fun onDisconnected(reason: String?) {
         if (!isExiting) {
             layoutLoading.visibility = View.VISIBLE
-            tvLoadingStatus.text = reason ?: "Desktop session ended."
+            progressLoading.visibility = View.GONE
+            layoutErrorActions.visibility = View.VISIBLE
+            tvLoadingStatus.text = "Connection Disconnected"
+            tvLoadingSub.text = reason ?: "Desktop session ended."
         }
     }
 
     override fun onError(error: String) {
         if (!isExiting) {
             layoutLoading.visibility = View.VISIBLE
-            tvLoadingStatus.text = "Connection Error: $error"
+            progressLoading.visibility = View.GONE
+            layoutErrorActions.visibility = View.VISIBLE
+            tvLoadingStatus.text = "Connection Error"
+            tvLoadingSub.text = error
         }
     }
 

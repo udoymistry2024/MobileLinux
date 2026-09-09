@@ -153,6 +153,7 @@ class PackagesAdapter(
                         layoutInstalled.visibility = View.VISIBLE
                         btnUninstall.visibility = View.VISIBLE
                         btnLaunch.visibility = if (pkg.launchUrl != null) View.VISIBLE else View.GONE
+                        btnLaunch.text = "Open Web"
                         tvStatus.text = "Active & Ready (base)"
                     }
                     else -> {
@@ -221,6 +222,7 @@ class PackagesAdapter(
                         layoutInstalled.visibility = View.VISIBLE
                         btnUninstall.visibility = View.VISIBLE
                         btnLaunch.visibility = if (pkg.launchUrl != null || pkg.category == com.mobilelinux.model.PackageCategory.DESKTOP_APPS) View.VISIBLE else View.GONE
+                        btnLaunch.text = if (pkg.category == com.mobilelinux.model.PackageCategory.DESKTOP_APPS || pkg.id == "xfce4-desktop") "Open Desktop" else "Open Web"
                         tvStatus.text = if (pkg.statusText.isNotEmpty() && !pkg.statusText.contains("Uninstall", ignoreCase = true)) pkg.statusText else "Installed and ready"
                     }
                     else -> {

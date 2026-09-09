@@ -1420,6 +1420,68 @@ class UbuntuRuntime(private val context: Context) {
             stopDesktopAlias.setExecutable(true, false)
             stopDesktopAlias.setReadable(true, false)
 
+            // Desktop Application smart launchers & PRoot fixes (VLC root patch, LibreOffice theme, Firefox sandbox)
+            val vlcWrapper = File(usrLocalBin, "vlc")
+            safeWriteFile(
+                vlcWrapper,
+                "#!/bin/bash\n" +
+                "if [ -f /usr/bin/vlc ]; then\n" +
+                "    if grep -q 'geteuid' /usr/bin/vlc 2>/dev/null; then\n" +
+                "        sed -i 's/geteuid/getppid/' /usr/bin/vlc 2>/dev/null || true\n" +
+                "    fi\n" +
+                "    exec /usr/bin/vlc \"\$@\"\n" +
+                "fi\n" +
+                "echo 'VLC is not installed. Install it from Libraries & Packages.' >&2\n" +
+                "exit 1\n"
+            )
+            vlcWrapper.setExecutable(true, false)
+            vlcWrapper.setReadable(true, false)
+
+            val loWrapper = File(usrLocalBin, "libreoffice")
+            safeWriteFile(
+                loWrapper,
+                "#!/bin/bash\n" +
+                "export SAL_USE_VCLPLUGIN=gen\n" +
+                "if [ -f /usr/bin/libreoffice ]; then\n" +
+                "    exec /usr/bin/libreoffice \"\$@\"\n" +
+                "fi\n" +
+                "echo 'LibreOffice is not installed. Install it from Libraries & Packages.' >&2\n" +
+                "exit 1\n"
+            )
+            loWrapper.setExecutable(true, false)
+            loWrapper.setReadable(true, false)
+
+            val sofficeWrapper = File(usrLocalBin, "soffice")
+            safeWriteFile(
+                sofficeWrapper,
+                "#!/bin/bash\n" +
+                "export SAL_USE_VCLPLUGIN=gen\n" +
+                "if [ -f /usr/bin/soffice ]; then\n" +
+                "    exec /usr/bin/soffice \"\$@\"\n" +
+                "fi\n" +
+                "exec /usr/local/bin/libreoffice \"\$@\"\n"
+            )
+            sofficeWrapper.setExecutable(true, false)
+            sofficeWrapper.setReadable(true, false)
+
+            val ffWrapper = File(usrLocalBin, "firefox")
+            safeWriteFile(
+                ffWrapper,
+                "#!/bin/bash\n" +
+                "export MOZ_FAKE_NO_SANDBOX=1\n" +
+                "if [ -x /usr/lib/firefox/firefox ]; then\n" +
+                "    exec /usr/lib/firefox/firefox \"\$@\"\n" +
+                "elif [ -x /usr/bin/firefox-esr ]; then\n" +
+                "    exec /usr/bin/firefox-esr \"\$@\"\n" +
+                "elif [ -f /usr/bin/firefox ] && grep -vq 'snap' /usr/bin/firefox 2>/dev/null; then\n" +
+                "    exec /usr/bin/firefox \"\$@\"\n" +
+                "fi\n" +
+                "echo 'Firefox is not installed. Install native Firefox from Libraries & Packages.' >&2\n" +
+                "exit 1\n"
+            )
+            ffWrapper.setExecutable(true, false)
+            ffWrapper.setReadable(true, false)
+
             // Multi-Environment Python Installer, Uninstaller & Conda Synchronizer
             val pkgInstallPythonFile = File(usrLocalBin, "pkg-install-python")
             safeWriteFile(pkgInstallPythonFile, getPkgInstallPythonScript())
@@ -2558,6 +2620,7 @@ class UbuntuRuntime(private val context: Context) {
         "export LC_ALL=C.UTF-8",
         "export LANG=C.UTF-8",
         "export SAL_USE_VCLPLUGIN=gen",
+        "export MOZ_FAKE_NO_SANDBOX=1",
         "export XKL_XMODMAP_DISABLE=1",
         "H=\"\$(hostname 2>/dev/null || echo localhost)\"",
         "[ -z \"\$H\" ] && H=\"localhost\"",
@@ -2600,6 +2663,7 @@ class UbuntuRuntime(private val context: Context) {
         "export LC_ALL=C.UTF-8",
         "export LANG=C.UTF-8",
         "export SAL_USE_VCLPLUGIN=gen",
+        "export MOZ_FAKE_NO_SANDBOX=1",
         "[ -r \"\$HOME/.Xresources\" ] && xrdb \"\$HOME/.Xresources\" 2>/dev/null",
         "exec dbus-launch --exit-with-session startxfce4",
         "XSTARTUP_EOF",
@@ -2612,10 +2676,18 @@ class UbuntuRuntime(private val context: Context) {
         "\$I_KNOW_THIS_IS_INSECURE = 1;",
         "CONF_EOF",
         "",
-        "# 7. Desired resolution",
+        "# 7. Auto-patch desktop applications for PRoot compatibility",
+        "if [ -f /usr/bin/vlc ] && grep -q 'geteuid' /usr/bin/vlc 2>/dev/null; then",
+        "    sed -i 's/geteuid/getppid/' /usr/bin/vlc 2>/dev/null || true",
+        "fi",
+        "if [ -f /usr/bin/libreoffice ] && [ ! -f /usr/share/libreoffice/share/config/images_colibre.zip ]; then",
+        "    (export DEBIAN_FRONTEND=noninteractive; apt-get update >/dev/null 2>&1 && apt-get install -y --no-install-recommends libreoffice-style-colibre fonts-dejavu-core >/dev/null 2>&1) &",
+        "fi",
+        "",
+        "# 8. Desired resolution",
         "RES=\"\${1:-1280x720}\"",
         "",
-        "# 8. Start display server in background",
+        "# 9. Start display server in background",
         "VNC_PID=\"\"",
         "for xbin in /usr/bin/Xtigervnc /usr/bin/Xvnc; do",
         "    if [ -x \"\$xbin\" ]; then",

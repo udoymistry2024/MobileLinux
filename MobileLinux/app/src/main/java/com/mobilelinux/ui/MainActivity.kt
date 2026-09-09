@@ -1,6 +1,9 @@
 package com.mobilelinux.ui
 
 import android.Manifest
+import android.animation.ObjectAnimator
+import android.animation.PropertyValuesHolder
+import android.animation.ValueAnimator
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -13,6 +16,9 @@ import android.os.IBinder
 import android.os.PowerManager
 import android.provider.Settings
 import android.view.MenuItem
+import android.view.View
+import android.view.animation.AccelerateDecelerateInterpolator
+import android.widget.ImageView
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
@@ -60,6 +66,14 @@ class MainActivity : AppCompatActivity() {
     private var hasCreatedInitialSession = false
     private var browserUrlObserver: com.mobilelinux.util.BrowserUrlTriggerObserver? = null
 
+    // Startup animated splash & loading overlay
+    private var startupLoadingOverlay: View? = null
+    private var pbStartupProgress: ProgressBar? = null
+    private var tvStartupStatus: TextView? = null
+    private var ivStartupLogo: ImageView? = null
+    private var logoPulseAnimator: ObjectAnimator? = null
+    private var isStartupDismissed = false
+
     // Runtime permissions request for storage, notifications, camera & microphone
     private val appPermissionsLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -99,9 +113,14 @@ class MainActivity : AppCompatActivity() {
         setupSidebar()
         observeSessionChanges()
 
+        startupLoadingOverlay = findViewById(R.id.startup_loading_overlay)
+        pbStartupProgress = findViewById(R.id.pb_startup_progress)
+        tvStartupStatus = findViewById(R.id.tv_startup_status)
+        ivStartupLogo = findViewById(R.id.iv_startup_logo)
+
         // Create initial session asynchronously off the main thread to ensure splash screen dismisses instantly (<50ms)
         if (viewModel.sessions.value.isEmpty()) {
-            toolbar.subtitle = "Starting..."
+            setupStartupLoadingScreen()
             lifecycleScope.launch {
                 try {
                     // Maximum 10s timeout protection against PRoot stalls
@@ -117,10 +136,12 @@ class MainActivity : AppCompatActivity() {
                     android.util.Log.e("MainActivity", "Failed to create initial session: ${e.message}", e)
                 } finally {
                     hasCreatedInitialSession = true
+                    dismissStartupLoadingScreen()
                 }
             }
         } else {
             hasCreatedInitialSession = true
+            dismissStartupLoadingScreen(immediate = true)
             viewModel.activeSessionId.value?.let { sid ->
                 val session = viewModel.sessions.value.find { it.id == sid }
                 session?.let {
@@ -305,6 +326,7 @@ class MainActivity : AppCompatActivity() {
 
     internal fun showTerminalFragment(session: TerminalSession) {
         toolbar.subtitle = session.name
+        dismissStartupLoadingScreen(immediate = false)
         val current = supportFragmentManager.findFragmentById(R.id.fragment_terminal)
         if (current is TerminalFragment) {
             current.switchToSession(session.id)
@@ -315,6 +337,77 @@ class MainActivity : AppCompatActivity() {
         supportFragmentManager.beginTransaction()
             .replace(R.id.fragment_terminal, fragment, "terminal_${session.id}")
             .commitAllowingStateLoss()
+    }
+
+    private fun setupStartupLoadingScreen() {
+        startupLoadingOverlay?.visibility = View.VISIBLE
+        startupLoadingOverlay?.alpha = 1.0f
+
+        // 1. Logo breathing / pulsing animation
+        ivStartupLogo?.let { logo ->
+            val scaleX = PropertyValuesHolder.ofFloat(View.SCALE_X, 0.94f, 1.05f)
+            val scaleY = PropertyValuesHolder.ofFloat(View.SCALE_Y, 0.94f, 1.05f)
+            logoPulseAnimator = ObjectAnimator.ofPropertyValuesHolder(logo, scaleX, scaleY).apply {
+                duration = 1100
+                repeatCount = ValueAnimator.INFINITE
+                repeatMode = ValueAnimator.REVERSE
+                interpolator = AccelerateDecelerateInterpolator()
+                start()
+            }
+        }
+
+        // 2. Simulated smooth progression through boot stages
+        lifecycleScope.launch {
+            val stages = listOf(
+                Pair(20, "Connecting to Linux service... 20%"),
+                Pair(45, "Initializing PRoot userland... 45%"),
+                Pair(70, "Preparing user workspace... 70%"),
+                Pair(88, "Spawning Ubuntu terminal... 88%")
+            )
+            for ((pct, text) in stages) {
+                if (isStartupDismissed) break
+                kotlinx.coroutines.delay(220)
+                if (isStartupDismissed) break
+                pbStartupProgress?.progress = pct
+                tvStartupStatus?.text = text
+            }
+        }
+
+        // 3. Fallback safety timer: Ensure overlay never hangs if PRoot takes > 4.5s
+        lifecycleScope.launch {
+            kotlinx.coroutines.delay(4500)
+            if (!isStartupDismissed) {
+                dismissStartupLoadingScreen(immediate = false)
+            }
+        }
+    }
+
+    private fun dismissStartupLoadingScreen(immediate: Boolean = false) {
+        if (isStartupDismissed) return
+        isStartupDismissed = true
+
+        val overlay = startupLoadingOverlay ?: return
+        logoPulseAnimator?.cancel()
+        logoPulseAnimator = null
+
+        if (immediate) {
+            overlay.visibility = View.GONE
+            return
+        }
+
+        // Complete progress to 100% and show Ready before smooth fade out
+        pbStartupProgress?.progress = 100
+        tvStartupStatus?.text = "Ready! 100%"
+
+        overlay.postDelayed({
+            overlay.animate()
+                .alpha(0f)
+                .setDuration(350)
+                .withEndAction {
+                    overlay.visibility = View.GONE
+                }
+                .start()
+        }, 180)
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
@@ -459,6 +552,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        logoPulseAnimator?.cancel()
+        logoPulseAnimator = null
         browserUrlObserver?.stop()
         if (serviceConnected) {
             try { unbindService(serviceConnection) } catch (e: Exception) { /* ignore */ }

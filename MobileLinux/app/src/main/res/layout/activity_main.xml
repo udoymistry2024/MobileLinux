@@ -8,35 +8,179 @@
     android:layout_height="match_parent"
     tools:openDrawer="start">
 
-    <!-- Main content -->
-    <LinearLayout
-        android:id="@+id/main_content_container"
+    <!-- Main content with startup overlay -->
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:background="@color/terminal_bg">
+        android:layout_height="match_parent">
 
-        <!-- Toolbar: height wrap_content + minHeight so status bar padding extends toolbar background seamlessly -->
-        <androidx.appcompat.widget.Toolbar
-            android:id="@+id/toolbar"
+        <LinearLayout
+            android:id="@+id/main_content_container"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:minHeight="?attr/actionBarSize"
-            android:background="@color/toolbar_bg"
-            android:elevation="4dp"
-            app:titleTextColor="@color/text_primary"
-            app:subtitleTextColor="@color/text_secondary"
-            app:popupTheme="@style/ThemeOverlay.MaterialComponents.Dark" />
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:background="@color/terminal_bg">
 
-        <!-- Terminal fragment container -->
+            <!-- Toolbar: height wrap_content + minHeight so status bar padding extends toolbar background seamlessly -->
+            <androidx.appcompat.widget.Toolbar
+                android:id="@+id/toolbar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="?attr/actionBarSize"
+                android:background="@color/toolbar_bg"
+                android:elevation="4dp"
+                app:titleTextColor="@color/text_primary"
+                app:subtitleTextColor="@color/text_secondary"
+                app:popupTheme="@style/ThemeOverlay.MaterialComponents.Dark" />
+
+            <!-- Terminal fragment container -->
+            <FrameLayout
+                android:id="@+id/fragment_terminal"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:background="@color/terminal_bg" />
+
+        </LinearLayout>
+
+        <!-- Startup Loading & Animated Splash Overlay -->
         <FrameLayout
-            android:id="@+id/fragment_terminal"
+            android:id="@+id/startup_loading_overlay"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:background="@color/terminal_bg" />
+            android:layout_height="match_parent"
+            android:background="@color/terminal_bg"
+            android:clickable="true"
+            android:focusable="true">
 
-    </LinearLayout>
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:gravity="center_horizontal"
+                android:orientation="vertical"
+                android:paddingStart="24dp"
+                android:paddingEnd="24dp">
+
+                <!-- Logo with breathing / pulsing animation container -->
+                <FrameLayout
+                    android:id="@+id/layout_logo_pulse"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:padding="8dp">
+
+                    <ImageView
+                        android:id="@+id/iv_startup_logo"
+                        android:layout_width="96dp"
+                        android:layout_height="96dp"
+                        android:src="@drawable/ic_app_logo"
+                        android:contentDescription="MobileLinux Logo" />
+
+                </FrameLayout>
+
+                <!-- Branding Typography -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:fontFamily="@font/inter_bold"
+                    android:text="MobileLinux"
+                    android:textColor="@color/text_primary"
+                    android:textSize="28sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:fontFamily="@font/inter_medium"
+                    android:text="Authentic Ubuntu 24.04 LTS on Android"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp" />
+
+                <!-- System Spec Badges Row -->
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_badge_spec"
+                        android:fontFamily="@font/inter_bold"
+                        android:paddingStart="9dp"
+                        android:paddingTop="3dp"
+                        android:paddingEnd="9dp"
+                        android:paddingBottom="3dp"
+                        android:text="ARM64"
+                        android:textColor="#58A6FF"
+                        android:textSize="10sp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:background="@drawable/bg_badge_spec"
+                        android:fontFamily="@font/inter_bold"
+                        android:paddingStart="9dp"
+                        android:paddingTop="3dp"
+                        android:paddingEnd="9dp"
+                        android:paddingBottom="3dp"
+                        android:text="PRoot 5.4"
+                        android:textColor="#3FB950"
+                        android:textSize="10sp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:background="@drawable/bg_badge_spec"
+                        android:fontFamily="@font/inter_bold"
+                        android:paddingStart="9dp"
+                        android:paddingTop="3dp"
+                        android:paddingEnd="9dp"
+                        android:paddingBottom="3dp"
+                        android:text="Noble 24.04"
+                        android:textColor="#F0883E"
+                        android:textSize="10sp" />
+
+                </LinearLayout>
+
+                <!-- Modern Progress Section -->
+                <LinearLayout
+                    android:layout_width="240dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="32dp"
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical">
+
+                    <ProgressBar
+                        android:id="@+id/pb_startup_progress"
+                        style="?android:attr/progressBarStyleHorizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="6dp"
+                        android:max="100"
+                        android:progress="10"
+                        android:progressDrawable="@drawable/progress_bar_startup" />
+
+                    <TextView
+                        android:id="@+id/tv_startup_status"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:fontFamily="@font/inter_medium"
+                        android:text="Starting Linux environment... 10%"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+        </FrameLayout>
+
+    </FrameLayout>
 
     <!-- Left drawer — session sidebar -->
     <FrameLayout

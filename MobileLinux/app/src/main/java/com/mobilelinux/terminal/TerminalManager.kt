@@ -11,6 +11,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 
 /**
  * Manages all active terminal sessions.
@@ -26,6 +29,9 @@ class TerminalManager(private val context: Context) {
 
     private val _activeSessionId = MutableStateFlow<String?>(null)
     val activeSessionId: StateFlow<String?> = _activeSessionId.asStateFlow()
+
+    private val _sessionReadyFlow = MutableSharedFlow<String>(replay = 1, extraBufferCapacity = 16)
+    val sessionReadyFlow: SharedFlow<String> = _sessionReadyFlow.asSharedFlow()
 
     // Map of session ID -> active process
     private val sessionProcesses = mutableMapOf<String, SessionProcess>()
@@ -122,6 +128,12 @@ class TerminalManager(private val context: Context) {
             sendInput(sessionProcess.session.id, data)
         }
 
+        sessionProcess.terminalBuffer.onOutputReceived = { hasPrompt ->
+            if (hasPrompt) {
+                _sessionReadyFlow.tryEmit(sessionProcess.session.id)
+            }
+        }
+
         sessionProcess.readerJob = CoroutineScope(Dispatchers.IO).launch {
             val buffer = ByteArray(4096)
             val inputStream = sessionProcess.inputStream
@@ -132,6 +144,9 @@ class TerminalManager(private val context: Context) {
                     if (bytesRead > 0) {
                         val data = buffer.copyOf(bytesRead)
                         sessionProcess.terminalBuffer.processOutput(data)
+                        if (sessionProcess.terminalBuffer.hasPromptOrBanner() || sessionProcess.terminalBuffer.hasAnyVisibleContent()) {
+                            _sessionReadyFlow.tryEmit(sessionProcess.session.id)
+                        }
                     }
                 }
             } catch (e: Exception) {

@@ -7,6 +7,7 @@ import com.mobilelinux.terminal.TerminalManager
 import com.mobilelinux.terminal.TerminalSession
 import com.mobilelinux.terminal.SpecialKey
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.SharedFlow
 
 /**
  * Shared ViewModel for MainActivity — coordinates session state across fragments.
@@ -15,6 +16,7 @@ class MainViewModel(private val terminalManager: TerminalManager) : ViewModel() 
 
     val sessions: StateFlow<List<TerminalSession>> = terminalManager.sessions
     val activeSessionId: StateFlow<String?> = terminalManager.activeSessionId
+    val sessionReadyFlow: SharedFlow<String> = terminalManager.sessionReadyFlow
 
     fun createSession(name: String? = null): TerminalSession {
         return terminalManager.createSession(name)

@@ -37,8 +37,11 @@ import com.mobilelinux.service.LinuxService
 import com.mobilelinux.terminal.TerminalSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import android.view.animation.DecelerateInterpolator
 import java.io.File
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import android.widget.ProgressBar
@@ -118,22 +121,36 @@ class MainActivity : AppCompatActivity() {
         tvStartupStatus = findViewById(R.id.tv_startup_status)
         ivStartupLogo = findViewById(R.id.iv_startup_logo)
 
-        // Create initial session asynchronously off the main thread to ensure splash screen dismisses instantly (<50ms)
+        // Create initial session asynchronously off the main thread and await terminal prompt arrival
         if (viewModel.sessions.value.isEmpty()) {
             setupStartupLoadingScreen()
             lifecycleScope.launch {
                 try {
-                    // Maximum 10s timeout protection against PRoot stalls
-                    kotlinx.coroutines.withTimeoutOrNull(10000L) {
+                    val session = kotlinx.coroutines.withTimeoutOrNull(10000L) {
                         viewModel.createSessionAsync("Main")
                     } ?: run {
                         android.util.Log.e("MainActivity", "Initial session creation timed out, attempting retry")
                         if (viewModel.sessions.value.isEmpty()) {
                             viewModel.createSessionAsync("Main")
+                        } else null
+                    }
+
+                    if (session != null) {
+                        // Check if buffer already has content or prompt
+                        val proc = viewModel.getSessionProcess(session.id)
+                        val isAlreadyReady = proc?.terminalBuffer?.let { buf ->
+                            buf.hasPromptOrBanner() || buf.hasAnyVisibleContent()
+                        } ?: false
+
+                        if (!isAlreadyReady) {
+                            // Await prompt or welcome banner with safety timeout (7.5 seconds)
+                            kotlinx.coroutines.withTimeoutOrNull(7500L) {
+                                viewModel.sessionReadyFlow.filter { it == session.id }.first()
+                            }
                         }
                     }
                 } catch (e: Exception) {
-                    android.util.Log.e("MainActivity", "Failed to create initial session: ${e.message}", e)
+                    android.util.Log.e("MainActivity", "Failed to create or await initial session: ${e.message}", e)
                 } finally {
                     hasCreatedInitialSession = true
                     dismissStartupLoadingScreen()
@@ -326,7 +343,7 @@ class MainActivity : AppCompatActivity() {
 
     internal fun showTerminalFragment(session: TerminalSession) {
         toolbar.subtitle = session.name
-        dismissStartupLoadingScreen(immediate = false)
+        // Note: Do not dismiss startup overlay here — it is dismissed once the shell prompt is rendered
         val current = supportFragmentManager.findFragmentById(R.id.fragment_terminal)
         if (current is TerminalFragment) {
             current.switchToSession(session.id)
@@ -356,26 +373,33 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // 2. Simulated smooth progression through boot stages
+        // 2. Simulated smooth progression through realistic boot stages
         lifecycleScope.launch {
             val stages = listOf(
-                Pair(20, "Connecting to Linux service... 20%"),
-                Pair(45, "Initializing PRoot userland... 45%"),
-                Pair(70, "Preparing user workspace... 70%"),
-                Pair(88, "Spawning Ubuntu terminal... 88%")
+                Pair(15, "Connecting to Linux service... 15%"),
+                Pair(35, "Initializing PRoot userland... 35%"),
+                Pair(55, "Mounting storage & filesystems... 55%"),
+                Pair(72, "Starting Ubuntu login shell... 72%"),
+                Pair(85, "Activating Conda environment... 85%"),
+                Pair(92, "Rendering terminal console... 92%")
             )
-            for ((pct, text) in stages) {
+            val delays = listOf(200L, 400L, 500L, 600L, 700L, 600L)
+            for (i in stages.indices) {
                 if (isStartupDismissed) break
-                kotlinx.coroutines.delay(220)
-                if (isStartupDismissed) break
-                pbStartupProgress?.progress = pct
+                val (pct, text) = stages[i]
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    pbStartupProgress?.setProgress(pct, true)
+                } else {
+                    pbStartupProgress?.progress = pct
+                }
                 tvStartupStatus?.text = text
+                kotlinx.coroutines.delay(delays[i])
             }
         }
 
-        // 3. Fallback safety timer: Ensure overlay never hangs if PRoot takes > 4.5s
+        // 3. Fallback safety timer: Ensure overlay never hangs if PRoot takes > 8.0s
         lifecycleScope.launch {
-            kotlinx.coroutines.delay(4500)
+            kotlinx.coroutines.delay(8000)
             if (!isStartupDismissed) {
                 dismissStartupLoadingScreen(immediate = false)
             }
@@ -396,18 +420,23 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Complete progress to 100% and show Ready before smooth fade out
-        pbStartupProgress?.progress = 100
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            pbStartupProgress?.setProgress(100, true)
+        } else {
+            pbStartupProgress?.progress = 100
+        }
         tvStartupStatus?.text = "Ready! 100%"
 
         overlay.postDelayed({
             overlay.animate()
                 .alpha(0f)
-                .setDuration(350)
+                .setDuration(320)
+                .setInterpolator(DecelerateInterpolator())
                 .withEndAction {
                     overlay.visibility = View.GONE
                 }
                 .start()
-        }, 180)
+        }, 150)
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {

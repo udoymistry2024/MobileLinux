@@ -121,6 +121,37 @@ class TerminalBuffer(
     var onBell: (() -> Unit)? = null
     var onResponse: ((ByteArray) -> Unit)? = null
     var onHistoryCleared: (() -> Unit)? = null
+    var onOutputReceived: ((hasPrompt: Boolean) -> Unit)? = null
+
+    @Synchronized
+    fun hasPromptOrBanner(): Boolean {
+        if (history.isNotEmpty()) {
+            for (line in history) {
+                val str = String(line.chars).trim()
+                if (str.isNotEmpty() && (str.contains("$") || str.contains("#") || str.contains("MobileLinux") || str.contains("@"))) {
+                    return true
+                }
+            }
+        }
+        for (r in 0 until rows) {
+            val str = String(screen[r]).trim()
+            if (str.isNotEmpty() && (str.contains("$") || str.contains("#") || str.contains("MobileLinux") || str.contains("@"))) {
+                return true
+            }
+        }
+        return false
+    }
+
+    @Synchronized
+    fun hasAnyVisibleContent(): Boolean {
+        if (history.isNotEmpty()) return true
+        for (r in 0 until rows) {
+            for (c in 0 until cols) {
+                if (screen[r][c] > ' ') return true
+            }
+        }
+        return false
+    }
 
     @Synchronized
     fun processOutput(data: ByteArray) {
@@ -129,6 +160,8 @@ class TerminalBuffer(
             processChar(ch)
         }
         onUpdate?.invoke()
+        val hasPrompt = hasPromptOrBanner()
+        onOutputReceived?.invoke(hasPrompt)
     }
 
     private fun processChar(ch: Char) {

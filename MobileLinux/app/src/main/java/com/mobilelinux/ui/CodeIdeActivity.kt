@@ -10,6 +10,7 @@ import android.content.ServiceConnection
 import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
+import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
@@ -574,6 +575,36 @@ class CodeIdeActivity : AppCompatActivity() {
             },
             onSave = {
                 runOnUiThread { saveCurrentFile() }
+            },
+            onCopyText = { text ->
+                runOnUiThread {
+                    if (text.isNotEmpty()) {
+                        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        val clip = ClipData.newPlainText("Copied Text", text)
+                        clipboard.setPrimaryClip(clip)
+                        Toast.makeText(this@CodeIdeActivity, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
+            onCutText = { text ->
+                runOnUiThread {
+                    if (text.isNotEmpty()) {
+                        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        val clip = ClipData.newPlainText("Cut Text", text)
+                        clipboard.setPrimaryClip(clip)
+                        Toast.makeText(this@CodeIdeActivity, "Cut to clipboard", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
+            onPasteReq = {
+                runOnUiThread {
+                    pasteClipboardToEditor()
+                }
+            },
+            onCtrlReset = {
+                runOnUiThread {
+                    resetEditorCtrlState()
+                }
             }
         )
 
@@ -630,6 +661,7 @@ class CodeIdeActivity : AppCompatActivity() {
             is ExtraKeysView.KeyAction.ToggleCtrl -> {
                 isEditorCtrlActive = !isEditorCtrlActive
                 extraKeysView.setModifierActive("Ctrl", isEditorCtrlActive)
+                editorWebView.evaluateJavascript("window.editorSetCtrlModifier($isEditorCtrlActive);", null)
             }
             is ExtraKeysView.KeyAction.ToggleAlt -> {
                 isEditorAltActive = !isEditorAltActive
@@ -671,8 +703,7 @@ class CodeIdeActivity : AppCompatActivity() {
                             editorWebView.evaluateJavascript("window.editorInsert($escaped);", null)
                         }
                     }
-                    isEditorCtrlActive = false
-                    extraKeysView.setModifierActive("Ctrl", false)
+                    resetEditorCtrlState()
                 } else {
                     val escaped = JSONObject.quote(action.text)
                     editorWebView.evaluateJavascript("window.editorInsert($escaped);", null)
@@ -694,6 +725,52 @@ class CodeIdeActivity : AppCompatActivity() {
                 pasteClipboardToEditor()
             }
         }
+    }
+
+    private fun resetEditorCtrlState() {
+        if (isEditorCtrlActive) {
+            isEditorCtrlActive = false
+            extraKeysView.setModifierActive("Ctrl", false)
+            editorWebView.evaluateJavascript("window.editorSetCtrlModifier(false);", null)
+        }
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (isEditorCtrlActive && event.action == KeyEvent.ACTION_DOWN && activeFocusTarget == FocusTarget.EDITOR) {
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_A -> {
+                    editorWebView.evaluateJavascript("window.editorHandleSpecialKey('SELECT_ALL');", null)
+                    resetEditorCtrlState()
+                    return true
+                }
+                KeyEvent.KEYCODE_C -> {
+                    copyEditorSelectionToClipboard()
+                    resetEditorCtrlState()
+                    return true
+                }
+                KeyEvent.KEYCODE_X -> {
+                    cutEditorSelectionToClipboard()
+                    resetEditorCtrlState()
+                    return true
+                }
+                KeyEvent.KEYCODE_V -> {
+                    pasteClipboardToEditor()
+                    resetEditorCtrlState()
+                    return true
+                }
+                KeyEvent.KEYCODE_Z -> {
+                    editorWebView.evaluateJavascript("window.editorHandleSpecialKey('UNDO');", null)
+                    resetEditorCtrlState()
+                    return true
+                }
+                KeyEvent.KEYCODE_S -> {
+                    saveCurrentFile()
+                    resetEditorCtrlState()
+                    return true
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     private fun copyEditorSelectionToClipboard() {

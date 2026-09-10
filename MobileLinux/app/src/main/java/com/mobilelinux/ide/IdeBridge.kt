@@ -9,7 +9,11 @@ class IdeBridge(
     private val onReady: () -> Unit,
     private val onDirtyChanged: (Boolean) -> Unit,
     private val onCursor: (row: Int, col: Int) -> Unit,
-    private val onSave: () -> Unit
+    private val onSave: () -> Unit,
+    private val onCopyText: (String) -> Unit = {},
+    private val onCutText: (String) -> Unit = {},
+    private val onPasteReq: () -> Unit = {},
+    private val onCtrlReset: () -> Unit = {}
 ) {
     @JavascriptInterface
     fun onEditorReady() {
@@ -29,5 +33,25 @@ class IdeBridge(
     @JavascriptInterface
     fun onSaveShortcut() {
         onSave()
+    }
+
+    @JavascriptInterface
+    fun onCopy(text: String) {
+        onCopyText(text)
+    }
+
+    @JavascriptInterface
+    fun onCut(text: String) {
+        onCutText(text)
+    }
+
+    @JavascriptInterface
+    fun onPasteRequest() {
+        onPasteReq()
+    }
+
+    @JavascriptInterface
+    fun onCtrlModifierReset() {
+        onCtrlReset()
     }
 }

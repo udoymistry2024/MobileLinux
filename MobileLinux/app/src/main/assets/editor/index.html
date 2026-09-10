@@ -56,10 +56,85 @@
             border: 1px solid #30363D !important;
             border-radius: 4px !important;
         }
+
+        /* Mobile Touch Selection Handles & Action Bar */
+        .mobile-selection-handle {
+            position: fixed;
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            background-color: #58A6FF;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+            z-index: 9999;
+            display: none;
+            touch-action: none;
+            cursor: pointer;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .mobile-selection-handle::after {
+            content: '';
+            position: absolute;
+            width: 48px;
+            height: 48px;
+            top: -11px;
+            left: -11px;
+        }
+        #selection-start-handle {
+            border-top-right-radius: 2px;
+        }
+        #selection-end-handle {
+            border-top-left-radius: 2px;
+        }
+
+        #selection-action-bar {
+            position: fixed;
+            background: #161B22;
+            border: 1px solid #30363D;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.7);
+            display: none;
+            flex-direction: row;
+            z-index: 10000;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .selection-action-btn {
+            background: transparent;
+            border: none;
+            color: #E6EDF3;
+            font-size: 13px;
+            font-weight: 500;
+            padding: 8px 14px;
+            cursor: pointer;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            border-right: 1px solid #30363D;
+            outline: none;
+        }
+        .selection-action-btn:last-child {
+            border-right: none;
+        }
+        .selection-action-btn:active {
+            background: #1F6FEB;
+            color: #ffffff;
+        }
     </style>
 </head>
 <body>
     <div id="editor"></div>
+
+    <!-- Mobile Touch Selection Handles -->
+    <div id="selection-start-handle" class="mobile-selection-handle"></div>
+    <div id="selection-end-handle" class="mobile-selection-handle"></div>
+
+    <!-- Floating Selection Action Bar -->
+    <div id="selection-action-bar">
+        <button type="button" class="selection-action-btn" id="btn-cut">Cut</button>
+        <button type="button" class="selection-action-btn" id="btn-copy">Copy</button>
+        <button type="button" class="selection-action-btn" id="btn-paste">Paste</button>
+        <button type="button" class="selection-action-btn" id="btn-select-all">Select All</button>
+    </div>
 
     <script src="ace.js"></script>
     <script src="ext-language_tools.js"></script>
@@ -141,6 +216,88 @@
                 },
                 readOnly: false
             });
+
+            // Sticky Ctrl modifier state
+            let isCtrlModifierActive = false;
+
+            window.editorSetCtrlModifier = function(active) {
+                isCtrlModifierActive = !!active;
+            };
+
+            function handleCtrlKey(char) {
+                const c = (char || '').toUpperCase();
+                window.editorSetCtrlModifier(false);
+                if (window.IdeBridge && window.IdeBridge.onCtrlModifierReset) {
+                    window.IdeBridge.onCtrlModifierReset();
+                }
+                if (!c) return;
+                switch(c[0]) {
+                    case 'A':
+                        editor.selectAll();
+                        updateSelectionHandles();
+                        break;
+                    case 'C':
+                        const copyTxt = editor.getSelectedText();
+                        if (window.IdeBridge && window.IdeBridge.onCopy) {
+                            window.IdeBridge.onCopy(copyTxt);
+                        }
+                        break;
+                    case 'V':
+                        if (window.IdeBridge && window.IdeBridge.onPasteRequest) {
+                            window.IdeBridge.onPasteRequest();
+                        }
+                        break;
+                    case 'X':
+                        const cutTxt = editor.getSelectedText();
+                        if (window.IdeBridge && window.IdeBridge.onCut) {
+                            window.IdeBridge.onCut(cutTxt);
+                        }
+                        editor.remove();
+                        updateSelectionHandles();
+                        break;
+                    case 'Z':
+                        editor.undo();
+                        break;
+                    case 'Y':
+                        editor.redo();
+                        break;
+                    case 'S':
+                        if (window.IdeBridge && window.IdeBridge.onSaveShortcut) {
+                            window.IdeBridge.onSaveShortcut();
+                        }
+                        break;
+                    case 'F':
+                        editor.execCommand("find");
+                        break;
+                    case 'D':
+                        editor.duplicateSelection();
+                        break;
+                }
+            }
+
+            // Intercept text input from software keyboard (Gboard etc.) when Ctrl is active
+            const origOnTextInput = editor.onTextInput.bind(editor);
+            editor.onTextInput = function(text, info) {
+                if (isCtrlModifierActive && text) {
+                    handleCtrlKey(text);
+                    return;
+                }
+                return origOnTextInput(text, info);
+            };
+
+            // Intercept keydown on text input
+            if (editor.textInput && editor.textInput.getElement()) {
+                editor.textInput.getElement().addEventListener('keydown', (e) => {
+                    if (isCtrlModifierActive && e.key && e.key.length === 1 && e.key !== 'Unidentified') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleCtrlKey(e.key);
+                    }
+                }, true);
+            }
+
+            // Initialize mobile touch selection handles
+            initSelectionHandles();
 
             // Inform Android host that editor is ready
             setTimeout(() => {
@@ -254,6 +411,7 @@
                     break;
                 case 'SELECT_ALL':
                     editor.selectAll();
+                    updateSelectionHandles();
                     break;
                 case 'UNDO':
                     editor.undo();
@@ -274,6 +432,227 @@
             if (!editor) return;
             editor.remove();
         };
+
+        // Mobile Touch Selection Handles Implementation
+        let startHandle = null;
+        let endHandle = null;
+        let actionBar = null;
+        let isDraggingStart = false;
+        let isDraggingEnd = false;
+
+        function initSelectionHandles() {
+            startHandle = document.getElementById('selection-start-handle');
+            endHandle = document.getElementById('selection-end-handle');
+            actionBar = document.getElementById('selection-action-bar');
+
+            document.getElementById('btn-copy').addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const text = editor.getSelectedText();
+                if (window.IdeBridge && window.IdeBridge.onCopy) {
+                    window.IdeBridge.onCopy(text);
+                }
+                editor.selection.clearSelection();
+                hideSelectionUI();
+            });
+
+            document.getElementById('btn-cut').addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const text = editor.getSelectedText();
+                if (window.IdeBridge && window.IdeBridge.onCut) {
+                    window.IdeBridge.onCut(text);
+                }
+                editor.remove();
+                editor.selection.clearSelection();
+                hideSelectionUI();
+            });
+
+            document.getElementById('btn-paste').addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (window.IdeBridge && window.IdeBridge.onPasteRequest) {
+                    window.IdeBridge.onPasteRequest();
+                }
+            });
+
+            document.getElementById('btn-select-all').addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                editor.selectAll();
+                updateSelectionHandles();
+            });
+
+            // Start handle touch drag
+            startHandle.addEventListener('touchstart', (e) => {
+                isDraggingStart = true;
+                e.preventDefault();
+                e.stopPropagation();
+            }, { passive: false });
+
+            // End handle touch drag
+            endHandle.addEventListener('touchstart', (e) => {
+                isDraggingEnd = true;
+                e.preventDefault();
+                e.stopPropagation();
+            }, { passive: false });
+
+            window.addEventListener('touchmove', (e) => {
+                if (!isDraggingStart && !isDraggingEnd) return;
+                e.preventDefault();
+                e.stopPropagation();
+                const touch = e.touches[0];
+                const lineHeight = editor.renderer.lineHeight || 20;
+
+                if (isDraggingStart) {
+                    const targetY = touch.clientY - lineHeight;
+                    const targetX = touch.clientX + 8;
+                    const newPos = editor.renderer.screenToTextCoordinates(targetX, targetY);
+                    const curEnd = editor.getSelectionRange().end;
+
+                    if (newPos.row < curEnd.row || (newPos.row === curEnd.row && newPos.column < curEnd.column)) {
+                        editor.selection.setSelectionRange({
+                            start: newPos,
+                            end: curEnd
+                        });
+                        updateSelectionHandles();
+                    }
+                } else if (isDraggingEnd) {
+                    const targetY = touch.clientY - lineHeight;
+                    const targetX = touch.clientX - 8;
+                    const newPos = editor.renderer.screenToTextCoordinates(targetX, targetY);
+                    const curStart = editor.getSelectionRange().start;
+
+                    if (newPos.row > curStart.row || (newPos.row === curStart.row && newPos.column > curStart.column)) {
+                        editor.selection.setSelectionRange({
+                            start: curStart,
+                            end: newPos
+                        });
+                        updateSelectionHandles();
+                    }
+                }
+            }, { passive: false });
+
+            window.addEventListener('touchend', () => {
+                if (isDraggingStart || isDraggingEnd) {
+                    isDraggingStart = false;
+                    isDraggingEnd = false;
+                    updateSelectionHandles();
+                }
+            });
+
+            window.addEventListener('touchcancel', () => {
+                isDraggingStart = false;
+                isDraggingEnd = false;
+                updateSelectionHandles();
+            });
+
+            // Long-press detection on editor to trigger word selection & show handles
+            let longPressTimer = null;
+            let pressStartPos = null;
+            const editorDiv = document.getElementById('editor');
+
+            editorDiv.addEventListener('touchstart', (e) => {
+                if (e.touches.length !== 1) {
+                    clearTimeout(longPressTimer);
+                    return;
+                }
+                const touch = e.touches[0];
+                pressStartPos = { x: touch.clientX, y: touch.clientY };
+                clearTimeout(longPressTimer);
+                longPressTimer = setTimeout(() => {
+                    const textPos = editor.renderer.screenToTextCoordinates(touch.clientX, touch.clientY);
+                    const wordRange = editor.session.getWordRange(textPos.row, textPos.column);
+                    if (!wordRange.isEmpty()) {
+                        editor.selection.setSelectionRange(wordRange);
+                        editor.focus();
+                        updateSelectionHandles();
+                        if (window.navigator && window.navigator.vibrate) {
+                            window.navigator.vibrate(30);
+                        }
+                    }
+                }, 450);
+            }, { passive: true });
+
+            editorDiv.addEventListener('touchmove', (e) => {
+                if (!pressStartPos) return;
+                const touch = e.touches[0];
+                const dx = Math.abs(touch.clientX - pressStartPos.x);
+                const dy = Math.abs(touch.clientY - pressStartPos.y);
+                if (dx > 10 || dy > 10) {
+                    clearTimeout(longPressTimer);
+                }
+            }, { passive: true });
+
+            editorDiv.addEventListener('touchend', () => {
+                clearTimeout(longPressTimer);
+            }, { passive: true });
+
+            // Listen to Ace selection changes
+            editor.selection.on('changeSelection', () => {
+                requestAnimationFrame(updateSelectionHandles);
+            });
+
+            // Update handles on scroll
+            editor.session.on('changeScrollTop', () => {
+                requestAnimationFrame(updateSelectionHandles);
+            });
+            editor.session.on('changeScrollLeft', () => {
+                requestAnimationFrame(updateSelectionHandles);
+            });
+        }
+
+        function hideSelectionUI() {
+            if (startHandle) startHandle.style.display = 'none';
+            if (endHandle) endHandle.style.display = 'none';
+            if (actionBar) actionBar.style.display = 'none';
+        }
+
+        function updateSelectionHandles() {
+            if (!editor || !startHandle || !endHandle || !actionBar) return;
+            const range = editor.getSelectionRange();
+            if (!range || range.isEmpty()) {
+                hideSelectionUI();
+                return;
+            }
+
+            const startPos = range.start;
+            const endPos = range.end;
+            const startCoord = editor.renderer.textToScreenCoordinates(startPos.row, startPos.column);
+            const endCoord = editor.renderer.textToScreenCoordinates(endPos.row, endPos.column);
+            const lineHeight = editor.renderer.lineHeight || 20;
+
+            const editorRect = document.getElementById('editor').getBoundingClientRect();
+            const isStartVisible = startCoord.pageY >= editorRect.top - lineHeight && startCoord.pageY <= editorRect.bottom;
+            const isEndVisible = endCoord.pageY >= editorRect.top - lineHeight && endCoord.pageY <= editorRect.bottom;
+
+            if (!isStartVisible && !isEndVisible) {
+                hideSelectionUI();
+                return;
+            }
+
+            // Start Handle
+            startHandle.style.display = isStartVisible ? 'block' : 'none';
+            startHandle.style.left = (startCoord.pageX - 24) + 'px';
+            startHandle.style.top = (startCoord.pageY + lineHeight) + 'px';
+
+            // End Handle
+            endHandle.style.display = isEndVisible ? 'block' : 'none';
+            endHandle.style.left = endCoord.pageX + 'px';
+            endHandle.style.top = (endCoord.pageY + lineHeight) + 'px';
+
+            // Action Bar
+            actionBar.style.display = 'flex';
+            const barWidth = actionBar.offsetWidth || 230;
+            let barX = (startCoord.pageX + endCoord.pageX) / 2 - (barWidth / 2);
+            barX = Math.max(10, Math.min(window.innerWidth - barWidth - 10, barX));
+            let barY = startCoord.pageY - 44;
+            if (barY < editorRect.top + 5) {
+                barY = Math.max(startCoord.pageY, endCoord.pageY) + lineHeight + 32;
+            }
+            actionBar.style.left = barX + 'px';
+            actionBar.style.top = barY + 'px';
+        }
     </script>
 </body>
 </html>

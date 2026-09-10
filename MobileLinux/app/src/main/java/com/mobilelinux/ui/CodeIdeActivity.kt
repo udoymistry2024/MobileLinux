@@ -825,10 +825,18 @@ class CodeIdeActivity : AppCompatActivity() {
             toggleConsole(show = false)
         }
 
+        btnStopExecution.contentDescription = "Stop Process (Ctrl+C)"
+        btnStopExecution.tooltipText = "Stop Process (Ctrl+C)"
+        btnClearConsole.contentDescription = "Clear Terminal"
+        btnClearConsole.tooltipText = "Clear Terminal"
+        btnCloseConsole.contentDescription = "Minimize Terminal"
+        btnCloseConsole.tooltipText = "Minimize Terminal"
+
         // Clear terminal
         btnClearConsole.setOnClickListener {
             ideSessionId?.let { sessId ->
                 terminalManager.sendInput(sessId, "clear\n".toByteArray())
+                Toast.makeText(this, "Terminal cleared", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -836,7 +844,7 @@ class CodeIdeActivity : AppCompatActivity() {
         btnStopExecution.setOnClickListener {
             ideSessionId?.let { sessId ->
                 terminalManager.sendKey(sessId, SpecialKey.CTRL_C)
-                Toast.makeText(this, "Sent Ctrl+C", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Stopped process (Ctrl+C)", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -1299,7 +1307,7 @@ class CodeIdeActivity : AppCompatActivity() {
             // The user must use 3-dot menu -> Exit IDE
             Toast.makeText(
                 this,
-                "আইডিই থেকে বের হতে ৩-ডট (⋮) মেনু থেকে 'Exit IDE' সিলেক্ট করুন",
+                "To exit IDE, select 'Exit IDE' from the 3-dot (⋮) menu",
                 Toast.LENGTH_SHORT
             ).show()
         }

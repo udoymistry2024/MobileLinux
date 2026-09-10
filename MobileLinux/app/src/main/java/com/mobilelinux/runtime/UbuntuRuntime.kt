@@ -1424,50 +1424,37 @@ class UbuntuRuntime(private val context: Context) {
             val vlcBin = File(rootfsDir, "usr/bin/vlc")
             val vlcReal = File(rootfsDir, "usr/bin/vlc.real")
             val vlcWrapper = File(usrLocalBin, "vlc")
+            fun isElf(f: File): Boolean {
+                if (!f.exists() || f.length() < 4) return false
+                val h = ByteArray(4)
+                try {
+                    f.inputStream().use { it.read(h) }
+                    return h.contentEquals(byteArrayOf(0x7F, 'E'.code.toByte(), 'L'.code.toByte(), 'F'.code.toByte()))
+                } catch (e: Exception) {
+                    return false
+                }
+            }
+
             if (vlcBin.exists() || vlcReal.exists()) {
                 try {
-                    if (vlcBin.exists() && !vlcReal.exists()) {
-                        val header = ByteArray(4)
-                        vlcBin.inputStream().use { it.read(header) }
-                        if (header.contentEquals(byteArrayOf(0x7F, 'E'.code.toByte(), 'L'.code.toByte(), 'F'.code.toByte()))) {
-                            vlcBin.renameTo(vlcReal)
-                        }
+                    if (isElf(vlcBin) && !isElf(vlcReal)) {
+                        vlcBin.copyTo(vlcReal, overwrite = true)
                     }
                 } catch (ignored: Exception) {}
 
                 val vlcScript = "#!/bin/bash\n" +
+                    "export DISPLAY=\"\${DISPLAY:-:1}\"\n" +
                     "export QT_X11_NO_MITSHM=1\n" +
                     "export QT_QPA_PLATFORM=xcb\n" +
-                    "export DISPLAY=\"\${DISPLAY:-:1}\"\n" +
-                    "export XDG_RUNTIME_DIR=\"\${XDG_RUNTIME_DIR:-/tmp}\"\n" +
                     "export LIBGL_ALWAYS_SOFTWARE=1\n" +
-                    "\n" +
-                    "if [ ! -f /usr/lib/*-linux-gnu*/libxcb-cursor.so.0 ] || [ ! -f /usr/lib/*-linux-gnu*/libQt5Svg.so.5 ] || [ ! -f /usr/lib/*-linux-gnu*/vlc/plugins/gui/libqt_plugin.so ]; then\n" +
-                    "    echo \"[VLC] Setting up required GUI dependencies (libxcb-cursor, Qt5)...\"\n" +
-                    "    if ! pgrep -x apt-get >/dev/null 2>&1 && ! pgrep -x dpkg >/dev/null 2>&1; then\n" +
-                    "        rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true\n" +
-                    "    fi\n" +
-                    "    if [ \"\$(id -u)\" = \"0\" ]; then\n" +
-                    "        DEBIAN_FRONTEND=noninteractive apt-get update >/dev/null 2>&1 && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libxcb-cursor0 libxcb-xinerama0 libqt5svg5 libqt5x11extras5 vlc-plugin-qt >/dev/null 2>&1 || true\n" +
-                    "    else\n" +
-                    "        sudo DEBIAN_FRONTEND=noninteractive apt-get update >/dev/null 2>&1 && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libxcb-cursor0 libxcb-xinerama0 libqt5svg5 libqt5x11extras5 vlc-plugin-qt >/dev/null 2>&1 || true\n" +
-                    "    fi\n" +
-                    "    for p in /usr/lib/*-linux-gnu*/vlc; do\n" +
-                    "        [ -x \"\$p/vlc-cache-gen\" ] && \"\$p/vlc-cache-gen\" \"\$p/plugins\" >/dev/null 2>&1 || true\n" +
-                    "    done\n" +
-                    "fi\n" +
+                    "export XDG_RUNTIME_DIR=\"\${XDG_RUNTIME_DIR:-/tmp}\"\n" +
+                    "export NO_AT_BRIDGE=1\n" +
+                    "unset GDK_SYNCHRONIZE\n" +
                     "\n" +
                     "REAL_VLC=\"/usr/bin/vlc.real\"\n" +
-                    "[ ! -f \"\$REAL_VLC\" ] && REAL_VLC=\"/usr/bin/vlc-bin\"\n" +
-                    "[ ! -f \"\$REAL_VLC\" ] && REAL_VLC=\"/usr/lib/vlc/vlc\"\n" +
-                    "if [ -f \"\$REAL_VLC\" ] && grep -q 'geteuid' \"\$REAL_VLC\" 2>/dev/null; then\n" +
-                    "    sed -i 's/geteuid/getppid/g' \"\$REAL_VLC\" 2>/dev/null || true\n" +
+                    "if [ ! -f \"\$REAL_VLC\" ] || ! head -c 4 \"\$REAL_VLC\" 2>/dev/null | grep -q $\"\\x7FELF\"; then\n" +
+                    "    REAL_VLC=\"/usr/bin/vlc\"\n" +
                     "fi\n" +
-                    "for lib in /usr/lib/*-linux-gnu*/libvlccore*; do\n" +
-                    "    if [ -f \"\$lib\" ] && grep -q 'geteuid' \"\$lib\" 2>/dev/null; then\n" +
-                    "        sed -i 's/geteuid/getppid/g' \"\$lib\" 2>/dev/null || true\n" +
-                    "    fi\n" +
-                    "done\n" +
                     "\n" +
                     "VLC_ARGS=()\n" +
                     "has_intf=0\n" +
@@ -1482,18 +1469,14 @@ class UbuntuRuntime(private val context: Context) {
                     "    if [ \$has_intf -eq 0 ]; then\n" +
                     "        VLC_ARGS+=(\"-I\" \"qt\")\n" +
                     "    fi\n" +
-                    "    VLC_ARGS+=(\"--no-dbus\" \"--avcodec-hw=none\")\n" +
+                    "    VLC_ARGS+=(\"--no-dbus\" \"--avcodec-hw=none\" \"--vout=xcb_x11\")\n" +
                     "fi\n" +
                     "\n" +
                     "chmod 777 /tmp/.X11-unix /tmp/.X11-unix/* 2>/dev/null || true\n" +
                     "xhost + >/dev/null 2>&1 || true\n" +
                     "\n" +
                     "if [ \"\$(id -u)\" = \"0\" ]; then\n" +
-                    "    if \"\$REAL_VLC\" --version >/dev/null 2>&1; then\n" +
-                    "        exec \"\$REAL_VLC\" \"\${VLC_ARGS[@]}\" \"\$@\"\n" +
-                    "    else\n" +
-                    "        exec su - ubuntu -c \"export DISPLAY='\$DISPLAY'; export QT_X11_NO_MITSHM=1; export QT_QPA_PLATFORM=xcb; export XDG_RUNTIME_DIR=/tmp; export LIBGL_ALWAYS_SOFTWARE=1; '\$REAL_VLC' -I qt --no-dbus --avcodec-hw=none $(printf '%q ' \\\"\\$@\\\")\"\n" +
-                    "    fi\n" +
+                    "    exec su - ubuntu -c \"export DISPLAY='\$DISPLAY'; export QT_X11_NO_MITSHM=1; export QT_QPA_PLATFORM=xcb; export XDG_RUNTIME_DIR=/tmp; export LIBGL_ALWAYS_SOFTWARE=1; export NO_AT_BRIDGE=1; unset GDK_SYNCHRONIZE; '\$REAL_VLC' \${VLC_ARGS[*]} $(printf '%q ' \\\"\\$@\\\")\"\n" +
                     "else\n" +
                     "    exec \"\$REAL_VLC\" \"\${VLC_ARGS[@]}\" \"\$@\"\n" +
                     "fi\n"
@@ -1502,7 +1485,7 @@ class UbuntuRuntime(private val context: Context) {
                 vlcWrapper.setExecutable(true, false)
                 vlcWrapper.setReadable(true, false)
 
-                if (vlcReal.exists()) {
+                if (isElf(vlcReal)) {
                     safeWriteFile(vlcBin, vlcScript)
                     vlcBin.setExecutable(true, false)
                     vlcBin.setReadable(true, false)
@@ -2753,7 +2736,8 @@ class UbuntuRuntime(private val context: Context) {
         "export SAL_USE_VCLPLUGIN=\"\${SAL_USE_VCLPLUGIN:-gtk3}\"",
         "export MOZ_FAKE_NO_SANDBOX=1",
         "export QT_X11_NO_MITSHM=1",
-        "export GDK_SYNCHRONIZE=1",
+        "export NO_AT_BRIDGE=1",
+        "unset GDK_SYNCHRONIZE",
         "export XKL_XMODMAP_DISABLE=1",
         "H=\"\$(hostname 2>/dev/null || echo localhost)\"",
         "[ -z \"\$H\" ] && H=\"localhost\"",
@@ -2791,6 +2775,7 @@ class UbuntuRuntime(private val context: Context) {
         "#!/bin/bash",
         "unset SESSION_MANAGER",
         "unset DBUS_SESSION_BUS_ADDRESS",
+        "unset GDK_SYNCHRONIZE",
         "export DISPLAY=:1",
         "export XKL_XMODMAP_DISABLE=1",
         "export LC_ALL=C.UTF-8",
@@ -2798,10 +2783,43 @@ class UbuntuRuntime(private val context: Context) {
         "export SAL_USE_VCLPLUGIN=\"\${SAL_USE_VCLPLUGIN:-gtk3}\"",
         "export MOZ_FAKE_NO_SANDBOX=1",
         "export QT_X11_NO_MITSHM=1",
-        "export GDK_SYNCHRONIZE=1",
+        "export NO_AT_BRIDGE=1",
         "xhost + >/dev/null 2>&1 || true",
         "chmod 777 /tmp/.X11-unix /tmp/.X11-unix/* 2>/dev/null || true",
         "[ -r \"\$HOME/.Xresources\" ] && xrdb \"\$HOME/.Xresources\" 2>/dev/null",
+        "",
+        "# Performance: disable software compositing & animations for snappy response",
+        "for d in \"\$HOME\" /home/ubuntu /root; do",
+        "    mkdir -p \"\$d/.config/xfce4/xfconf/xfce-perchannel-xml\" \"\$d/.config/gtk-3.0\" 2>/dev/null || true",
+        "    cat << 'XFWM_EOF' > \"\$d/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml\"",
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+        "<channel name=\"xfwm4\" version=\"1.0\">",
+        "  <property name=\"general\" type=\"empty\">",
+        "    <property name=\"use_compositing\" type=\"bool\" value=\"false\"/>",
+        "    <property name=\"box_move\" type=\"bool\" value=\"true\"/>",
+        "    <property name=\"box_resize\" type=\"bool\" value=\"true\"/>",
+        "    <property name=\"shadow_delta_height\" type=\"int\" value=\"0\"/>",
+        "    <property name=\"shadow_delta_width\" type=\"int\" value=\"0\"/>",
+        "    <property name=\"shadow_opacity\" type=\"int\" value=\"0\"/>",
+        "    <property name=\"show_dock_shadow\" type=\"bool\" value=\"false\"/>",
+        "    <property name=\"show_frame_shadow\" type=\"bool\" value=\"false\"/>",
+        "    <property name=\"show_popup_shadow\" type=\"bool\" value=\"false\"/>",
+        "  </property>",
+        "</channel>",
+        "XFWM_EOF",
+        "    cat << 'GTK_EOF' > \"\$d/.config/gtk-3.0/settings.ini\"",
+        "[Settings]",
+        "gtk-enable-animations=0",
+        "gtk-menu-images=1",
+        "gtk-button-images=1",
+        "GTK_EOF",
+        "    cat << 'GTK2_EOF' > \"\$d/.gtkrc-2.0\"",
+        "gtk-enable-animations=0",
+        "GTK2_EOF",
+        "    chown -R 1000:1000 \"/home/ubuntu/.config\" \"/home/ubuntu/.gtkrc-2.0\" 2>/dev/null || true",
+        "done",
+        "xfconf-query -c xfwm4 -p /general/use_compositing -s false 2>/dev/null || true",
+        "",
         "exec dbus-launch --exit-with-session startxfce4",
         "XSTARTUP_EOF",
         "chmod +x \"\$HOME/.vnc/xstartup\"",
@@ -2814,62 +2832,54 @@ class UbuntuRuntime(private val context: Context) {
         "CONF_EOF",
         "",
         "# 7. Auto-patch desktop applications for PRoot & root compatibility",
-        "# VLC patch & wrapper",
-        "if [ -f /usr/bin/vlc ] || [ -f /usr/bin/vlc.real ]; then",
-        "    if [ -f /usr/bin/vlc ] && file /usr/bin/vlc 2>/dev/null | grep -q 'ELF'; then",
-        "        mv /usr/bin/vlc /usr/bin/vlc.real 2>/dev/null || true",
-        "    fi",
-        "    if [ -f /usr/bin/vlc.real ] && grep -q 'geteuid' /usr/bin/vlc.real 2>/dev/null; then",
-        "        sed -i 's/geteuid/getppid/g' /usr/bin/vlc.real 2>/dev/null || true",
-        "    fi",
-        "    for lib in /usr/lib/*-linux-gnu*/libvlccore*; do",
-        "        if [ -f \"\$lib\" ] && grep -q 'geteuid' \"\$lib\" 2>/dev/null; then",
-        "            sed -i 's/geteuid/getppid/g' \"\$lib\" 2>/dev/null || true",
-        "        fi",
-        "    done",
-        "    if [ ! -f /usr/lib/*-linux-gnu*/libxcb-cursor.so.0 ] || [ ! -f /usr/lib/*-linux-gnu*/libQt5Svg.so.5 ] || [ ! -f /usr/lib/*-linux-gnu*/vlc/plugins/gui/libqt_plugin.so ]; then",
-        "        (if ! pgrep -x apt-get >/dev/null 2>&1 && ! pgrep -x dpkg >/dev/null 2>&1; then rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true; fi; DEBIAN_FRONTEND=noninteractive apt-get update >/dev/null 2>&1 && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libxcb-cursor0 libxcb-xinerama0 libqt5svg5 libqt5x11extras5 vlc-plugin-qt >/dev/null 2>&1; for p in /usr/lib/*-linux-gnu*/vlc; do [ -x \"\$p/vlc-cache-gen\" ] && \"\$p/vlc-cache-gen\" \"\$p/plugins\" >/dev/null 2>&1 || true; done) &",
-        "    fi",
-        "    for p in /usr/lib/*-linux-gnu*/vlc; do",
-        "        [ -x \"\$p/vlc-cache-gen\" ] && \"\$p/vlc-cache-gen\" \"\$p/plugins\" >/dev/null 2>&1 || true",
-        "    done",
-        "    if [ -f /usr/share/applications/vlc.desktop ]; then",
-        "        sed -i 's/^Exec=.*vlc.*$/Exec=\\/usr\\/bin\\/vlc %U/g' /usr/share/applications/vlc.desktop 2>/dev/null || true",
-        "    fi",
-        "    cat << 'VLC_EOF' > /usr/bin/vlc",
-        "#!/bin/bash",
-        "export QT_X11_NO_MITSHM=1",
-        "export QT_QPA_PLATFORM=xcb",
-        "export DISPLAY=\"\${DISPLAY:-:1}\"",
-        "export XDG_RUNTIME_DIR=\"\${XDG_RUNTIME_DIR:-/tmp}\"",
-        "export LIBGL_ALWAYS_SOFTWARE=1",
+        "# VLC patch, binary recovery & smart wrapper",
+        "is_vlc_elf=0",
+        "[ -f /usr/bin/vlc.real ] && head -c 4 /usr/bin/vlc.real 2>/dev/null | grep -q $'\\x7FELF' && is_vlc_elf=1",
+        "[ \$is_vlc_elf -eq 0 ] && [ -f /usr/bin/vlc ] && head -c 4 /usr/bin/vlc 2>/dev/null | grep -q $'\\x7FELF' && cp -f /usr/bin/vlc /usr/bin/vlc.real && is_vlc_elf=1",
         "",
-        "if [ ! -f /usr/lib/*-linux-gnu*/libxcb-cursor.so.0 ] || [ ! -f /usr/lib/*-linux-gnu*/libQt5Svg.so.5 ] || [ ! -f /usr/lib/*-linux-gnu*/vlc/plugins/gui/libqt_plugin.so ]; then",
-        "    echo \"[VLC] Setting up required GUI dependencies (libxcb-cursor, Qt5)...\"",
-        "    if ! pgrep -x apt-get >/dev/null 2>&1 && ! pgrep -x dpkg >/dev/null 2>&1; then",
+        "if [ \$is_vlc_elf -eq 0 ]; then",
+        "    if dpkg -s vlc-bin >/dev/null 2>&1 || dpkg -s vlc >/dev/null 2>&1; then",
+        "        echo \"[MobileLinux] Recovering VLC binary & dependencies...\"",
         "        rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true",
+        "        DEBIAN_FRONTEND=noninteractive apt-get install --reinstall -y vlc-bin libxcb-cursor0 libqt5svg5 libqt5x11extras5 vlc-plugin-qt >/dev/null 2>&1 || true",
+        "        if [ -f /usr/bin/vlc ] && head -c 4 /usr/bin/vlc 2>/dev/null | grep -q $'\\x7FELF'; then",
+        "            cp -f /usr/bin/vlc /usr/bin/vlc.real",
+        "            is_vlc_elf=1",
+        "        fi",
         "    fi",
-        "    if [ \"\$(id -u)\" = \"0\" ]; then",
-        "        DEBIAN_FRONTEND=noninteractive apt-get update >/dev/null 2>&1 && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libxcb-cursor0 libxcb-xinerama0 libqt5svg5 libqt5x11extras5 vlc-plugin-qt >/dev/null 2>&1 || true",
-        "    else",
-        "        sudo DEBIAN_FRONTEND=noninteractive apt-get update >/dev/null 2>&1 && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libxcb-cursor0 libxcb-xinerama0 libqt5svg5 libqt5x11extras5 vlc-plugin-qt >/dev/null 2>&1 || true",
-        "    fi",
-        "    for p in /usr/lib/*-linux-gnu*/vlc; do",
-        "        [ -x \"\$p/vlc-cache-gen\" ] && \"\$p/vlc-cache-gen\" \"\$p/plugins\" >/dev/null 2>&1 || true",
-        "    done",
         "fi",
         "",
-        "REAL_VLC=\"/usr/bin/vlc.real\"",
-        "[ ! -f \"\$REAL_VLC\" ] && REAL_VLC=\"/usr/bin/vlc-bin\"",
-        "[ ! -f \"\$REAL_VLC\" ] && REAL_VLC=\"/usr/lib/vlc/vlc\"",
-        "if [ -f \"\$REAL_VLC\" ] && grep -q 'geteuid' \"\$REAL_VLC\" 2>/dev/null; then",
-        "    sed -i 's/geteuid/getppid/g' \"\$REAL_VLC\" 2>/dev/null || true",
+        "if [ -f /usr/bin/vlc.real ]; then",
+        "    sed -i 's/geteuid/getppid/g' /usr/bin/vlc.real 2>/dev/null || true",
         "fi",
         "for lib in /usr/lib/*-linux-gnu*/libvlccore*; do",
-        "    if [ -f \"\$lib\" ] && grep -q 'geteuid' \"\$lib\" 2>/dev/null; then",
+        "    if [ -f \"\$lib\" ]; then",
         "        sed -i 's/geteuid/getppid/g' \"\$lib\" 2>/dev/null || true",
         "    fi",
         "done",
+        "if [ ! -f /usr/lib/*-linux-gnu*/libxcb-cursor.so.0 ] || [ ! -f /usr/lib/*-linux-gnu*/libQt5Svg.so.5 ] || [ ! -f /usr/lib/*-linux-gnu*/vlc/plugins/gui/libqt_plugin.so ]; then",
+        "    (if ! pgrep -x apt-get >/dev/null 2>&1 && ! pgrep -x dpkg >/dev/null 2>&1; then rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true; fi; DEBIAN_FRONTEND=noninteractive apt-get update >/dev/null 2>&1 && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libxcb-cursor0 libxcb-xinerama0 libqt5svg5 libqt5x11extras5 vlc-plugin-qt >/dev/null 2>&1; for p in /usr/lib/*-linux-gnu*/vlc; do [ -x \"\$p/vlc-cache-gen\" ] && \"\$p/vlc-cache-gen\" \"\$p/plugins\" >/dev/null 2>&1 || true; done) &",
+        "fi",
+        "for p in /usr/lib/*-linux-gnu*/vlc; do",
+        "    [ -x \"\$p/vlc-cache-gen\" ] && \"\$p/vlc-cache-gen\" \"\$p/plugins\" >/dev/null 2>&1 || true",
+        "done",
+        "if [ -f /usr/share/applications/vlc.desktop ]; then",
+        "    sed -i 's/^Exec=.*vlc.*$/Exec=\\/usr\\/bin\\/vlc %U/g' /usr/share/applications/vlc.desktop 2>/dev/null || true",
+        "fi",
+        "cat << 'VLC_EOF' > /usr/bin/vlc",
+        "#!/bin/bash",
+        "export DISPLAY=\"\${DISPLAY:-:1}\"",
+        "export QT_X11_NO_MITSHM=1",
+        "export QT_QPA_PLATFORM=xcb",
+        "export LIBGL_ALWAYS_SOFTWARE=1",
+        "export XDG_RUNTIME_DIR=\"\${XDG_RUNTIME_DIR:-/tmp}\"",
+        "export NO_AT_BRIDGE=1",
+        "unset GDK_SYNCHRONIZE",
+        "",
+        "REAL_VLC=\"/usr/bin/vlc.real\"",
+        "if [ ! -f \"\$REAL_VLC\" ] || ! head -c 4 \"\$REAL_VLC\" 2>/dev/null | grep -q $'\\x7FELF'; then",
+        "    REAL_VLC=\"/usr/bin/vlc\"",
+        "fi",
         "",
         "VLC_ARGS=()",
         "has_intf=0",
@@ -2884,24 +2894,20 @@ class UbuntuRuntime(private val context: Context) {
         "    if [ \$has_intf -eq 0 ]; then",
         "        VLC_ARGS+=(\"-I\" \"qt\")",
         "    fi",
-        "    VLC_ARGS+=(\"--no-dbus\" \"--avcodec-hw=none\")",
+        "    VLC_ARGS+=(\"--no-dbus\" \"--avcodec-hw=none\" \"--vout=xcb_x11\")",
         "fi",
         "",
         "chmod 777 /tmp/.X11-unix /tmp/.X11-unix/* 2>/dev/null || true",
         "xhost + >/dev/null 2>&1 || true",
         "",
         "if [ \"\$(id -u)\" = \"0\" ]; then",
-        "    if \"\$REAL_VLC\" --version >/dev/null 2>&1; then",
-        "        exec \"\$REAL_VLC\" \"\${VLC_ARGS[@]}\" \"\$@\"",
-        "    else",
-        "        exec su - ubuntu -c \"export DISPLAY='\$DISPLAY'; export QT_X11_NO_MITSHM=1; export QT_QPA_PLATFORM=xcb; export XDG_RUNTIME_DIR=/tmp; export LIBGL_ALWAYS_SOFTWARE=1; '\$REAL_VLC' -I qt --no-dbus --avcodec-hw=none $(printf '%q ' \\\"\\$@\\\")\"",
-        "    fi",
+        "    exec su - ubuntu -c \"export DISPLAY='\$DISPLAY'; export QT_X11_NO_MITSHM=1; export QT_QPA_PLATFORM=xcb; export XDG_RUNTIME_DIR=/tmp; export LIBGL_ALWAYS_SOFTWARE=1; export NO_AT_BRIDGE=1; unset GDK_SYNCHRONIZE; '\$REAL_VLC' \${VLC_ARGS[*]} $(printf '%q ' \\\"\\$@\\\")\"",
         "else",
         "    exec \"\$REAL_VLC\" \"\${VLC_ARGS[@]}\" \"\$@\"",
         "fi",
         "VLC_EOF",
-        "    chmod +x /usr/bin/vlc 2>/dev/null || true",
-        "    cp -f /usr/bin/vlc /usr/local/bin/vlc 2>/dev/null || true",
+        "chmod +x /usr/bin/vlc 2>/dev/null || true",
+        "cp -f /usr/bin/vlc /usr/local/bin/vlc 2>/dev/null || true",
         "fi",
         "",
         "# LibreOffice oosplash patch & dummy /prod",
@@ -2944,7 +2950,7 @@ class UbuntuRuntime(private val context: Context) {
         "for xbin in /usr/bin/Xtigervnc /usr/bin/Xvnc; do",
         "    if [ -x \"\$xbin\" ]; then",
         "        echo \"[MobileLinux] Launching native \$xbin on display :1...\"",
-        "        \"\$xbin\" :1 -geometry \"\$RES\" -depth 24 -rfbport 5901 -SecurityTypes None -ac > \"\$HOME/.vnc/desktop.log\" 2>&1 &",
+        "        \"\$xbin\" :1 -geometry \"\$RES\" -depth 24 -rfbport 5901 -SecurityTypes None -ac -pn -noreset > \"\$HOME/.vnc/desktop.log\" 2>&1 &",
         "        VNC_PID=\$!",
         "        break",
         "    fi",

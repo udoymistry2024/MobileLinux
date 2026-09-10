@@ -40,7 +40,7 @@ class LinuxService : LifecycleService() {
     private val CHANNEL_ID = "mobilelinux_channel"
 
     // Terminal manager reference
-    private lateinit var terminalManager: TerminalManager
+    lateinit var terminalManager: TerminalManager
 
     // Status update job
     private var statusJob: Job? = null

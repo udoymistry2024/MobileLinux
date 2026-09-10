@@ -3,18 +3,21 @@ package com.mobilelinux.ui
 import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.ServiceConnection
 import android.os.Bundle
+import android.os.IBinder
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
-import android.view.inputmethod.EditorInfo
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.widget.*
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.PopupMenu
 import androidx.core.view.GravityCompat
@@ -29,14 +32,18 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.mobilelinux.R
 import com.mobilelinux.ide.*
 import com.mobilelinux.runtime.UbuntuRuntime
+import com.mobilelinux.service.LinuxService
+import com.mobilelinux.terminal.SpecialKey
+import com.mobilelinux.terminal.TerminalManager
+import com.mobilelinux.terminal.TerminalView
 import com.mobilelinux.util.StorageHelper
 import org.json.JSONObject
 import java.io.File
 
 /**
  * Native Mobile Code IDE Activity.
- * Provides touch-optimized multi-tab coding inspired by Acode, integrated with the
- * full Ubuntu PRoot Linux engine for running scripts and compiling code natively.
+ * Features an Acode-inspired touch UI, interactive multi-level directory picker,
+ * and a genuine embedded Linux Terminal (bash in PRoot) like VS Code.
  */
 class CodeIdeActivity : AppCompatActivity() {
 
@@ -58,19 +65,16 @@ class CodeIdeActivity : AppCompatActivity() {
     private lateinit var btnNewScratchTab: ImageView
     private lateinit var layoutAccessoryKeys: LinearLayout
 
-    // Console Panel UI
+    // Terminal Panel UI
     private lateinit var layoutExecutionPanel: View
     private lateinit var layoutConsoleHeader: View
     private lateinit var layoutConsoleBody: View
     private lateinit var tvConsoleStatus: TextView
-    private lateinit var tvConsoleOutput: TextView
-    private lateinit var scrollConsoleOutput: ScrollView
+    private lateinit var ideTerminalView: TerminalView
     private lateinit var btnStopExecution: ImageView
     private lateinit var btnClearConsole: ImageView
     private lateinit var btnCloseConsole: ImageView
     private lateinit var btnToggleConsole: ImageView
-    private lateinit var etStdinInput: EditText
-    private lateinit var btnSendStdin: MaterialButton
 
     // Drawer Project & File Explorer UI
     private lateinit var rvFileTree: RecyclerView
@@ -96,6 +100,27 @@ class CodeIdeActivity : AppCompatActivity() {
     private var currentFontSize = 14
     private var isWordWrap = false
 
+    // Real Linux Terminal Service & Session
+    private val terminalManager: TerminalManager by lazy { TerminalManager.getInstance(applicationContext) }
+    private var linuxService: LinuxService? = null
+    private var isServiceBound = false
+    private var ideSessionId: String? = null
+    private var isTerminalAttached = false
+
+    private val serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+            linuxService = (binder as? LinuxService.LinuxBinder)?.getService()
+            isServiceBound = true
+            attachOrCreateIdeTerminalSession()
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            linuxService = null
+            isServiceBound = false
+            isTerminalAttached = false
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
@@ -108,8 +133,11 @@ class CodeIdeActivity : AppCompatActivity() {
         setupTabs()
         setupFileExplorer()
         setupAccessoryKeys()
-        setupExecutionConsole()
+        setupTerminalPanel()
         setupWebView()
+
+        // Bind LinuxService to power the embedded TerminalView
+        bindLinuxService()
 
         // Open default home file or create example script if directory is empty
         ensureInitialFile()
@@ -135,14 +163,11 @@ class CodeIdeActivity : AppCompatActivity() {
         layoutConsoleHeader = findViewById(R.id.layout_console_header)
         layoutConsoleBody = findViewById(R.id.layout_console_body)
         tvConsoleStatus = findViewById(R.id.tv_console_status)
-        tvConsoleOutput = findViewById(R.id.tv_console_output)
-        scrollConsoleOutput = findViewById(R.id.scroll_console_output)
+        ideTerminalView = findViewById(R.id.ide_terminal_view)
         btnStopExecution = findViewById(R.id.btn_stop_execution)
         btnClearConsole = findViewById(R.id.btn_clear_console)
         btnCloseConsole = findViewById(R.id.btn_close_console)
         btnToggleConsole = findViewById(R.id.btn_toggle_console)
-        etStdinInput = findViewById(R.id.et_stdin_input)
-        btnSendStdin = findViewById(R.id.btn_send_stdin)
 
         rvFileTree = findViewById(R.id.rv_file_tree)
         tvProjectFolderName = findViewById(R.id.tv_project_folder_name)
@@ -181,13 +206,13 @@ class CodeIdeActivity : AppCompatActivity() {
             showNewFileDialog(currentRootDir ?: getDefaultLinuxHome())
         }
 
-        // Open Folder Action
+        // Open Folder Action -> Launches Interactive Directory Browser
         btnDrawerOpenFolder.setOnClickListener {
-            showOpenFolderDialog()
+            showFolderPickerDialog(currentRootDir)
         }
 
         btnSwitchRoot.setOnClickListener {
-            showOpenFolderDialog()
+            showFolderPickerDialog(currentRootDir)
         }
 
         btnDrawerNavigateUp.setOnClickListener {
@@ -220,13 +245,53 @@ class CodeIdeActivity : AppCompatActivity() {
             insets
         }
 
-        // Lift accessory bar & console above virtual keyboard and gesture nav
+        // Lift accessory bar & terminal above virtual keyboard and gesture nav
         ViewCompat.setOnApplyWindowInsetsListener(layoutExecutionPanel) { v, insets ->
             val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
             val navBars = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
             val bottomPadding = if (ime.bottom > 0) ime.bottom else navBars.bottom
             v.updatePadding(bottom = bottomPadding)
             insets
+        }
+    }
+
+    private fun bindLinuxService() {
+        LinuxService.start(this)
+        bindService(
+            Intent(this, LinuxService::class.java),
+            serviceConnection,
+            Context.BIND_AUTO_CREATE
+        )
+    }
+
+    private fun attachOrCreateIdeTerminalSession() {
+        val tm = terminalManager
+        if (isTerminalAttached) return
+
+        // Look for an existing "IDE Terminal" session or create a new one
+        val existingSession = tm.sessions.value.find { it.name == "IDE Terminal" }
+        val session = existingSession ?: tm.createSession("IDE Terminal")
+        ideSessionId = session.id
+
+        val sessionProcess = tm.getSessionProcess(session.id)
+        if (sessionProcess != null) {
+            ideTerminalView.attachBuffer(sessionProcess.terminalBuffer)
+            ideTerminalView.applyPreferences()
+            isTerminalAttached = true
+            tvConsoleStatus.text = "Terminal (bash) — Ready"
+
+            ideTerminalView.onInputListener = { data ->
+                tm.sendInput(session.id, data)
+            }
+            ideTerminalView.onTerminalResize = { cols, rows ->
+                tm.resizeSession(session.id, cols, rows)
+            }
+
+            // If we have an active project directory, navigate to it in bash
+            currentRootDir?.let { folder ->
+                val linuxPath = codeRunner.toLinuxPath(folder)
+                tm.sendInput(session.id, "cd \"$linuxPath\"\n".toByteArray())
+            }
         }
     }
 
@@ -259,7 +324,15 @@ class CodeIdeActivity : AppCompatActivity() {
 
         updateProjectBanner()
         fileTreeAdapter.setRootDir(folder)
-        Toast.makeText(this, "Opened Project: ${folder.name}", Toast.LENGTH_SHORT).show()
+
+        // Sync terminal working directory to newly opened project
+        ideSessionId?.let { sessId ->
+            val tm = terminalManager
+            val linuxPath = codeRunner.toLinuxPath(folder)
+            tm.sendInput(sessId, "cd \"$linuxPath\"\n".toByteArray())
+        }
+
+        Toast.makeText(this, "Project opened: ${folder.name}", Toast.LENGTH_SHORT).show()
     }
 
     private fun updateProjectBanner() {
@@ -288,63 +361,100 @@ class CodeIdeActivity : AppCompatActivity() {
         }
     }
 
-    private fun showOpenFolderDialog() {
+    /**
+     * Interactive Acode-style directory picker modal.
+     * Allows navigating into any subfolder, sub-subfolder, creating new folders on the fly,
+     * and selecting any folder as the project root.
+     */
+    private fun showFolderPickerDialog(initialDir: File? = null) {
         val rootfs = UbuntuRuntime.getInstance(this).rootfsDir
-        val home = File(rootfs, "home/ubuntu")
-        val shared = StorageHelper.getPreferredSharedDir(this)
+        val defaultHome = File(rootfs, "home/ubuntu")
+        val sharedDir = StorageHelper.getPreferredSharedDir(this)
         val sdcard = android.os.Environment.getExternalStorageDirectory()
 
-        val homeSubdirs = home.listFiles()?.filter { it.isDirectory && !it.name.startsWith(".") }?.sortedBy { it.name.lowercase() } ?: emptyList()
+        var currentBrowseDir: File = initialDir?.takeIf { it.exists() && it.isDirectory } ?: (currentRootDir ?: defaultHome)
 
-        val options = mutableListOf<Pair<String, File>>()
-        options.add("🏠 Linux Home (~/home/ubuntu)" to home)
-        options.add("📁 Shared Storage (/sdcard/MobileLinux)" to shared)
-        if (sdcard != null && sdcard.exists()) {
-            options.add("📱 Device Storage (/sdcard)" to sdcard)
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_folder_picker, null)
+        val tvCurrentPath = dialogView.findViewById<TextView>(R.id.tv_picker_current_path)
+        val btnUp = dialogView.findViewById<ImageView>(R.id.btn_picker_up)
+        val btnNewFolder = dialogView.findViewById<ImageView>(R.id.btn_picker_new_folder)
+        val rvFolders = dialogView.findViewById<RecyclerView>(R.id.rv_picker_folders)
+        val tvEmpty = dialogView.findViewById<TextView>(R.id.tv_picker_empty)
+        val btnSelect = dialogView.findViewById<MaterialButton>(R.id.btn_picker_select_folder)
+        val btnCancel = dialogView.findViewById<Button>(R.id.btn_picker_cancel)
+        val btnClose = dialogView.findViewById<ImageView>(R.id.btn_picker_close)
+
+        val chipHome = dialogView.findViewById<TextView>(R.id.chip_linux_home)
+        val chipShared = dialogView.findViewById<TextView>(R.id.chip_shared_storage)
+        val chipDevice = dialogView.findViewById<TextView>(R.id.chip_device_storage)
+
+        rvFolders.layoutManager = LinearLayoutManager(this)
+
+        var dialog: AlertDialog? = null
+        lateinit var pickerAdapter: FolderPickerAdapter
+
+        fun loadSubfolders(dir: File) {
+            currentBrowseDir = dir
+            tvCurrentPath.text = codeRunner.toLinuxPath(dir)
+
+            val subdirs = dir.listFiles()
+                ?.filter { it.isDirectory && !it.name.startsWith(".") }
+                ?.sortedBy { it.name.lowercase() }
+                ?: emptyList()
+
+            tvEmpty.visibility = if (subdirs.isEmpty()) View.VISIBLE else View.GONE
+            pickerAdapter.updateFolders(subdirs)
+
+            val parent = dir.parentFile
+            val canUp = parent != null && parent.canRead()
+            btnUp.alpha = if (canUp) 1.0f else 0.35f
+            btnUp.isEnabled = canUp
+
+            btnSelect.text = "Select \"${dir.name}\" as Project"
         }
-        for (sub in homeSubdirs) {
-            options.add("  ↳ 📂 ${sub.name}" to sub)
+
+        pickerAdapter = FolderPickerAdapter(emptyList()) { selectedSubfolder ->
+            // Enter inside clicked subfolder!
+            loadSubfolders(selectedSubfolder)
+        }
+        rvFolders.adapter = pickerAdapter
+
+        // Initial directory loading
+        loadSubfolders(currentBrowseDir)
+
+        // Location Chips
+        chipHome.setOnClickListener { loadSubfolders(defaultHome) }
+        chipShared.setOnClickListener { loadSubfolders(sharedDir) }
+        chipDevice.setOnClickListener {
+            if (sdcard != null && sdcard.exists()) loadSubfolders(sdcard)
         }
 
-        val names = options.map { it.first }.toTypedArray()
-
-        MaterialAlertDialogBuilder(this)
-            .setTitle("Open Project Folder")
-            .setItems(names) { _, which ->
-                openProjectFolder(options[which].second)
+        // Navigate up one level
+        btnUp.setOnClickListener {
+            val parent = currentBrowseDir.parentFile
+            if (parent != null && parent.exists() && parent.isDirectory) {
+                loadSubfolders(parent)
             }
-            .setNeutralButton("New Project") { _, _ ->
-                showNewProjectDialog(currentRootDir ?: home)
+        }
+
+        // Create new folder right in currentBrowseDir
+        btnNewFolder.setOnClickListener {
+            showNewFolderDialog(currentBrowseDir) { newlyCreated ->
+                loadSubfolders(newlyCreated)
             }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
+        }
 
-    private fun showNewProjectDialog(parentDir: File) {
-        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_file_action, null)
-        val promptText = dialogView.findViewById<TextView>(R.id.tv_dialog_prompt)
-        val etName = dialogView.findViewById<EditText>(R.id.et_file_name)
+        btnSelect.setOnClickListener {
+            openProjectFolder(currentBrowseDir)
+            dialog?.dismiss()
+        }
 
-        promptText.text = "Create new project inside ${parentDir.name}:"
-        etName.hint = "Project name (e.g. my_app, flask_demo)"
+        btnCancel.setOnClickListener { dialog?.dismiss() }
+        btnClose.setOnClickListener { dialog?.dismiss() }
 
-        MaterialAlertDialogBuilder(this)
-            .setTitle("New Project Folder")
+        dialog = MaterialAlertDialogBuilder(this)
             .setView(dialogView)
-            .setPositiveButton("Create & Open") { _, _ ->
-                val name = etName.text.toString().trim()
-                if (name.isNotEmpty()) {
-                    val newDir = File(parentDir, name)
-                    if (!newDir.exists()) newDir.mkdirs()
-                    val mainFile = File(newDir, "main.py")
-                    if (!mainFile.exists()) {
-                        mainFile.writeText("# Project: $name\nprint('Hello from $name!')\n")
-                    }
-                    openProjectFolder(newDir)
-                    openFileInEditor(mainFile)
-                }
-            }
-            .setNegativeButton("Cancel", null)
+            .setCancelable(true)
             .show()
     }
 
@@ -488,7 +598,7 @@ class CodeIdeActivity : AppCompatActivity() {
     }
 
     @SuppressLint("ClickableViewAccessibility")
-    private fun setupExecutionConsole() {
+    private fun setupTerminalPanel() {
         // Toggle when clicking header or icon
         btnToggleConsole.setOnClickListener { toggleConsole() }
 
@@ -496,34 +606,30 @@ class CodeIdeActivity : AppCompatActivity() {
             toggleConsole(show = false)
         }
 
+        // Clear terminal
         btnClearConsole.setOnClickListener {
-            tvConsoleOutput.text = ""
-            tvConsoleStatus.text = "Console Cleared"
+            ideSessionId?.let { sessId ->
+                terminalManager.sendInput(sessId, "clear\n".toByteArray())
+            }
         }
 
+        // Stop / Interrupt running command (Ctrl+C)
         btnStopExecution.setOnClickListener {
-            codeRunner.stop()
-            tvConsoleStatus.text = "Stopped by user"
-            btnStopExecution.visibility = View.GONE
+            ideSessionId?.let { sessId ->
+                terminalManager.sendKey(sessId, SpecialKey.CTRL_C)
+                Toast.makeText(this, "Sent Ctrl+C", Toast.LENGTH_SHORT).show()
+            }
         }
 
-        btnSendStdin.setOnClickListener { sendStdinInput() }
-        etStdinInput.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_SEND || actionId == EditorInfo.IME_ACTION_DONE) {
-                sendStdinInput()
-                true
-            } else false
-        }
-
-        // Touch Drag-to-Resize on Console Header
+        // Touch Drag-to-Resize on Terminal Header
         val minHeight = (80 * resources.displayMetrics.density).toInt()
-        val defaultHeight = (180 * resources.displayMetrics.density).toInt()
+        val defaultHeight = (220 * resources.displayMetrics.density).toInt()
         var touchStartY = 0f
         var initialHeight = 0
         var isDrag = false
 
         layoutConsoleHeader.setOnTouchListener { _, event ->
-            val maxHeight = (resources.displayMetrics.heightPixels * 0.72).toInt()
+            val maxHeight = (resources.displayMetrics.heightPixels * 0.75).toInt()
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     touchStartY = event.rawY
@@ -576,18 +682,13 @@ class CodeIdeActivity : AppCompatActivity() {
         val color = getColor(if (willShow) R.color.accent_blue else R.color.text_secondary)
         btnToggleTerminal.setColorFilter(color)
         btnToggleConsole.setColorFilter(color)
-        if (willShow) {
-            scrollConsoleOutput.post { scrollConsoleOutput.fullScroll(View.FOCUS_DOWN) }
-        }
-    }
+        btnStopExecution.visibility = if (willShow) View.VISIBLE else View.GONE
 
-    private fun sendStdinInput() {
-        val input = etStdinInput.text.toString()
-        if (input.isNotEmpty()) {
-            codeRunner.sendInput(input)
-            tvConsoleOutput.append("> $input\n")
-            scrollConsoleOutput.post { scrollConsoleOutput.fullScroll(View.FOCUS_DOWN) }
-            etStdinInput.setText("")
+        if (willShow) {
+            if (!isTerminalAttached) {
+                attachOrCreateIdeTerminalSession()
+            }
+            ideTerminalView.requestFocus()
         }
     }
 
@@ -596,14 +697,12 @@ class CodeIdeActivity : AppCompatActivity() {
     // =========================================================================
 
     fun openFileInEditor(file: File) {
-        // Check if already open
         val existingIndex = openTabs.indexOfFirst { it.file.absolutePath == file.absolutePath }
         if (existingIndex != -1) {
             switchTab(existingIndex)
             return
         }
 
-        // Add new tab
         val tab = IdeTab(file = file)
         openTabs.add(tab)
         val newIndex = openTabs.size - 1
@@ -712,7 +811,7 @@ class CodeIdeActivity : AppCompatActivity() {
     }
 
     // =========================================================================
-    // Execution Runner
+    // Execution Runner -> Executes Directly in Integrated Terminal (VS Code Style)
     // =========================================================================
 
     private fun runActiveScript() {
@@ -733,34 +832,23 @@ class CodeIdeActivity : AppCompatActivity() {
             return
         }
 
-        // Expand console panel
+        // Expand terminal panel
         toggleConsole(show = true)
-        btnStopExecution.visibility = View.VISIBLE
-        tvConsoleOutput.text = ""
 
-        codeRunner.runFile(
-            file = file,
-            onStart = { cmd ->
-                tvConsoleStatus.text = "Running: $cmd"
-                tvConsoleOutput.append("[Running: $cmd]\n----------------------------------------\n")
-            },
-            onOutput = { text ->
-                tvConsoleOutput.append(text)
-                scrollConsoleOutput.post { scrollConsoleOutput.fullScroll(View.FOCUS_DOWN) }
-            },
-            onFinished = { exitCode, durationMs ->
-                btnStopExecution.visibility = View.GONE
-                val seconds = durationMs / 1000.0
-                val statusMsg = if (exitCode == 0) {
-                    "✓ Exited (code 0) [${String.format("%.2f", seconds)}s]"
-                } else {
-                    "✗ Exited with code $exitCode [${String.format("%.2f", seconds)}s]"
-                }
-                tvConsoleStatus.text = statusMsg
-                tvConsoleOutput.append("\n----------------------------------------\n[$statusMsg]\n")
-                scrollConsoleOutput.post { scrollConsoleOutput.fullScroll(View.FOCUS_DOWN) }
-            }
-        )
+        val tm = terminalManager
+        val sessId = ideSessionId
+
+        if (tm != null && sessId != null) {
+            val linuxPath = codeRunner.toLinuxPath(file)
+            val dir = File(linuxPath).parent ?: "/home/ubuntu"
+            val cmd = codeRunner.buildCommandForFile(linuxPath)
+            val execCmd = "cd \"$dir\" && $cmd\n"
+
+            tm.sendInput(sessId, execCmd.toByteArray())
+            ideTerminalView.requestFocus()
+        } else {
+            Toast.makeText(this, "Terminal connecting, please retry in 1s", Toast.LENGTH_SHORT).show()
+        }
     }
 
     // =========================================================================
@@ -796,7 +884,7 @@ class CodeIdeActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun showNewFolderDialog(parentDir: File) {
+    private fun showNewFolderDialog(parentDir: File, onCreated: ((File) -> Unit)? = null) {
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_file_action, null)
         val promptText = dialogView.findViewById<TextView>(R.id.tv_dialog_prompt)
         val etName = dialogView.findViewById<EditText>(R.id.et_file_name)
@@ -814,6 +902,7 @@ class CodeIdeActivity : AppCompatActivity() {
                     if (!newFolder.exists() && newFolder.mkdirs()) {
                         fileTreeAdapter.reload()
                         Toast.makeText(this, "Created folder $name", Toast.LENGTH_SHORT).show()
+                        onCreated?.invoke(newFolder)
                     }
                 }
             }
@@ -885,7 +974,7 @@ class CodeIdeActivity : AppCompatActivity() {
         popup.menu.add(0, 5, 4, "Theme: One Dark")
         popup.menu.add(0, 6, 5, "Theme: Monokai")
         popup.menu.add(0, 7, 6, "Theme: Dracula")
-        popup.menu.add(0, 8, 7, "Open Terminal Session")
+        popup.menu.add(0, 8, 7, "Open Terminal App")
         popup.menu.add(0, 9, 8, "Close All Tabs")
 
         popup.setOnMenuItemClickListener { item ->
@@ -940,7 +1029,12 @@ class CodeIdeActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        codeRunner.stop()
+        if (isServiceBound) {
+            try {
+                unbindService(serviceConnection)
+            } catch (ignored: Exception) {}
+            isServiceBound = false
+        }
         super.onDestroy()
     }
 

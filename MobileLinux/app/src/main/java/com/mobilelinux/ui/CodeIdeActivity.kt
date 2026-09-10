@@ -16,6 +16,7 @@ import android.view.View
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.widget.*
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -63,7 +64,18 @@ class CodeIdeActivity : AppCompatActivity() {
     private lateinit var layoutEmptyWelcome: View
     private lateinit var rvIdeTabs: RecyclerView
     private lateinit var btnNewScratchTab: ImageView
-    private lateinit var layoutAccessoryKeys: LinearLayout
+    private lateinit var extraKeysContainer: View
+    private lateinit var extraKeysView: ExtraKeysView
+
+    private var isEditorCtrlActive = false
+    private var isEditorAltActive = false
+    private var isEditorShiftActive = false
+    private var activeFocusTarget: FocusTarget = FocusTarget.EDITOR
+
+    private enum class FocusTarget {
+        EDITOR,
+        TERMINAL
+    }
 
     // Terminal Panel UI
     private lateinit var layoutExecutionPanel: View
@@ -132,9 +144,16 @@ class CodeIdeActivity : AppCompatActivity() {
         setupProjectDirectory()
         setupTabs()
         setupFileExplorer()
-        setupAccessoryKeys()
+        setupExtraKeys()
         setupTerminalPanel()
         setupWebView()
+
+        // Intercept system back button / gestures - only allow exiting via 3-dot menu -> Exit IDE
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                handleBackPressed()
+            }
+        })
 
         // Bind LinuxService to power the embedded TerminalView
         bindLinuxService()
@@ -157,7 +176,8 @@ class CodeIdeActivity : AppCompatActivity() {
         layoutEmptyWelcome = findViewById(R.id.layout_empty_welcome)
         rvIdeTabs = findViewById(R.id.rv_ide_tabs)
         btnNewScratchTab = findViewById(R.id.btn_new_scratch_tab)
-        layoutAccessoryKeys = findViewById(R.id.layout_accessory_keys)
+        extraKeysContainer = findViewById(R.id.extra_keys_container)
+        extraKeysView = findViewById(R.id.extra_keys_view)
 
         layoutExecutionPanel = findViewById(R.id.layout_execution_panel)
         layoutConsoleHeader = findViewById(R.id.layout_console_header)
@@ -245,8 +265,8 @@ class CodeIdeActivity : AppCompatActivity() {
             insets
         }
 
-        // Lift accessory bar & terminal above virtual keyboard and gesture nav
-        ViewCompat.setOnApplyWindowInsetsListener(layoutExecutionPanel) { v, insets ->
+        // Lift extra keys bar & terminal above virtual keyboard and gesture nav
+        ViewCompat.setOnApplyWindowInsetsListener(extraKeysContainer) { v, insets ->
             val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
             val navBars = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
             val bottomPadding = if (ime.bottom > 0) ime.bottom else navBars.bottom
@@ -285,6 +305,11 @@ class CodeIdeActivity : AppCompatActivity() {
             }
             ideTerminalView.onTerminalResize = { cols, rows ->
                 tm.resizeSession(session.id, cols, rows)
+            }
+            ideTerminalView.onModifierChanged = { key, active ->
+                if (activeFocusTarget == FocusTarget.TERMINAL) {
+                    extraKeysView.setModifierActive(key, active)
+                }
             }
 
             // If we have an active project directory, navigate to it in bash
@@ -556,44 +581,161 @@ class CodeIdeActivity : AppCompatActivity() {
         editorWebView.loadUrl("file:///android_asset/editor/index.html")
     }
 
-    private fun setupAccessoryKeys() {
-        val keys = listOf(
-            "TAB", "{", "}", "(", ")", "[", "]", "\"", "'", ":", ";",
-            "=", "<", ">", "+", "-", "*", "/", "\\", "_", "$", "&", "|", "!", "?", "#"
-        )
+    @SuppressLint("ClickableViewAccessibility")
+    private fun setupExtraKeys() {
+        // Track focus target via touch
+        editorWebView.setOnTouchListener { _, _ ->
+            activeFocusTarget = FocusTarget.EDITOR
+            extraKeysView.setModifierActive("Ctrl", isEditorCtrlActive)
+            extraKeysView.setModifierActive("Alt", isEditorAltActive)
+            extraKeysView.setModifierActive("Shift", isEditorShiftActive)
+            false
+        }
 
-        for (key in keys) {
-            val btn = Button(this).apply {
-                text = key
-                textSize = 12f
-                setTextColor(getColor(R.color.text_primary))
-                setBackgroundResource(R.drawable.bg_accessory_key)
-                minWidth = 0
-                minimumWidth = 0
-                setPadding(
-                    (12 * resources.displayMetrics.density).toInt(),
-                    0,
-                    (12 * resources.displayMetrics.density).toInt(),
-                    0
-                )
-                val params = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    (32 * resources.displayMetrics.density).toInt()
-                ).apply {
-                    setMargins((3 * resources.displayMetrics.density).toInt(), 0, (3 * resources.displayMetrics.density).toInt(), 0)
-                }
-                layoutParams = params
+        ideTerminalView.setOnTouchListener { _, _ ->
+            activeFocusTarget = FocusTarget.TERMINAL
+            false
+        }
 
-                setOnClickListener {
-                    if (key == "TAB") {
-                        editorWebView.evaluateJavascript("window.editorInsert('    ');", null)
-                    } else {
-                        val escaped = JSONObject.quote(key)
-                        editorWebView.evaluateJavascript("window.editorInsert($escaped);", null)
-                    }
+        extraKeysView.onKeyListener = { action ->
+            val isTerminalActive = (activeFocusTarget == FocusTarget.TERMINAL && layoutConsoleBody.visibility == View.VISIBLE)
+            if (isTerminalActive) {
+                handleTerminalKeyAction(action)
+            } else {
+                handleEditorKeyAction(action)
+            }
+        }
+    }
+
+    private fun handleTerminalKeyAction(action: ExtraKeysView.KeyAction) {
+        ideTerminalView.requestFocus()
+        when (action) {
+            is ExtraKeysView.KeyAction.ToggleCtrl -> ideTerminalView.toggleCtrl()
+            is ExtraKeysView.KeyAction.ToggleAlt -> ideTerminalView.toggleAlt()
+            is ExtraKeysView.KeyAction.ToggleShift -> ideTerminalView.toggleShift()
+            is ExtraKeysView.KeyAction.SpecialKeyAction -> ideTerminalView.sendSpecialKey(action.key)
+            is ExtraKeysView.KeyAction.TextAction -> {
+                for (ch in action.text) {
+                    ideTerminalView.handleCharacterInput(ch)
                 }
             }
-            layoutAccessoryKeys.addView(btn)
+            is ExtraKeysView.KeyAction.CtrlAction -> ideTerminalView.sendCtrl(action.char)
+            is ExtraKeysView.KeyAction.PasteAction -> ideTerminalView.pasteClipboard()
+        }
+    }
+
+    private fun handleEditorKeyAction(action: ExtraKeysView.KeyAction) {
+        editorWebView.requestFocus()
+        when (action) {
+            is ExtraKeysView.KeyAction.ToggleCtrl -> {
+                isEditorCtrlActive = !isEditorCtrlActive
+                extraKeysView.setModifierActive("Ctrl", isEditorCtrlActive)
+            }
+            is ExtraKeysView.KeyAction.ToggleAlt -> {
+                isEditorAltActive = !isEditorAltActive
+                extraKeysView.setModifierActive("Alt", isEditorAltActive)
+            }
+            is ExtraKeysView.KeyAction.ToggleShift -> {
+                isEditorShiftActive = !isEditorShiftActive
+                extraKeysView.setModifierActive("Shift", isEditorShiftActive)
+            }
+            is ExtraKeysView.KeyAction.SpecialKeyAction -> {
+                when (action.key) {
+                    SpecialKey.TAB -> editorWebView.evaluateJavascript("window.editorHandleSpecialKey('TAB');", null)
+                    SpecialKey.ARROW_UP -> editorWebView.evaluateJavascript("window.editorHandleSpecialKey('UP');", null)
+                    SpecialKey.ARROW_DOWN -> editorWebView.evaluateJavascript("window.editorHandleSpecialKey('DOWN');", null)
+                    SpecialKey.ARROW_LEFT -> editorWebView.evaluateJavascript("window.editorHandleSpecialKey('LEFT');", null)
+                    SpecialKey.ARROW_RIGHT -> editorWebView.evaluateJavascript("window.editorHandleSpecialKey('RIGHT');", null)
+                    SpecialKey.HOME -> editorWebView.evaluateJavascript("window.editorHandleSpecialKey('HOME');", null)
+                    SpecialKey.END -> editorWebView.evaluateJavascript("window.editorHandleSpecialKey('END');", null)
+                    SpecialKey.PAGE_UP -> editorWebView.evaluateJavascript("window.editorHandleSpecialKey('PAGE_UP');", null)
+                    SpecialKey.PAGE_DOWN -> editorWebView.evaluateJavascript("window.editorHandleSpecialKey('PAGE_DOWN');", null)
+                    SpecialKey.DELETE -> editorWebView.evaluateJavascript("window.editorHandleSpecialKey('DELETE');", null)
+                    SpecialKey.BACKSPACE -> editorWebView.evaluateJavascript("window.editorHandleSpecialKey('BACKSPACE');", null)
+                    SpecialKey.ESC -> editorWebView.evaluateJavascript("window.editorHandleSpecialKey('ESC');", null)
+                    SpecialKey.ENTER -> editorWebView.evaluateJavascript("window.editorInsert('\\n');", null)
+                    else -> {}
+                }
+            }
+            is ExtraKeysView.KeyAction.TextAction -> {
+                if (isEditorCtrlActive) {
+                    when (action.text.uppercase()) {
+                        "A" -> editorWebView.evaluateJavascript("window.editorHandleSpecialKey('SELECT_ALL');", null)
+                        "Z" -> editorWebView.evaluateJavascript("window.editorHandleSpecialKey('UNDO');", null)
+                        "C" -> copyEditorSelectionToClipboard()
+                        "X" -> cutEditorSelectionToClipboard()
+                        "V" -> pasteClipboardToEditor()
+                        "S" -> saveCurrentFile()
+                        else -> {
+                            val escaped = JSONObject.quote(action.text)
+                            editorWebView.evaluateJavascript("window.editorInsert($escaped);", null)
+                        }
+                    }
+                    isEditorCtrlActive = false
+                    extraKeysView.setModifierActive("Ctrl", false)
+                } else {
+                    val escaped = JSONObject.quote(action.text)
+                    editorWebView.evaluateJavascript("window.editorInsert($escaped);", null)
+                }
+            }
+            is ExtraKeysView.KeyAction.CtrlAction -> {
+                when (action.char.uppercaseChar()) {
+                    'A' -> editorWebView.evaluateJavascript("window.editorHandleSpecialKey('SELECT_ALL');", null)
+                    'Z' -> editorWebView.evaluateJavascript("window.editorHandleSpecialKey('UNDO');", null)
+                    'C' -> copyEditorSelectionToClipboard()
+                    'X' -> cutEditorSelectionToClipboard()
+                    'D' -> editorWebView.evaluateJavascript("window.editorHandleSpecialKey('DUPLICATE_LINE');", null)
+                    'L' -> editorWebView.evaluateJavascript("window.editorInsert('\\n');", null)
+                    'E' -> editorWebView.evaluateJavascript("window.editorHandleSpecialKey('END');", null)
+                    else -> {}
+                }
+            }
+            is ExtraKeysView.KeyAction.PasteAction -> {
+                pasteClipboardToEditor()
+            }
+        }
+    }
+
+    private fun copyEditorSelectionToClipboard() {
+        editorWebView.evaluateJavascript("window.editorGetSelectedText();") { result ->
+            val text = try {
+                org.json.JSONTokener(result ?: "").nextValue()?.toString() ?: ""
+            } catch (e: Exception) {
+                result?.trim('"', '\'') ?: ""
+            }
+            if (text.isNotEmpty()) {
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clip = ClipData.newPlainText("Copied Text", text)
+                clipboard.setPrimaryClip(clip)
+                Toast.makeText(this, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun cutEditorSelectionToClipboard() {
+        editorWebView.evaluateJavascript("window.editorGetSelectedText();") { result ->
+            val text = try {
+                org.json.JSONTokener(result ?: "").nextValue()?.toString() ?: ""
+            } catch (e: Exception) {
+                result?.trim('"', '\'') ?: ""
+            }
+            if (text.isNotEmpty()) {
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clip = ClipData.newPlainText("Cut Text", text)
+                clipboard.setPrimaryClip(clip)
+                editorWebView.evaluateJavascript("window.editorDeleteSelectedText();", null)
+                Toast.makeText(this, "Cut to clipboard", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun pasteClipboardToEditor() {
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = clipboard.primaryClip
+        if (clip != null && clip.itemCount > 0) {
+            val text = clip.getItemAt(0).coerceToText(this).toString()
+            val escaped = JSONObject.quote(text)
+            editorWebView.evaluateJavascript("window.editorInsert($escaped);", null)
         }
     }
 
@@ -688,7 +830,14 @@ class CodeIdeActivity : AppCompatActivity() {
             if (!isTerminalAttached) {
                 attachOrCreateIdeTerminalSession()
             }
+            activeFocusTarget = FocusTarget.TERMINAL
             ideTerminalView.requestFocus()
+        } else {
+            activeFocusTarget = FocusTarget.EDITOR
+            editorWebView.requestFocus()
+            extraKeysView.setModifierActive("Ctrl", isEditorCtrlActive)
+            extraKeysView.setModifierActive("Alt", isEditorAltActive)
+            extraKeysView.setModifierActive("Shift", isEditorShiftActive)
         }
     }
 
@@ -834,6 +983,7 @@ class CodeIdeActivity : AppCompatActivity() {
 
         // Expand terminal panel
         toggleConsole(show = true)
+        activeFocusTarget = FocusTarget.TERMINAL
 
         val tm = terminalManager
         val sessId = ideSessionId
@@ -976,6 +1126,7 @@ class CodeIdeActivity : AppCompatActivity() {
         popup.menu.add(0, 7, 6, "Theme: Dracula")
         popup.menu.add(0, 8, 7, "Open Terminal App")
         popup.menu.add(0, 9, 8, "Close All Tabs")
+        popup.menu.add(0, 10, 9, "Exit IDE")
 
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
@@ -1003,10 +1154,33 @@ class CodeIdeActivity : AppCompatActivity() {
                         performCloseTab(0)
                     }
                 }
+                10 -> {
+                    confirmAndExitIde()
+                }
             }
             true
         }
         popup.show()
+    }
+
+    private fun confirmAndExitIde() {
+        val unsavedCount = openTabs.count { it.isDirty }
+        if (unsavedCount > 0) {
+            MaterialAlertDialogBuilder(this)
+                .setTitle("Exit Code IDE")
+                .setMessage("You have $unsavedCount unsaved file(s). Do you want to save before exiting?")
+                .setPositiveButton("Save & Exit") { _, _ ->
+                    saveCurrentFile()
+                    finish()
+                }
+                .setNegativeButton("Exit Without Saving") { _, _ ->
+                    finish()
+                }
+                .setNeutralButton("Cancel", null)
+                .show()
+        } else {
+            finish()
+        }
     }
 
     private fun ensureInitialFile() {
@@ -1038,14 +1212,24 @@ class CodeIdeActivity : AppCompatActivity() {
         super.onDestroy()
     }
 
-    @Suppress("OVERRIDE_DEPRECATION")
-    override fun onBackPressed() {
+    private fun handleBackPressed() {
         if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
             drawerLayout.closeDrawer(GravityCompat.START)
         } else if (layoutConsoleBody.visibility == View.VISIBLE) {
             toggleConsole(show = false)
         } else {
-            super.onBackPressed()
+            // Requirement: Do not exit via phone back button / gesture!
+            // The user must use 3-dot menu -> Exit IDE
+            Toast.makeText(
+                this,
+                "আইডিই থেকে বের হতে ৩-ডট (⋮) মেনু থেকে 'Exit IDE' সিলেক্ট করুন",
+                Toast.LENGTH_SHORT
+            ).show()
         }
+    }
+
+    @Suppress("OVERRIDE_DEPRECATION")
+    override fun onBackPressed() {
+        handleBackPressed()
     }
 }

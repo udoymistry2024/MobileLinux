@@ -237,25 +237,6 @@
 
         </FrameLayout>
 
-        <!-- Touch Coding Accessory Bar (Quick Symbols above Keyboard) -->
-        <HorizontalScrollView
-            android:id="@+id/accessory_scroll_view"
-            android:layout_width="match_parent"
-            android:layout_height="40dp"
-            android:background="@color/extra_keys_bg"
-            android:overScrollMode="never"
-            android:scrollbars="none">
-
-            <LinearLayout
-                android:id="@+id/layout_accessory_keys"
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingStart="4dp"
-                android:paddingEnd="4dp" />
-
-        </HorizontalScrollView>
 
         <!-- Bottom Execution Panel / Output Console -->
         <LinearLayout
@@ -374,6 +355,25 @@
             </FrameLayout>
 
         </LinearLayout>
+
+        <!-- Divider -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/divider_color" />
+
+        <!-- Dual-Layer Extra Keys Container (holds ExtraKeysView, padded from nav bar / soft keyboard) -->
+        <FrameLayout
+            android:id="@+id/extra_keys_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/extra_keys_bg">
+
+            <com.mobilelinux.ui.ExtraKeysView
+                android:id="@+id/extra_keys_view"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+        </FrameLayout>
 
     </LinearLayout>
 

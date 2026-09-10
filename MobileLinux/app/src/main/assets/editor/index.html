@@ -212,6 +212,68 @@
             if (!editor) return;
             editor.execCommand("find");
         };
+
+        window.editorHandleSpecialKey = function(key) {
+            if (!editor) return;
+            switch(key) {
+                case 'TAB':
+                    editor.indent();
+                    break;
+                case 'UP':
+                    editor.navigateUp(1);
+                    break;
+                case 'DOWN':
+                    editor.navigateDown(1);
+                    break;
+                case 'LEFT':
+                    editor.navigateLeft(1);
+                    break;
+                case 'RIGHT':
+                    editor.navigateRight(1);
+                    break;
+                case 'HOME':
+                    editor.navigateLineStart();
+                    break;
+                case 'END':
+                    editor.navigateLineEnd();
+                    break;
+                case 'PAGE_UP':
+                    editor.scrollPageUp();
+                    break;
+                case 'PAGE_DOWN':
+                    editor.scrollPageDown();
+                    break;
+                case 'DELETE':
+                    editor.remove("right");
+                    break;
+                case 'BACKSPACE':
+                    editor.remove("left");
+                    break;
+                case 'ESC':
+                    editor.selection.clearSelection();
+                    break;
+                case 'SELECT_ALL':
+                    editor.selectAll();
+                    break;
+                case 'UNDO':
+                    editor.undo();
+                    break;
+                case 'REDO':
+                    editor.redo();
+                    break;
+            }
+            editor.focus();
+        };
+
+        window.editorGetSelectedText = function() {
+            if (!editor) return "";
+            return editor.getSelectedText();
+        };
+
+        window.editorDeleteSelectedText = function() {
+            if (!editor) return;
+            editor.remove();
+        };
     </script>
 </body>
 </html>

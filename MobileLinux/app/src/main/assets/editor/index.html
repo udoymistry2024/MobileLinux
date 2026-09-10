@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MobileLinux Code Editor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #0D1117;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+        }
+        #editor {
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        /* Mobile scrollbar adjustments */
+        .ace_scrollbar {
+            width: 6px !important;
+        }
+        .ace_scrollbar-h {
+            height: 6px !important;
+        }
+        .ace_scrollbar-inner {
+            background: #30363D !important;
+            border-radius: 3px !important;
+        }
+        .ace_search {
+            background-color: #161B22 !important;
+            color: #E6EDF3 !important;
+            border: 1px solid #30363D !important;
+            border-radius: 8px !important;
+        }
+        .ace_search_field {
+            background-color: #0D1117 !important;
+            color: #E6EDF3 !important;
+            border: 1px solid #30363D !important;
+            border-radius: 4px !important;
+        }
+        .ace_searchbtn {
+            background-color: #21262D !important;
+            color: #E6EDF3 !important;
+            border: 1px solid #30363D !important;
+            border-radius: 4px !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="editor"></div>
+
+    <script src="ace.js"></script>
+    <script src="ext-language_tools.js"></script>
+    <script src="ext-searchbox.js"></script>
+    <script src="theme-one_dark.js"></script>
+    <script src="theme-monokai.js"></script>
+    <script src="theme-dracula.js"></script>
+    <script src="theme-tomorrow_night.js"></script>
+    <script src="mode-python.js"></script>
+    <script src="mode-javascript.js"></script>
+    <script src="mode-typescript.js"></script>
+    <script src="mode-c_cpp.js"></script>
+    <script src="mode-sh.js"></script>
+    <script src="mode-html.js"></script>
+    <script src="mode-css.js"></script>
+    <script src="mode-json.js"></script>
+    <script src="mode-markdown.js"></script>
+    <script src="mode-yaml.js"></script>
+    <script src="mode-rust.js"></script>
+    <script src="mode-golang.js"></script>
+    <script src="mode-php.js"></script>
+    <script src="mode-sql.js"></script>
+    <script src="mode-text.js"></script>
+
+    <script>
+        let editor = null;
+        let isProgrammaticChange = false;
+        let isDirty = false;
+        let currentFilePath = "";
+
+        window.addEventListener('DOMContentLoaded', () => {
+            ace.config.set('basePath', '.');
+            editor = ace.edit("editor");
+
+            editor.setTheme("ace/theme/one_dark");
+            editor.session.setMode("ace/mode/python");
+
+            editor.setOptions({
+                enableBasicAutocompletion: true,
+                enableLiveAutocompletion: true,
+                enableSnippets: true,
+                showPrintMargin: false,
+                highlightActiveLine: true,
+                wrap: false,
+                tabSize: 4,
+                useSoftTabs: true,
+                fontSize: "14px",
+                scrollPastEnd: 0.5,
+                autoScrollEditorIntoView: true
+            });
+
+            // Handle dirty state on user edit
+            editor.session.on('change', () => {
+                if (isProgrammaticChange) return;
+                if (!isDirty) {
+                    isDirty = true;
+                    if (window.IdeBridge && window.IdeBridge.onContentChanged) {
+                        window.IdeBridge.onContentChanged(true);
+                    }
+                }
+            });
+
+            // Track cursor movement
+            editor.selection.on('changeCursor', () => {
+                const pos = editor.getCursorPosition();
+                if (window.IdeBridge && window.IdeBridge.onCursorChanged) {
+                    window.IdeBridge.onCursorChanged(pos.row + 1, pos.column + 1);
+                }
+            });
+
+            // Ctrl+S / Cmd+S save command
+            editor.commands.addCommand({
+                name: 'save',
+                bindKey: { win: 'Ctrl-S', mac: 'Command-S' },
+                exec: function(edt) {
+                    if (window.IdeBridge && window.IdeBridge.onSaveShortcut) {
+                        window.IdeBridge.onSaveShortcut();
+                    }
+                },
+                readOnly: false
+            });
+
+            // Inform Android host that editor is ready
+            setTimeout(() => {
+                if (window.IdeBridge && window.IdeBridge.onEditorReady) {
+                    window.IdeBridge.onEditorReady();
+                }
+            }, 100);
+        });
+
+        // Bridge methods called from Kotlin
+        window.editorSetFile = function(path, content, mode) {
+            if (!editor) return;
+            isProgrammaticChange = true;
+            currentFilePath = path;
+            editor.setValue(content || "", -1);
+            editor.session.setMode("ace/mode/" + (mode || "text"));
+            editor.session.getUndoManager().reset();
+            isDirty = false;
+            isProgrammaticChange = false;
+            if (window.IdeBridge && window.IdeBridge.onContentChanged) {
+                window.IdeBridge.onContentChanged(false);
+            }
+        };
+
+        window.editorGetContent = function() {
+            if (!editor) return "";
+            return editor.getValue();
+        };
+
+        window.editorMarkClean = function() {
+            isDirty = false;
+            if (window.IdeBridge && window.IdeBridge.onContentChanged) {
+                window.IdeBridge.onContentChanged(false);
+            }
+        };
+
+        window.editorInsert = function(text) {
+            if (!editor) return;
+            editor.insert(text);
+            editor.focus();
+        };
+
+        window.editorUndo = function() {
+            if (!editor) return;
+            editor.undo();
+        };
+
+        window.editorRedo = function() {
+            if (!editor) return;
+            editor.redo();
+        };
+
+        window.editorSetTheme = function(themeName) {
+            if (!editor) return;
+            editor.setTheme("ace/theme/" + themeName);
+        };
+
+        window.editorSetFontSize = function(sizePx) {
+            if (!editor) return;
+            editor.setFontSize(sizePx + "px");
+        };
+
+        window.editorSetWordWrap = function(enabled) {
+            if (!editor) return;
+            editor.session.setUseWrapMode(enabled);
+        };
+
+        window.editorFind = function() {
+            if (!editor) return;
+            editor.execCommand("find");
+        };
+    </script>
+</body>
+</html>

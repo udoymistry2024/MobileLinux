@@ -458,6 +458,10 @@ class MainActivity : AppCompatActivity() {
                 launchDesktopMode()
                 true
             }
+            R.id.action_code_ide -> {
+                openCodeIde()
+                true
+            }
             R.id.action_libraries -> {
                 openLibraries(); true
             }
@@ -486,6 +490,7 @@ class MainActivity : AppCompatActivity() {
     fun closeDrawer() = drawerLayout.closeDrawer(GravityCompat.START)
     fun openLibraries() = startActivity(Intent(this, LibrariesActivity::class.java))
     fun openSettings() = startActivity(Intent(this, SettingsActivity::class.java))
+    fun openCodeIde() = startActivity(Intent(this, CodeIdeActivity::class.java))
     fun openDevBrowser(url: String = DevBrowserActivity.DEFAULT_HOME_URL) {
         DevBrowserActivity.openUrl(this, url)
     }

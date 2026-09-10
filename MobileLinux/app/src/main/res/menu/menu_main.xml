@@ -24,6 +24,13 @@
         android:orderInCategory="85" />
 
     <item
+        android:id="@+id/action_code_ide"
+        android:title="Code IDE"
+        android:icon="@drawable/ic_code"
+        app:showAsAction="never"
+        android:orderInCategory="88" />
+
+    <item
         android:id="@+id/action_libraries"
         android:title="Libraries &amp; Packages"
         android:icon="@drawable/ic_library"

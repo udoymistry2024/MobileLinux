@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/node_container"
+    android:layout_width="match_parent"
+    android:layout_height="36dp"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingEnd="8dp"
+    android:background="?attr/selectableItemBackground"
+    android:clickable="true"
+    android:focusable="true">
+
+    <!-- Indent spacer -->
+    <View
+        android:id="@+id/indent_space"
+        android:layout_width="0dp"
+        android:layout_height="match_parent" />
+
+    <!-- Expand/Collapse Chevron -->
+    <ImageView
+        android:id="@+id/iv_chevron"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:padding="4dp"
+        android:src="@drawable/ic_arrow_back"
+        android:rotation="180"
+        android:tint="@color/text_secondary"
+        android:contentDescription="Expand" />
+
+    <!-- File/Folder Icon -->
+    <ImageView
+        android:id="@+id/iv_type_icon"
+        android:layout_width="18dp"
+        android:layout_height="18dp"
+        android:layout_marginStart="4dp"
+        android:src="@drawable/ic_folder"
+        android:tint="@color/accent_blue"
+        android:contentDescription="Type" />
+
+    <!-- File/Folder Name -->
+    <TextView
+        android:id="@+id/tv_name"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="8dp"
+        android:textColor="@color/text_primary"
+        android:textSize="13sp"
+        android:fontFamily="sans-serif"
+        android:singleLine="true"
+        android:ellipsize="middle"
+        tools:text="index.js" />
+
+    <!-- Item Action Menu (Rename/Delete) -->
+    <ImageView
+        android:id="@+id/iv_more_btn"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:padding="6dp"
+        android:src="@drawable/ic_more_vert"
+        android:tint="@color/text_secondary"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Options" />
+
+</LinearLayout>

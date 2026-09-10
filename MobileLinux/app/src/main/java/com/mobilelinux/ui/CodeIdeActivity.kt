@@ -8,6 +8,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.webkit.WebSettings
@@ -45,6 +46,7 @@ class CodeIdeActivity : AppCompatActivity() {
     private lateinit var drawerLayout: DrawerLayout
     private lateinit var editorWebView: WebView
     private lateinit var tvActiveFilename: TextView
+    private lateinit var btnToggleTerminal: ImageView
     private lateinit var btnSaveFile: ImageView
     private lateinit var btnRunCode: MaterialButton
     private lateinit var btnUndo: ImageView
@@ -58,6 +60,7 @@ class CodeIdeActivity : AppCompatActivity() {
 
     // Console Panel UI
     private lateinit var layoutExecutionPanel: View
+    private lateinit var layoutConsoleHeader: View
     private lateinit var layoutConsoleBody: View
     private lateinit var tvConsoleStatus: TextView
     private lateinit var tvConsoleOutput: TextView
@@ -69,9 +72,12 @@ class CodeIdeActivity : AppCompatActivity() {
     private lateinit var etStdinInput: EditText
     private lateinit var btnSendStdin: MaterialButton
 
-    // Drawer File Explorer UI
+    // Drawer Project & File Explorer UI
     private lateinit var rvFileTree: RecyclerView
-    private lateinit var tvCurrentRootLabel: TextView
+    private lateinit var tvProjectFolderName: TextView
+    private lateinit var tvProjectFolderPath: TextView
+    private lateinit var btnDrawerOpenFolder: ImageView
+    private lateinit var btnDrawerNavigateUp: ImageView
     private lateinit var btnSwitchRoot: TextView
     private lateinit var btnDrawerNewFile: ImageView
     private lateinit var btnDrawerNewFolder: ImageView
@@ -98,7 +104,7 @@ class CodeIdeActivity : AppCompatActivity() {
         codeRunner = CodeRunner(this)
         initViews()
         setupEdgeToEdgeInsets()
-        setupRootDirectory()
+        setupProjectDirectory()
         setupTabs()
         setupFileExplorer()
         setupAccessoryKeys()
@@ -113,6 +119,7 @@ class CodeIdeActivity : AppCompatActivity() {
         drawerLayout = findViewById(R.id.drawer_layout)
         editorWebView = findViewById(R.id.editor_webview)
         tvActiveFilename = findViewById(R.id.tv_active_filename)
+        btnToggleTerminal = findViewById(R.id.btn_toggle_terminal)
         btnSaveFile = findViewById(R.id.btn_save_file)
         btnRunCode = findViewById(R.id.btn_run_code)
         btnUndo = findViewById(R.id.btn_undo)
@@ -125,6 +132,7 @@ class CodeIdeActivity : AppCompatActivity() {
         layoutAccessoryKeys = findViewById(R.id.layout_accessory_keys)
 
         layoutExecutionPanel = findViewById(R.id.layout_execution_panel)
+        layoutConsoleHeader = findViewById(R.id.layout_console_header)
         layoutConsoleBody = findViewById(R.id.layout_console_body)
         tvConsoleStatus = findViewById(R.id.tv_console_status)
         tvConsoleOutput = findViewById(R.id.tv_console_output)
@@ -137,7 +145,10 @@ class CodeIdeActivity : AppCompatActivity() {
         btnSendStdin = findViewById(R.id.btn_send_stdin)
 
         rvFileTree = findViewById(R.id.rv_file_tree)
-        tvCurrentRootLabel = findViewById(R.id.tv_current_root_label)
+        tvProjectFolderName = findViewById(R.id.tv_project_folder_name)
+        tvProjectFolderPath = findViewById(R.id.tv_project_folder_path)
+        btnDrawerOpenFolder = findViewById(R.id.btn_drawer_open_folder)
+        btnDrawerNavigateUp = findViewById(R.id.btn_drawer_navigate_up)
         btnSwitchRoot = findViewById(R.id.btn_switch_root)
         btnDrawerNewFile = findViewById(R.id.btn_drawer_new_file)
         btnDrawerNewFolder = findViewById(R.id.btn_drawer_new_folder)
@@ -149,6 +160,11 @@ class CodeIdeActivity : AppCompatActivity() {
             } else {
                 drawerLayout.openDrawer(GravityCompat.START)
             }
+        }
+
+        // Quick Terminal Toggle in Toolbar
+        btnToggleTerminal.setOnClickListener {
+            toggleConsole()
         }
 
         btnSaveFile.setOnClickListener { saveCurrentFile() }
@@ -164,60 +180,67 @@ class CodeIdeActivity : AppCompatActivity() {
         btnNewScratchTab.setOnClickListener {
             showNewFileDialog(currentRootDir ?: getDefaultLinuxHome())
         }
+
+        // Open Folder Action
+        btnDrawerOpenFolder.setOnClickListener {
+            showOpenFolderDialog()
+        }
+
+        btnSwitchRoot.setOnClickListener {
+            showOpenFolderDialog()
+        }
+
+        btnDrawerNavigateUp.setOnClickListener {
+            navigateUpToParentDirectory()
+        }
     }
 
     private fun setupEdgeToEdgeInsets() {
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.drawer_layout)) { _, insets ->
-            val statusBars = insets.getInsets(WindowInsetsCompat.Type.statusBars())
+        // Toolbar padding to prevent status bar / camera notch overlap
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.ide_toolbar)) { v, insets ->
+            val statusBars = insets.getInsets(
+                WindowInsetsCompat.Type.statusBars() or
+                WindowInsetsCompat.Type.displayCutout()
+            )
+            v.updatePadding(
+                top = statusBars.top,
+                left = statusBars.left,
+                right = statusBars.right
+            )
+            insets
+        }
+
+        // Drawer header padding
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.drawer_header_container)) { v, insets ->
+            val statusBars = insets.getInsets(
+                WindowInsetsCompat.Type.statusBars() or
+                WindowInsetsCompat.Type.displayCutout()
+            )
+            v.updatePadding(top = statusBars.top)
+            insets
+        }
+
+        // Lift accessory bar & console above virtual keyboard and gesture nav
+        ViewCompat.setOnApplyWindowInsetsListener(layoutExecutionPanel) { v, insets ->
             val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
             val navBars = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
-
-            findViewById<View>(R.id.ide_toolbar).updatePadding(top = statusBars.top)
-            findViewById<View>(R.id.file_explorer_drawer).updatePadding(top = statusBars.top)
-
-            // Lift accessory bar / bottom console above virtual keyboard
             val bottomPadding = if (ime.bottom > 0) ime.bottom else navBars.bottom
-            layoutExecutionPanel.updatePadding(bottom = bottomPadding)
-
+            v.updatePadding(bottom = bottomPadding)
             insets
         }
     }
 
-    private fun setupRootDirectory() {
-        currentRootDir = getDefaultLinuxHome()
-        updateRootLabel()
+    private fun setupProjectDirectory() {
+        val prefs = getSharedPreferences("ide_prefs", Context.MODE_PRIVATE)
+        val savedPath = prefs.getString("last_project_root", null)
+        val savedFile = savedPath?.let { File(it) }
 
-        btnSwitchRoot.setOnClickListener {
-            val popup = PopupMenu(this, btnSwitchRoot)
-            popup.menu.add(0, 1, 0, "Linux Home (~/home/ubuntu)")
-            popup.menu.add(0, 2, 1, "Shared Storage (/sdcard/MobileLinux)")
-            popup.menu.add(0, 3, 2, "SDCard Root (/sdcard)")
-
-            popup.setOnMenuItemClickListener { item ->
-                when (item.itemId) {
-                    1 -> {
-                        currentRootDir = getDefaultLinuxHome()
-                        updateRootLabel()
-                        fileTreeAdapter.setRootDir(currentRootDir!!)
-                    }
-                    2 -> {
-                        currentRootDir = StorageHelper.getPreferredSharedDir(this)
-                        updateRootLabel()
-                        fileTreeAdapter.setRootDir(currentRootDir!!)
-                    }
-                    3 -> {
-                        val sd = android.os.Environment.getExternalStorageDirectory()
-                        if (sd != null && sd.exists()) {
-                            currentRootDir = sd
-                            updateRootLabel()
-                            fileTreeAdapter.setRootDir(currentRootDir!!)
-                        }
-                    }
-                }
-                true
-            }
-            popup.show()
+        currentRootDir = if (savedFile != null && savedFile.exists() && savedFile.isDirectory) {
+            savedFile
+        } else {
+            getDefaultLinuxHome()
         }
+        updateProjectBanner()
     }
 
     private fun getDefaultLinuxHome(): File {
@@ -227,16 +250,102 @@ class CodeIdeActivity : AppCompatActivity() {
         return home
     }
 
-    private fun updateRootLabel() {
+    private fun openProjectFolder(folder: File) {
+        if (!folder.exists() || !folder.isDirectory) return
+        currentRootDir = folder
+        getSharedPreferences("ide_prefs", Context.MODE_PRIVATE).edit()
+            .putString("last_project_root", folder.absolutePath)
+            .apply()
+
+        updateProjectBanner()
+        fileTreeAdapter.setRootDir(folder)
+        Toast.makeText(this, "Opened Project: ${folder.name}", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun updateProjectBanner() {
         val dir = currentRootDir ?: return
         val rootfs = UbuntuRuntime.getInstance(this).rootfsDir
-        if (dir.absolutePath.startsWith(File(rootfs, "home/ubuntu").absolutePath)) {
-            tvCurrentRootLabel.text = "Linux Home (~)"
-        } else if (dir.absolutePath.contains("MobileLinux")) {
-            tvCurrentRootLabel.text = "Shared (/sdcard/MobileLinux)"
-        } else {
-            tvCurrentRootLabel.text = dir.name
+        val home = File(rootfs, "home/ubuntu")
+
+        tvProjectFolderName.text = if (dir.absolutePath == home.absolutePath) "ubuntu (~)" else dir.name
+        tvProjectFolderPath.text = codeRunner.toLinuxPath(dir)
+
+        val parent = dir.parentFile
+        val canGoUp = parent != null && parent.canRead() && (
+            parent.absolutePath.startsWith(rootfs.absolutePath) ||
+            parent.absolutePath.contains("MobileLinux") ||
+            parent.absolutePath.startsWith(android.os.Environment.getExternalStorageDirectory()?.absolutePath ?: "")
+        )
+        btnDrawerNavigateUp.alpha = if (canGoUp) 1.0f else 0.35f
+        btnDrawerNavigateUp.isEnabled = canGoUp
+    }
+
+    private fun navigateUpToParentDirectory() {
+        val dir = currentRootDir ?: return
+        val parent = dir.parentFile
+        if (parent != null && parent.exists() && parent.isDirectory) {
+            openProjectFolder(parent)
         }
+    }
+
+    private fun showOpenFolderDialog() {
+        val rootfs = UbuntuRuntime.getInstance(this).rootfsDir
+        val home = File(rootfs, "home/ubuntu")
+        val shared = StorageHelper.getPreferredSharedDir(this)
+        val sdcard = android.os.Environment.getExternalStorageDirectory()
+
+        val homeSubdirs = home.listFiles()?.filter { it.isDirectory && !it.name.startsWith(".") }?.sortedBy { it.name.lowercase() } ?: emptyList()
+
+        val options = mutableListOf<Pair<String, File>>()
+        options.add("🏠 Linux Home (~/home/ubuntu)" to home)
+        options.add("📁 Shared Storage (/sdcard/MobileLinux)" to shared)
+        if (sdcard != null && sdcard.exists()) {
+            options.add("📱 Device Storage (/sdcard)" to sdcard)
+        }
+        for (sub in homeSubdirs) {
+            options.add("  ↳ 📂 ${sub.name}" to sub)
+        }
+
+        val names = options.map { it.first }.toTypedArray()
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Open Project Folder")
+            .setItems(names) { _, which ->
+                openProjectFolder(options[which].second)
+            }
+            .setNeutralButton("New Project") { _, _ ->
+                showNewProjectDialog(currentRootDir ?: home)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showNewProjectDialog(parentDir: File) {
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_file_action, null)
+        val promptText = dialogView.findViewById<TextView>(R.id.tv_dialog_prompt)
+        val etName = dialogView.findViewById<EditText>(R.id.et_file_name)
+
+        promptText.text = "Create new project inside ${parentDir.name}:"
+        etName.hint = "Project name (e.g. my_app, flask_demo)"
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle("New Project Folder")
+            .setView(dialogView)
+            .setPositiveButton("Create & Open") { _, _ ->
+                val name = etName.text.toString().trim()
+                if (name.isNotEmpty()) {
+                    val newDir = File(parentDir, name)
+                    if (!newDir.exists()) newDir.mkdirs()
+                    val mainFile = File(newDir, "main.py")
+                    if (!mainFile.exists()) {
+                        mainFile.writeText("# Project: $name\nprint('Hello from $name!')\n")
+                    }
+                    openProjectFolder(newDir)
+                    openFileInEditor(mainFile)
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun setupTabs() {
@@ -257,6 +366,9 @@ class CodeIdeActivity : AppCompatActivity() {
             onFileClick = { file ->
                 openFileInEditor(file)
                 drawerLayout.closeDrawer(GravityCompat.START)
+            },
+            onOpenAsProject = { folder ->
+                openProjectFolder(folder)
             },
             onNewFile = { parentDir -> showNewFileDialog(parentDir) },
             onNewFolder = { parentDir -> showNewFolderDialog(parentDir) },
@@ -280,6 +392,7 @@ class CodeIdeActivity : AppCompatActivity() {
         }
         btnDrawerRefresh.setOnClickListener {
             fileTreeAdapter.reload()
+            updateProjectBanner()
             Toast.makeText(this, "Refreshed", Toast.LENGTH_SHORT).show()
         }
     }
@@ -374,14 +487,13 @@ class CodeIdeActivity : AppCompatActivity() {
         }
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     private fun setupExecutionConsole() {
-        btnToggleConsole.setOnClickListener {
-            val isVisible = layoutConsoleBody.visibility == View.VISIBLE
-            layoutConsoleBody.visibility = if (isVisible) View.GONE else View.VISIBLE
-        }
+        // Toggle when clicking header or icon
+        btnToggleConsole.setOnClickListener { toggleConsole() }
 
         btnCloseConsole.setOnClickListener {
-            layoutConsoleBody.visibility = View.GONE
+            toggleConsole(show = false)
         }
 
         btnClearConsole.setOnClickListener {
@@ -401,6 +513,71 @@ class CodeIdeActivity : AppCompatActivity() {
                 sendStdinInput()
                 true
             } else false
+        }
+
+        // Touch Drag-to-Resize on Console Header
+        val minHeight = (80 * resources.displayMetrics.density).toInt()
+        val defaultHeight = (180 * resources.displayMetrics.density).toInt()
+        var touchStartY = 0f
+        var initialHeight = 0
+        var isDrag = false
+
+        layoutConsoleHeader.setOnTouchListener { _, event ->
+            val maxHeight = (resources.displayMetrics.heightPixels * 0.72).toInt()
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    touchStartY = event.rawY
+                    initialHeight = if (layoutConsoleBody.visibility == View.VISIBLE) {
+                        layoutConsoleBody.height.takeIf { it > 0 } ?: defaultHeight
+                    } else {
+                        0
+                    }
+                    isDrag = false
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val deltaY = touchStartY - event.rawY
+                    if (Math.abs(deltaY) > 6 * resources.displayMetrics.density) {
+                        isDrag = true
+                    }
+                    if (isDrag) {
+                        if (layoutConsoleBody.visibility != View.VISIBLE) {
+                            layoutConsoleBody.visibility = View.VISIBLE
+                            btnToggleTerminal.setColorFilter(getColor(R.color.accent_blue))
+                        }
+                        val newHeight = (initialHeight + deltaY).toInt()
+                        if (newHeight < minHeight - (35 * resources.displayMetrics.density).toInt()) {
+                            layoutConsoleBody.visibility = View.GONE
+                            btnToggleTerminal.setColorFilter(getColor(R.color.text_secondary))
+                        } else {
+                            val clamped = newHeight.coerceIn(minHeight, maxHeight)
+                            val params = layoutConsoleBody.layoutParams
+                            params.height = clamped
+                            layoutConsoleBody.layoutParams = params
+                        }
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (!isDrag) {
+                        toggleConsole()
+                    }
+                    isDrag = false
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    private fun toggleConsole(show: Boolean? = null) {
+        val willShow = show ?: (layoutConsoleBody.visibility != View.VISIBLE)
+        layoutConsoleBody.visibility = if (willShow) View.VISIBLE else View.GONE
+        val color = getColor(if (willShow) R.color.accent_blue else R.color.text_secondary)
+        btnToggleTerminal.setColorFilter(color)
+        btnToggleConsole.setColorFilter(color)
+        if (willShow) {
+            scrollConsoleOutput.post { scrollConsoleOutput.fullScroll(View.FOCUS_DOWN) }
         }
     }
 
@@ -436,11 +613,6 @@ class CodeIdeActivity : AppCompatActivity() {
 
     private fun switchTab(index: Int) {
         if (index !in openTabs.indices) return
-
-        // If switching from another tab, save its state
-        if (activeTabIndex != index && activeTabIndex in openTabs.indices) {
-            // Can store scroll/cursor state if needed
-        }
 
         activeTabIndex = index
         tabsAdapter.setSelectedIndex(index)
@@ -480,7 +652,6 @@ class CodeIdeActivity : AppCompatActivity() {
 
         editorWebView.evaluateJavascript("window.editorGetContent();") { result ->
             try {
-                // Result from evaluateJavascript is JSON encoded string
                 val content = if (result.startsWith("\"") && result.endsWith("\"")) {
                     org.json.JSONTokener(result).nextValue().toString()
                 } else {
@@ -563,7 +734,7 @@ class CodeIdeActivity : AppCompatActivity() {
         }
 
         // Expand console panel
-        layoutConsoleBody.visibility = View.VISIBLE
+        toggleConsole(show = true)
         btnStopExecution.visibility = View.VISIBLE
         tvConsoleOutput.text = ""
 
@@ -666,7 +837,6 @@ class CodeIdeActivity : AppCompatActivity() {
                 if (newName.isNotEmpty() && newName != target.name) {
                     val dest = File(target.parentFile, newName)
                     if (target.renameTo(dest)) {
-                        // Update any open tab
                         openTabs.find { it.file.absolutePath == target.absolutePath }?.let { tab ->
                             val idx = openTabs.indexOf(tab)
                             openTabs[idx] = tab.copy(file = dest, title = dest.name)
@@ -674,6 +844,7 @@ class CodeIdeActivity : AppCompatActivity() {
                             if (activeTabIndex == idx) tvActiveFilename.text = dest.name
                         }
                         fileTreeAdapter.reload()
+                        updateProjectBanner()
                         Toast.makeText(this, "Renamed to $newName", Toast.LENGTH_SHORT).show()
                     }
                 }
@@ -698,6 +869,7 @@ class CodeIdeActivity : AppCompatActivity() {
                     target.delete()
                 }
                 fileTreeAdapter.reload()
+                updateProjectBanner()
                 Toast.makeText(this, "Deleted ${target.name}", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("Cancel", null)
@@ -749,8 +921,8 @@ class CodeIdeActivity : AppCompatActivity() {
     }
 
     private fun ensureInitialFile() {
-        val home = getDefaultLinuxHome()
-        val exampleFile = File(home, "hello.py")
+        val root = currentRootDir ?: getDefaultLinuxHome()
+        val exampleFile = File(root, "hello.py")
         if (!exampleFile.exists()) {
             try {
                 exampleFile.writeText(
@@ -777,7 +949,7 @@ class CodeIdeActivity : AppCompatActivity() {
         if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
             drawerLayout.closeDrawer(GravityCompat.START)
         } else if (layoutConsoleBody.visibility == View.VISIBLE) {
-            layoutConsoleBody.visibility = View.GONE
+            toggleConsole(show = false)
         } else {
             super.onBackPressed()
         }

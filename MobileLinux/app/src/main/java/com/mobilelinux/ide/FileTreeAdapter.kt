@@ -24,6 +24,7 @@ data class FileTreeNode(
 class FileTreeAdapter(
     private var rootDir: File,
     private val onFileClick: (File) -> Unit,
+    private val onOpenAsProject: (folder: File) -> Unit,
     private val onNewFile: (parentDir: File) -> Unit,
     private val onNewFolder: (parentDir: File) -> Unit,
     private val onRename: (target: File) -> Unit,
@@ -32,6 +33,8 @@ class FileTreeAdapter(
 ) : RecyclerView.Adapter<FileTreeAdapter.NodeViewHolder>() {
 
     private val visibleNodes = mutableListOf<FileTreeNode>()
+
+    fun getRootDir(): File = rootDir
 
     init {
         reload()
@@ -157,17 +160,19 @@ class FileTreeAdapter(
     private fun showContextMenu(anchor: View, file: File) {
         val popup = PopupMenu(anchor.context, anchor)
         if (file.isDirectory) {
-            popup.menu.add(0, 1, 0, "New File Inside")
-            popup.menu.add(0, 2, 1, "New Folder Inside")
+            popup.menu.add(0, 10, 0, "📂 Open as Project")
+            popup.menu.add(0, 1, 1, "New File Inside")
+            popup.menu.add(0, 2, 2, "New Folder Inside")
         } else {
             popup.menu.add(0, 3, 0, "Open File")
         }
-        popup.menu.add(0, 4, 2, "Rename")
-        popup.menu.add(0, 5, 3, "Delete")
-        popup.menu.add(0, 6, 4, "Copy Path")
+        popup.menu.add(0, 4, 3, "Rename")
+        popup.menu.add(0, 5, 4, "Delete")
+        popup.menu.add(0, 6, 5, "Copy Path")
 
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
+                10 -> onOpenAsProject(file)
                 1 -> onNewFile(file)
                 2 -> onNewFolder(file)
                 3 -> onFileClick(file)

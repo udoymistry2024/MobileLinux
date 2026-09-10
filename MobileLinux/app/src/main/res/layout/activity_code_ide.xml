@@ -5,8 +5,7 @@
     android:id="@+id/drawer_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/terminal_bg"
-    android:fitsSystemWindows="true">
+    android:background="@color/terminal_bg">
 
     <!-- MAIN IDE CONTENT -->
     <LinearLayout
@@ -14,106 +13,127 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <!-- Top IDE Toolbar -->
+        <!-- Top IDE Toolbar Container (Extends behind Status Bar with padding) -->
         <LinearLayout
             android:id="@+id/ide_toolbar"
             android:layout_width="match_parent"
-            android:layout_height="52dp"
+            android:layout_height="wrap_content"
             android:background="@color/toolbar_bg"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp">
+            android:orientation="vertical"
+            android:elevation="4dp">
 
-            <!-- Drawer Toggle (Files) -->
-            <ImageView
-                android:id="@+id/btn_toggle_drawer"
-                android:layout_width="38dp"
-                android:layout_height="38dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Open Files"
-                android:padding="8dp"
-                android:src="@drawable/ic_folder"
-                android:tint="@color/accent_blue" />
+            <!-- Toolbar Controls Row (Always 52dp height, centered) -->
+            <LinearLayout
+                android:id="@+id/ide_toolbar_content"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp">
 
-            <!-- Active File Title -->
-            <TextView
-                android:id="@+id/tv_active_filename"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:layout_marginEnd="8dp"
-                android:layout_weight="1"
-                android:ellipsize="middle"
-                android:fontFamily="sans-serif-medium"
-                android:singleLine="true"
-                android:textColor="@color/text_primary"
-                android:textSize="15sp"
-                tools:text="main.py" />
+                <!-- Drawer Toggle (Files) -->
+                <ImageView
+                    android:id="@+id/btn_toggle_drawer"
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Open Files"
+                    android:padding="8dp"
+                    android:src="@drawable/ic_folder"
+                    android:tint="@color/accent_blue" />
 
-            <!-- Undo -->
-            <ImageView
-                android:id="@+id/btn_undo"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Undo"
-                android:padding="8dp"
-                android:src="@drawable/ic_undo"
-                android:tint="@color/text_secondary" />
+                <!-- Active File Title -->
+                <TextView
+                    android:id="@+id/tv_active_filename"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:layout_marginEnd="6dp"
+                    android:layout_weight="1"
+                    android:ellipsize="middle"
+                    android:fontFamily="sans-serif-medium"
+                    android:singleLine="true"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp"
+                    tools:text="hello.py" />
 
-            <!-- Redo -->
-            <ImageView
-                android:id="@+id/btn_redo"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Redo"
-                android:padding="8dp"
-                android:src="@drawable/ic_redo"
-                android:tint="@color/text_secondary" />
+                <!-- Quick Terminal Toggle Button (Open/Close anytime) -->
+                <ImageView
+                    android:id="@+id/btn_toggle_terminal"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Toggle Terminal"
+                    android:padding="8dp"
+                    android:src="@drawable/ic_terminal_small"
+                    android:tint="@color/accent_blue" />
 
-            <!-- Save File -->
-            <ImageView
-                android:id="@+id/btn_save_file"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Save"
-                android:padding="8dp"
-                android:src="@drawable/ic_save"
-                android:tint="@color/text_primary" />
+                <!-- Undo -->
+                <ImageView
+                    android:id="@+id/btn_undo"
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Undo"
+                    android:padding="7dp"
+                    android:src="@drawable/ic_undo"
+                    android:tint="@color/text_secondary" />
 
-            <!-- Run Button (Vibrant Green) -->
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_run_code"
-                android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:layout_marginStart="6dp"
-                android:layout_marginEnd="4dp"
-                android:backgroundTint="@color/accent_green"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:text="Run"
-                android:textColor="@android:color/white"
-                android:textSize="12sp"
-                app:cornerRadius="8dp"
-                app:icon="@drawable/ic_play"
-                app:iconSize="14dp"
-                app:iconTint="@android:color/white" />
+                <!-- Redo -->
+                <ImageView
+                    android:id="@+id/btn_redo"
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Redo"
+                    android:padding="7dp"
+                    android:src="@drawable/ic_redo"
+                    android:tint="@color/text_secondary" />
 
-            <!-- More Options -->
-            <ImageView
-                android:id="@+id/btn_ide_overflow"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="More"
-                android:padding="8dp"
-                android:src="@drawable/ic_more_vert"
-                android:tint="@color/text_secondary" />
+                <!-- Save File -->
+                <ImageView
+                    android:id="@+id/btn_save_file"
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Save"
+                    android:padding="7dp"
+                    android:src="@drawable/ic_save"
+                    android:tint="@color/text_primary" />
+
+                <!-- Run Button (Vibrant Green) -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_run_code"
+                    android:layout_width="wrap_content"
+                    android:layout_height="34dp"
+                    android:layout_marginStart="4dp"
+                    android:layout_marginEnd="2dp"
+                    android:backgroundTint="@color/accent_green"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:paddingStart="10dp"
+                    android:paddingEnd="10dp"
+                    android:text="Run"
+                    android:textColor="@android:color/white"
+                    android:textSize="12sp"
+                    app:cornerRadius="7dp"
+                    app:icon="@drawable/ic_play"
+                    app:iconSize="13dp"
+                    app:iconTint="@android:color/white" />
+
+                <!-- More Options -->
+                <ImageView
+                    android:id="@+id/btn_ide_overflow"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="More"
+                    android:padding="6dp"
+                    android:src="@drawable/ic_more_vert"
+                    android:tint="@color/text_secondary" />
+
+            </LinearLayout>
 
         </LinearLayout>
 
@@ -205,7 +225,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="20dp"
                     android:backgroundTint="@color/card_bg"
-                    android:text="Open File Explorer"
+                    android:text="Open Project Explorer"
                     android:textColor="@color/accent_blue"
                     app:cornerRadius="8dp"
                     app:icon="@drawable/ic_folder"
@@ -250,27 +270,30 @@
                 android:layout_height="1dp"
                 android:background="@color/border_color" />
 
-            <!-- Execution Header Bar -->
+            <!-- Execution Header Bar (Acts as Drag Handle & Toggle) -->
             <LinearLayout
+                android:id="@+id/layout_console_header"
                 android:layout_width="match_parent"
-                android:layout_height="38dp"
+                android:layout_height="42dp"
                 android:background="@color/sidebar_bg"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
                 android:paddingStart="12dp"
-                android:paddingEnd="8dp">
+                android:paddingEnd="8dp"
+                android:clickable="true"
+                android:focusable="true">
 
-                <!-- Toggle Panel Icon -->
+                <!-- Toggle / Chevron Indicator -->
                 <ImageView
                     android:id="@+id/btn_toggle_console"
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:contentDescription="Toggle Output"
                     android:src="@drawable/ic_terminal_small"
                     android:tint="@color/accent_blue" />
 
-                <!-- Status Text -->
+                <!-- Status / Title Text -->
                 <TextView
                     android:id="@+id/tv_console_status"
                     android:layout_width="0dp"
@@ -280,9 +303,17 @@
                     android:ellipsize="end"
                     android:fontFamily="sans-serif-medium"
                     android:singleLine="true"
-                    android:text="Console Output"
+                    android:text="Console / Terminal"
                     android:textColor="@color/text_primary"
                     android:textSize="12sp" />
+
+                <!-- Touch Drag Handle Pill in Center -->
+                <View
+                    android:id="@+id/drag_handle_indicator"
+                    android:layout_width="40dp"
+                    android:layout_height="5dp"
+                    android:layout_marginEnd="8dp"
+                    android:background="@drawable/bg_drag_handle" />
 
                 <!-- Stop Button -->
                 <ImageView
@@ -323,11 +354,11 @@
 
             </LinearLayout>
 
-            <!-- Console Body (Collapsible) -->
+            <!-- Console Body (Collapsible & Draggable Resize) -->
             <LinearLayout
                 android:id="@+id/layout_console_body"
                 android:layout_width="match_parent"
-                android:layout_height="160dp"
+                android:layout_height="180dp"
                 android:orientation="vertical"
                 android:visibility="gone"
                 tools:visibility="visible">
@@ -411,108 +442,158 @@
 
     </LinearLayout>
 
-    <!-- LEFT DRAWER: FILE EXPLORER -->
+    <!-- LEFT DRAWER: PROJECT & FILE EXPLORER -->
     <LinearLayout
         android:id="@+id/file_explorer_drawer"
-        android:layout_width="300dp"
+        android:layout_width="310dp"
         android:layout_height="match_parent"
         android:layout_gravity="start"
         android:background="@color/sidebar_bg"
         android:orientation="vertical">
 
-        <!-- Drawer Header -->
+        <!-- Drawer Header Container -->
         <LinearLayout
+            android:id="@+id/drawer_header_container"
             android:layout_width="match_parent"
-            android:layout_height="52dp"
+            android:layout_height="wrap_content"
             android:background="@color/sidebar_header_bg"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingStart="16dp"
-            android:paddingEnd="8dp">
+            android:orientation="vertical">
 
-            <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:src="@drawable/ic_folder"
-                android:tint="@color/accent_blue"
-                android:contentDescription="Explorer" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="14dp"
+                android:paddingEnd="6dp">
 
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:layout_weight="1"
-                android:fontFamily="sans-serif-medium"
-                android:text="Files &amp; Projects"
-                android:textColor="@color/text_primary"
-                android:textSize="15sp" />
+                <ImageView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:src="@drawable/ic_folder"
+                    android:tint="@color/accent_blue"
+                    android:contentDescription="Explorer" />
 
-            <!-- New File -->
-            <ImageView
-                android:id="@+id/btn_drawer_new_file"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="New File"
-                android:padding="6dp"
-                android:src="@drawable/ic_file_plus"
-                android:tint="@color/text_secondary" />
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:fontFamily="sans-serif-medium"
+                    android:text="Project Files"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp" />
 
-            <!-- New Folder -->
-            <ImageView
-                android:id="@+id/btn_drawer_new_folder"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="New Folder"
-                android:padding="6dp"
-                android:src="@drawable/ic_folder_plus"
-                android:tint="@color/text_secondary" />
+                <!-- Open Folder Button (Acode style) -->
+                <ImageView
+                    android:id="@+id/btn_drawer_open_folder"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Open Folder"
+                    android:padding="6dp"
+                    android:src="@drawable/ic_folder_open"
+                    android:tint="@color/accent_blue" />
 
-            <!-- Refresh -->
-            <ImageView
-                android:id="@+id/btn_drawer_refresh"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Refresh"
-                android:padding="6dp"
-                android:src="@drawable/ic_refresh"
-                android:tint="@color/text_secondary" />
+                <!-- New File -->
+                <ImageView
+                    android:id="@+id/btn_drawer_new_file"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="New File"
+                    android:padding="6dp"
+                    android:src="@drawable/ic_file_plus"
+                    android:tint="@color/text_secondary" />
+
+                <!-- New Folder -->
+                <ImageView
+                    android:id="@+id/btn_drawer_new_folder"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="New Folder"
+                    android:padding="6dp"
+                    android:src="@drawable/ic_folder_plus"
+                    android:tint="@color/text_secondary" />
+
+                <!-- Refresh -->
+                <ImageView
+                    android:id="@+id/btn_drawer_refresh"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Refresh"
+                    android:padding="6dp"
+                    android:src="@drawable/ic_refresh"
+                    android:tint="@color/text_secondary" />
+
+            </LinearLayout>
 
         </LinearLayout>
 
-        <!-- Root Directory Switcher (Linux Home vs Shared Storage) -->
+        <!-- Current Project / Folder Banner & Up Navigation -->
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="36dp"
+            android:layout_height="44dp"
             android:background="#1B222C"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingStart="12dp"
+            android:paddingStart="8dp"
             android:paddingEnd="8dp">
 
-            <TextView
-                android:id="@+id/tv_current_root_label"
+            <!-- Navigate to Parent Directory (Up) -->
+            <ImageView
+                android:id="@+id/btn_drawer_navigate_up"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Parent Folder"
+                android:padding="6dp"
+                android:src="@drawable/ic_arrow_up"
+                android:tint="@color/accent_yellow" />
+
+            <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
                 android:layout_weight="1"
-                android:ellipsize="middle"
-                android:fontFamily="sans-serif-medium"
-                android:singleLine="true"
-                android:text="Linux Home (~)"
-                android:textColor="@color/accent_blue"
-                android:textSize="12sp" />
+                android:orientation="vertical">
 
+                <TextView
+                    android:id="@+id/tv_project_folder_name"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:fontFamily="sans-serif-medium"
+                    android:singleLine="true"
+                    android:text="ubuntu"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/tv_project_folder_path"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="middle"
+                    android:fontFamily="monospace"
+                    android:singleLine="true"
+                    android:text="~/home/ubuntu"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="10sp" />
+
+            </LinearLayout>
+
+            <!-- Quick Change Folder Button -->
             <TextView
                 android:id="@+id/btn_switch_root"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:background="?attr/selectableItemBackground"
                 android:padding="4dp"
-                android:text="[Switch]"
-                android:textColor="@color/accent_yellow"
-                android:textSize="12sp"
+                android:text="[Change]"
+                android:textColor="@color/accent_blue"
+                android:textSize="11sp"
                 android:fontFamily="sans-serif-medium" />
 
         </LinearLayout>

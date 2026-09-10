@@ -1109,6 +1109,8 @@ class CodeIdeActivity : AppCompatActivity() {
             .show()
     }
 
+    private var lastExecutionDir: String? = null
+
     private fun executeCommandInTerminal(file: File, command: String) {
         // Expand terminal panel
         toggleConsole(show = true)
@@ -1120,7 +1122,15 @@ class CodeIdeActivity : AppCompatActivity() {
         if (sessId != null) {
             val linuxPath = codeRunner.toLinuxPath(file)
             val dir = File(linuxPath).parent ?: "/home/ubuntu"
-            val execCmd = "cd \"$dir\" && $command\n"
+            
+            // Clean execution: avoid redundant cd if already in target directory or default home
+            val execCmd = if (dir == lastExecutionDir || (lastExecutionDir == null && (dir == "/home/ubuntu" || dir == "/root"))) {
+                lastExecutionDir = dir
+                "$command\n"
+            } else {
+                lastExecutionDir = dir
+                "cd \"$dir\" && $command\n"
+            }
 
             tm.sendInput(sessId, execCmd.toByteArray())
             ideTerminalView.requestFocus()

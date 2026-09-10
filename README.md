@@ -10,7 +10,7 @@
   [![Platform](https://img.shields.io/badge/Platform-Android%208.0%2B-3DDC84.svg?logo=android&logoColor=white)](https://github.com/udoymistry2024/MobileLinux/releases)
   [![OS: Ubuntu 24.04 LTS](https://img.shields.io/badge/Ubuntu-24.04%20LTS-E95420.svg?logo=ubuntu&logoColor=white)](https://ubuntu.com)
   [![Architecture](https://img.shields.io/badge/Arch-ARM64%20%7C%20ARMv7-007ACC.svg)](#architecture)
-  [![Version](https://img.shields.io/badge/Version-1.6.1--Beta-blueviolet.svg)](https://github.com/udoymistry2024/MobileLinux/releases)
+  [![Version](https://img.shields.io/badge/Version-1.6.2-blueviolet.svg)](https://github.com/udoymistry2024/MobileLinux/releases)
 
   <p align="center">
     <a href="#key-features">Key Features</a> •
@@ -92,7 +92,7 @@ Whether you are compiling C/C++ projects with `gcc`, running a **Miniforge / Con
 
 ### 1. Download & Install
 Download the latest signed release APK from [**GitHub Releases**](https://github.com/udoymistry2024/MobileLinux/releases):
-- **`MobileLinux-v1.6.1-beta.apk`** (or `MobileLinux-v1.6.1.apk`)
+- **`MobileLinux-v1.6.2.apk`** (or `MobileLinux-latest.apk`)
 
 Install the APK on any device running **Android 8.0 (Oreo) or higher** (Targeting Android 15 / API 35).
 
@@ -138,6 +138,12 @@ bash Miniforge3-Linux-aarch64.sh
 
 <a name="whats-new"></a>
 ## 🆕 What's New
+
+### v1.6.2
+- 💻 **Microsoft Visual Studio Code (GUI) Integration:**
+  - Added full graphical Visual Studio Code desktop application directly to the built-in Software Libraries (`vscode-gui`).
+  - Integrated official Microsoft APT repository (`packages.microsoft.com/repos/code`) with direct official DEB fallback for ARM64 and x86_64.
+  - Pre-configured PRoot compatibility wrapper (`/usr/local/bin/code`), sandbox/GPU bypass, superuser/root execution handling, and XFCE desktop application menu integration.
 
 ### v1.6.1 (Beta)
 - 📦 **Desktop Applications in Built-in Libraries & Package Store:**

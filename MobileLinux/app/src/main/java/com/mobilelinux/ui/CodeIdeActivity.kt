@@ -534,7 +534,6 @@ class CodeIdeActivity : AppCompatActivity() {
         btnDrawerRefresh.setOnClickListener {
             fileTreeAdapter.reload()
             updateProjectBanner()
-            Toast.makeText(this, "Refreshed", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -587,7 +586,6 @@ class CodeIdeActivity : AppCompatActivity() {
                         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                         val clip = ClipData.newPlainText("Copied Text", text)
                         clipboard.setPrimaryClip(clip)
-                        Toast.makeText(this@CodeIdeActivity, "Copied to clipboard", Toast.LENGTH_SHORT).show()
                     }
                 }
             },
@@ -597,7 +595,6 @@ class CodeIdeActivity : AppCompatActivity() {
                         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                         val clip = ClipData.newPlainText("Cut Text", text)
                         clipboard.setPrimaryClip(clip)
-                        Toast.makeText(this@CodeIdeActivity, "Cut to clipboard", Toast.LENGTH_SHORT).show()
                     }
                 }
             },
@@ -789,7 +786,6 @@ class CodeIdeActivity : AppCompatActivity() {
                 val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 val clip = ClipData.newPlainText("Copied Text", text)
                 clipboard.setPrimaryClip(clip)
-                Toast.makeText(this, "Copied to clipboard", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -806,7 +802,6 @@ class CodeIdeActivity : AppCompatActivity() {
                 val clip = ClipData.newPlainText("Cut Text", text)
                 clipboard.setPrimaryClip(clip)
                 editorWebView.evaluateJavascript("window.editorDeleteSelectedText();", null)
-                Toast.makeText(this, "Cut to clipboard", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -841,7 +836,6 @@ class CodeIdeActivity : AppCompatActivity() {
         btnClearConsole.setOnClickListener {
             ideSessionId?.let { sessId ->
                 terminalManager.sendInput(sessId, "clear\n".toByteArray())
-                Toast.makeText(this, "Terminal cleared", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -849,7 +843,6 @@ class CodeIdeActivity : AppCompatActivity() {
         btnStopExecution.setOnClickListener {
             ideSessionId?.let { sessId ->
                 terminalManager.sendKey(sessId, SpecialKey.CTRL_C)
-                Toast.makeText(this, "Stopped process (Ctrl+C)", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -1003,8 +996,6 @@ class CodeIdeActivity : AppCompatActivity() {
                 activeTab.isDirty = false
                 tabsAdapter.notifyItemChanged(activeTabIndex)
                 btnSaveFile.setColorFilter(getColor(R.color.text_secondary))
-
-                Toast.makeText(this, "Saved ${activeTab.title}", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 Log.e(TAG, "Save error: ${e.message}", e)
                 Toast.makeText(this, "Failed to save: ${e.message}", Toast.LENGTH_SHORT).show()

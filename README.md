@@ -141,9 +141,12 @@ bash Miniforge3-Linux-aarch64.sh
 
 ### v1.6.1 (Beta)
 - 📦 **Desktop Applications in Built-in Libraries & Package Store:**
-  - Added full graphical desktop applications directly to the built-in Package Store: **Firefox Browser**, **Chromium Browser**, **VLC Media Player**, **GIMP Image Editor**, **LibreOffice Suite**, **Geany IDE**, and **Inkscape Vector Graphics**.
+  - Added full graphical desktop applications directly to the built-in Package Store: **Visual Studio Code (GUI)**, **Firefox Browser**, **Chromium Browser**, **VLC Media Player**, **GIMP Image Editor**, **LibreOffice Suite**, **Geany IDE**, and **Inkscape Vector Graphics**.
   - One-click seamless installation and uninstallation with live percentage tracking.
   - Automatic desktop shortcuts in XFCE Application Menu, PRoot root bypass wrappers, and sandbox workarounds.
+- 💻 **Microsoft Visual Studio Code (GUI) Integration:**
+  - Full graphical VS Code desktop installation with official Microsoft APT repository and direct DEB fallback.
+  - Auto-configured `--no-sandbox` wrapper (`/usr/local/bin/code`), hardware acceleration bypass, and XFCE desktop shortcut integration for seamless development in Desktop Mode.
 - ⚡ **Desktop Startup & Performance Optimization:**
   - Resolved display server startup failure (`code 2`) by fixing script parsing and adding robust TigerVNC fallback.
   - Disabled software compositing and UI animations in XFCE for snappy 60fps mobile responsiveness.

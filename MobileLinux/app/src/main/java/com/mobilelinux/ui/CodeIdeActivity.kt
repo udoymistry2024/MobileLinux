@@ -215,6 +215,11 @@ class CodeIdeActivity : AppCompatActivity() {
 
         btnSaveFile.setOnClickListener { saveCurrentFile() }
         btnRunCode.setOnClickListener { runActiveScript() }
+        btnRunCode.setOnLongClickListener {
+            showCustomRunDialog()
+            true
+        }
+        btnRunCode.tooltipText = "Run Code (Long-press to customize)"
         btnUndo.setOnClickListener { editorWebView.evaluateJavascript("window.editorUndo();", null) }
         btnRedo.setOnClickListener { editorWebView.evaluateJavascript("window.editorRedo();", null) }
         btnIdeOverflow.setOnClickListener { showOverflowMenu(it) }
@@ -1066,6 +1071,45 @@ class CodeIdeActivity : AppCompatActivity() {
             return
         }
 
+        val linuxPath = codeRunner.toLinuxPath(file)
+        val cmd = codeRunner.buildCommandForFile(linuxPath, file)
+        executeCommandInTerminal(file, cmd)
+    }
+
+    private fun showCustomRunDialog() {
+        if (activeTabIndex !in openTabs.indices) {
+            Toast.makeText(this, "No file open to run", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val activeTab = openTabs[activeTabIndex]
+        saveCurrentFile()
+        val file = activeTab.file
+        val linuxPath = codeRunner.toLinuxPath(file)
+        val defaultCmd = codeRunner.buildCommandForFile(linuxPath, file)
+
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_file_action, null)
+        val promptText = dialogView.findViewById<TextView>(R.id.tv_dialog_prompt)
+        val etCommand = dialogView.findViewById<EditText>(R.id.et_file_name)
+
+        promptText.text = "Customize run command or arguments:"
+        etCommand.setText(defaultCmd)
+        etCommand.setSelection(etCommand.text.length)
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Run Configuration")
+            .setView(dialogView)
+            .setPositiveButton("Run") { _, _ ->
+                val customCmd = etCommand.text.toString().trim()
+                if (customCmd.isNotEmpty()) {
+                    executeCommandInTerminal(file, customCmd)
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun executeCommandInTerminal(file: File, command: String) {
         // Expand terminal panel
         toggleConsole(show = true)
         activeFocusTarget = FocusTarget.TERMINAL
@@ -1073,11 +1117,10 @@ class CodeIdeActivity : AppCompatActivity() {
         val tm = terminalManager
         val sessId = ideSessionId
 
-        if (tm != null && sessId != null) {
+        if (sessId != null) {
             val linuxPath = codeRunner.toLinuxPath(file)
             val dir = File(linuxPath).parent ?: "/home/ubuntu"
-            val cmd = codeRunner.buildCommandForFile(linuxPath)
-            val execCmd = "cd \"$dir\" && $cmd\n"
+            val execCmd = "cd \"$dir\" && $command\n"
 
             tm.sendInput(sessId, execCmd.toByteArray())
             ideTerminalView.requestFocus()

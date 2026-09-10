@@ -227,12 +227,17 @@ class DesktopActivity : AppCompatActivity(),
             // Start desktop PRoot process that stays alive
             val proc = runtime.startDesktopProcess(resolution)
 
-            // Stream log lines in background for real-time debugging
+            // Stream log lines in background for real-time debugging and error reporting
+            val logLines = java.util.Collections.synchronizedList(mutableListOf<String>())
             launch(Dispatchers.IO) {
                 try {
                     proc.inputStream.bufferedReader().useLines { lines ->
                         lines.forEach { line ->
                             Log.d(TAG, "desktop-proc: $line")
+                            synchronized(logLines) {
+                                if (logLines.size >= 10) logLines.removeAt(0)
+                                logLines.add(line)
+                            }
                         }
                     }
                 } catch (ignored: Exception) {}
@@ -262,8 +267,15 @@ class DesktopActivity : AppCompatActivity(),
                     vncCanvas.connect("127.0.0.1", VncCanvasView.DEFAULT_VNC_PORT)
                 } else {
                     val exitCode = try { proc.exitValue() } catch (e: Exception) { -1 }
+                    val recentError = synchronized(logLines) {
+                        logLines.filter { it.isNotBlank() }.takeLast(2).joinToString("\n")
+                    }
                     val errMsg = if (!proc.isAlive) {
-                        "Display server process ended unexpectedly (code $exitCode)."
+                        if (recentError.isNotBlank()) {
+                            "Display server ended unexpectedly (code $exitCode):\n$recentError"
+                        } else {
+                            "Display server process ended unexpectedly (code $exitCode)."
+                        }
                     } else {
                         "Display server timed out while binding to port 5901."
                     }

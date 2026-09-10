@@ -33,6 +33,7 @@ import com.mobilelinux.model.LinuxPackage
 import com.mobilelinux.model.PackageCategory
 import com.mobilelinux.model.PackageRepository
 import com.mobilelinux.runtime.UbuntuRuntime
+import com.mobilelinux.service.PackageInstallationManager
 import com.mobilelinux.util.PackageProgressParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -56,10 +57,7 @@ class LibrariesActivity : AppCompatActivity() {
     private lateinit var tvScanningLabel: TextView
     private lateinit var layoutEmpty: LinearLayout
 
-    // Sequential Installation Queue & Concurrency Safety
-    private val installQueue = ArrayDeque<LinuxPackage>()
-    private var isQueueProcessing = false
-    @Volatile private var isUninstallRunning = false
+    private lateinit var installerManager: PackageInstallationManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -67,6 +65,23 @@ class LibrariesActivity : AppCompatActivity() {
         setContentView(R.layout.activity_libraries)
 
         runtime = UbuntuRuntime.getInstance(this)
+        installerManager = PackageInstallationManager.getInstance(this)
+
+        // Listen to persistent background install and uninstall events
+        lifecycleScope.launch {
+            installerManager.progressEvents.collect { update ->
+                val pkg = allPackages.firstOrNull { it.id == update.packageId }
+                if (pkg != null) {
+                    pkg.isInstalling = update.isInstalling
+                    pkg.isInstalled = update.isInstalled
+                    pkg.isUninstalling = update.isUninstalling
+                    pkg.progressPercent = update.percent
+                    pkg.statusText = update.stage
+                    pkg.isActivated = update.isActivated
+                    adapter.updateItem(pkg.id)
+                }
+            }
+        }
 
         // Ensure container wrappers are fresh
         lifecycleScope.launch(Dispatchers.IO) {
@@ -89,6 +104,23 @@ class LibrariesActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+
+        // Sync real-time progress from persistent background installer
+        try {
+            installerManager.activeStates.forEach { (pkgId, update) ->
+                val pkg = allPackages.firstOrNull { it.id == pkgId }
+                if (pkg != null) {
+                    pkg.isInstalling = update.isInstalling
+                    pkg.isInstalled = update.isInstalled
+                    pkg.isUninstalling = update.isUninstalling
+                    pkg.progressPercent = update.percent
+                    pkg.statusText = update.stage
+                    pkg.isActivated = update.isActivated
+                    adapter.updateItem(pkg.id)
+                }
+            }
+        } catch (ignored: Exception) {}
+
         // Synchronize package states with real disk filesystem when returning to screen
         val isCondaPresent = runtime.isCondaInstalled()
         val isCondaActive = runtime.isCondaActive()
@@ -459,7 +491,7 @@ class LibrariesActivity : AppCompatActivity() {
     }
 
     /**
-     * Entry point for package installation with FIFO Queue & Concurrency Protection
+     * Entry point for package installation with persistent background manager
      */
     private fun queueOrInstallPackage(pkg: LinuxPackage) {
         if (pkg.isInstalled) {
@@ -471,245 +503,10 @@ class LibrariesActivity : AppCompatActivity() {
             return
         }
 
-        if (!isQueueProcessing) {
-            isQueueProcessing = true
-            executeInstall(pkg)
-        } else {
-            installQueue.addLast(pkg)
-            pkg.isInstalling = true
-            pkg.progressPercent = -1
-            val queuePos = installQueue.size
-            pkg.statusText = "Queued (Pending #$queuePos in line)"
-            adapter.updateItem(pkg.id)
+        installerManager.enqueueInstall(pkg) { queuePos ->
             Toast.makeText(this, "${pkg.name} added to queue (Position #$queuePos)", Toast.LENGTH_SHORT).show()
         }
-    }
-
-    /**
-     * Executes the actual installation process for a package
-     */
-    private fun executeInstall(pkg: LinuxPackage) {
-        pkg.isInstalling = true
-        pkg.progressPercent = 5
-        pkg.statusText = "Starting installation..."
-        adapter.updateItem(pkg.id)
-
-        // Keep screen on during package installations (especially large extractions like Conda)
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-
         Toast.makeText(this, "Starting installation of ${pkg.name}...", Toast.LENGTH_SHORT).show()
-
-        lifecycleScope.launch(Dispatchers.IO) {
-            val parser = PackageProgressParser(pkg.name)
-            var lastUpdateMs = 0L
-
-            // Smooth progress ticker for long silent phases (e.g., extracting 15,000 wheels in PRoot)
-            val tickerJob = lifecycleScope.launch(Dispatchers.Main) {
-                while (pkg.isInstalling) {
-                    kotlinx.coroutines.delay(2000)
-                    if (pkg.isInstalling && pkg.progressPercent in 65..91) {
-                        val next = pkg.progressPercent + 1
-                        pkg.progressPercent = next
-                        if (pkg.statusText.contains("unpacking", ignoreCase = true) ||
-                            pkg.statusText.contains("installing", ignoreCase = true) ||
-                            !pkg.statusText.contains("%")) {
-                            pkg.statusText = "Unpacking & configuring files ($next%)..."
-                        }
-                        adapter.updateItem(pkg.id)
-                    }
-                }
-            }
-
-            try {
-                // Safety 1: Wait if background essential tools are installing (APT lock contention)
-                if (runtime.isInstallingTools) {
-                    withContext(Dispatchers.Main) {
-                        pkg.statusText = "Waiting for system setup..."
-                        adapter.updateItem(pkg.id)
-                    }
-                    // Wait up to 90 seconds for background install to finish
-                    var waited = 0
-                    while (runtime.isInstallingTools && waited < 90) {
-                        kotlinx.coroutines.delay(1000)
-                        waited++
-                    }
-                }
-
-                // Safety 2: Clean locks + fix dpkg in one atomic guest command (prevents lock recreation race)
-                runtime.cleanupAptLocks()
-                runtime.runCommand(
-                    "sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* /var/lib/dpkg/updates/* /var/cache/debconf/*.lock /var/cache/debconf/*-lock 2>/dev/null; " +
-                    "sudo dpkg --configure -a 2>/dev/null || true"
-                )
-
-                // Safety 3: Ensure pip.conf is present before running install
-                runtime.runCommand("sudo mkdir -p /etc && printf '[global]\\nbreak-system-packages = true\\n' | sudo tee /etc/pip.conf >/dev/null 2>&1 || true")
-
-                val result = runtime.runCommand(pkg.installCommand) { line ->
-                    val update = parser.parseLine(line)
-                    val now = System.currentTimeMillis()
-                    if (update.percent != pkg.progressPercent || now - lastUpdateMs > 200) {
-                        lastUpdateMs = now
-                        lifecycleScope.launch(Dispatchers.Main) {
-                            pkg.progressPercent = update.percent
-                            pkg.statusText = if (update.percent > 0) {
-                                "${update.stage} (${update.percent}%)"
-                            } else {
-                                update.stage
-                            }
-                            adapter.updateItem(pkg.id)
-                        }
-                    }
-                }
-
-                val isSuccessExit = result.first == 0
-                val isCondaDetected = (pkg.id == "miniconda") && (
-                    runtime.isCondaInstalled() || withContext(Dispatchers.IO) {
-                        runtime.runCommand(
-                            "[ -x /home/ubuntu/miniforge3/bin/conda ] || [ -x /home/ubuntu/miniconda3/bin/conda ] || [ -x /home/ubuntu/anaconda3/bin/conda ] || [ -x /root/miniconda3/bin/conda ] || [ -x /root/miniforge3/bin/conda ] || [ -x /root/anaconda3/bin/conda ] || [ -x /opt/conda/bin/conda ]"
-                        ).first == 0
-                    }
-                )
-
-                withContext(Dispatchers.Main) {
-                    pkg.isInstalling = false
-                    val prefs = getSharedPreferences("packages_state_cache", Context.MODE_PRIVATE)
-
-                    if (pkg.id == "miniconda") {
-                        if (isCondaDetected) {
-                            pkg.isInstalled = true
-                            pkg.isActivated = true
-                            pkg.progressPercent = 100
-                            pkg.statusText = "Active & Ready (base)"
-                            val currentSet = getCachedInstalledIds(prefs)
-                            currentSet.add(pkg.id)
-                            prefs.edit().putStringSet("installed_ids", currentSet).putBoolean("conda_active", true).apply()
-                            // Update UI immediately in 0ms so progress bar and spinner disappear instantly
-                            adapter.updateItem(pkg.id)
-                            Toast.makeText(
-                                this@LibrariesActivity,
-                                "Miniconda3 / Conda installed and activated successfully! (base) is active.",
-                                Toast.LENGTH_LONG
-                            ).show()
-                            // Run Conda configuration in background without blocking UI
-                            lifecycleScope.launch(Dispatchers.IO) {
-                                runtime.configureCondaEnvironment()
-                            }
-                        } else {
-                            pkg.isInstalled = false
-                            pkg.isActivated = false
-                            pkg.progressPercent = -1
-                            pkg.statusText = if (isSuccessExit) "Install completed but binary missing" else "Install failed (Exit code: ${result.first})"
-                            val currentSet = getCachedInstalledIds(prefs)
-                            currentSet.remove(pkg.id)
-                            prefs.edit().putStringSet("installed_ids", currentSet).putBoolean("conda_active", false).apply()
-                            adapter.updateItem(pkg.id)
-                            Toast.makeText(
-                                this@LibrariesActivity,
-                                if (isSuccessExit) "Conda installation finished, but binary not found." else "Failed to install Conda. Exit code: ${result.first}",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                    } else if (isSuccessExit) {
-                        val checkResult = withContext(Dispatchers.IO) {
-                            runtime.runCommand(pkg.checkInstalledCommand)
-                        }
-                        if (checkResult.first == 0) {
-                            pkg.isInstalled = true
-                            pkg.progressPercent = 100
-                            pkg.statusText = "Installed and ready"
-                            val currentSet = getCachedInstalledIds(prefs)
-                            currentSet.add(pkg.id)
-                            prefs.edit().putStringSet("installed_ids", currentSet).apply()
-                            if (pkg.id == "xfce4-desktop" || pkg.id == "jupyterlab" || pkg.id == "jupyter" || pkg.category == PackageCategory.DESKTOP_APPS) {
-                                withContext(Dispatchers.IO) {
-                                    try {
-                                        runtime.installCommandWrappers()
-                                        if (pkg.id == "jupyterlab" || pkg.id == "jupyter") {
-                                            runtime.patchJupyterTemplatesForMobile()
-                                        }
-                                    } catch (ignored: Exception) {}
-                                }
-                            }
-                            adapter.updateItem(pkg.id)
-                            Toast.makeText(
-                                this@LibrariesActivity,
-                                "${pkg.name} installed successfully.",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        } else {
-                            pkg.isInstalled = false
-                            pkg.progressPercent = -1
-                            pkg.statusText = "Install completed, check failed"
-                            val currentSet = getCachedInstalledIds(prefs)
-                            currentSet.remove(pkg.id)
-                            prefs.edit().putStringSet("installed_ids", currentSet).apply()
-                            adapter.updateItem(pkg.id)
-                            Toast.makeText(
-                                this@LibrariesActivity,
-                                "${pkg.name} install process completed, but package check failed.",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                    } else {
-                        android.util.Log.e("LibrariesActivity", "Install error for ${pkg.id} (code ${result.first}): ${result.second}")
-                        pkg.isInstalled = false
-                        pkg.progressPercent = -1
-                        val errorSnippet = result.second.lines()
-                            .map { it.replace(Regex("\u001B\\[[;?0-9]*[a-zA-Z]"), "").trim() }
-                            .filter { it.isNotBlank() && (it.startsWith("E:") || it.startsWith("npm error") || it.contains("error:", ignoreCase = true) || it.contains("failed", ignoreCase = true) || it.contains("not found", ignoreCase = true)) }
-                            .lastOrNull()?.take(70)
-                            ?: result.second.lines().map { it.trim() }.filter { it.isNotBlank() }.lastOrNull()?.take(70)
-
-                        pkg.statusText = if (!errorSnippet.isNullOrBlank()) {
-                            "Failed (${result.first}): $errorSnippet"
-                        } else {
-                            "Install failed (Exit code: ${result.first})"
-                        }
-                        adapter.updateItem(pkg.id)
-                        Toast.makeText(
-                            this@LibrariesActivity,
-                            "Failed to install ${pkg.name}. Exit code: ${result.first}",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    pkg.isInstalling = false
-                    pkg.progressPercent = -1
-                    pkg.statusText = "Error: ${e.message}"
-                    adapter.updateItem(pkg.id)
-                    Toast.makeText(
-                        this@LibrariesActivity,
-                        "Error installing ${pkg.name}: ${e.message}",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-            } finally {
-                tickerJob.cancel()
-                withContext(Dispatchers.Main) {
-                    if (installQueue.isEmpty()) {
-                        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                    }
-                    processNextInQueue()
-                }
-            }
-        }
-    }
-
-    private fun processNextInQueue() {
-        if (installQueue.isNotEmpty()) {
-            val nextPkg = installQueue.removeFirst()
-            // Update queue position numbers for remaining packages
-            installQueue.forEachIndexed { index, queuedPkg ->
-                queuedPkg.statusText = "Queued (Pending #${index + 1} in line)"
-                adapter.updateItem(queuedPkg.id)
-            }
-            executeInstall(nextPkg)
-        } else {
-            isQueueProcessing = false
-        }
     }
 
     private fun launchPackage(pkg: LinuxPackage) {
@@ -738,7 +535,7 @@ class LibrariesActivity : AppCompatActivity() {
      * Prompts user with a confirmation dialog to permanently uninstall/clean the package.
      */
     private fun confirmAndUninstallPackage(pkg: LinuxPackage) {
-        if (pkg.isInstalling || pkg.isUninstalling || isQueueProcessing || isUninstallRunning) {
+        if (pkg.isInstalling || pkg.isUninstalling || installerManager.isAnyInstallInProgress()) {
             Toast.makeText(this, "Please wait until active operations finish...", Toast.LENGTH_SHORT).show()
             return
         }
@@ -748,138 +545,10 @@ class LibrariesActivity : AppCompatActivity() {
             .setMessage("Are you sure you want to permanently remove and clean '${pkg.name}' from your Linux system?\n\nThis will remove binaries, libraries, configurations, and free up storage space.")
             .setIcon(R.drawable.ic_trash)
             .setPositiveButton("Uninstall & Clean") { _, _ ->
-                executeUninstall(pkg)
+                installerManager.enqueueUninstall(pkg)
             }
             .setNegativeButton("Cancel", null)
             .show()
-    }
-
-    /**
-     * Executes clean removal and purge of a package, updating state and disk cache.
-     */
-    private fun executeUninstall(pkg: LinuxPackage) {
-        pkg.isUninstalling = true
-        isUninstallRunning = true
-        pkg.progressPercent = 10
-        pkg.statusText = "Starting uninstallation..."
-        adapter.updateItem(pkg.id)
-
-        Toast.makeText(this, "Uninstalling ${pkg.name}...", Toast.LENGTH_SHORT).show()
-
-        lifecycleScope.launch(Dispatchers.IO) {
-            val parser = PackageProgressParser(pkg.name)
-            var lastUpdateMs = 0L
-
-            try {
-                // Safety: Clean leftover locks for apt packages only
-                runtime.cleanupAptLocks()
-                if (pkg.id != "jupyterlab" && pkg.id != "miniconda") {
-                    runtime.runCommand(
-                        "sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* /var/lib/dpkg/updates/* /var/cache/debconf/*.lock /var/cache/debconf/*-lock 2>/dev/null; " +
-                        "sudo dpkg --configure -a 2>/dev/null || true",
-                        timeoutSeconds = 15L
-                    )
-                }
-
-                if (pkg.id == "miniconda") {
-                    // Host-level purge to instantly and completely remove conda directories and configs
-                    runtime.purgeCondaFromHost()
-                }
-
-                val uninstallCmd = PackageRepository.getUninstallCommand(pkg)
-                android.util.Log.d("LibrariesActivity", "Executing uninstall: $uninstallCmd")
-                val result = runtime.runCommand(uninstallCmd, timeoutSeconds = 90L) { line ->
-                    val update = parser.parseUninstallLine(line)
-                    val now = System.currentTimeMillis()
-                    if (update.percent != pkg.progressPercent || now - lastUpdateMs > 150) {
-                        lastUpdateMs = now
-                        lifecycleScope.launch(Dispatchers.Main) {
-                            pkg.progressPercent = update.percent
-                            pkg.statusText = if (update.percent > 0) {
-                                "${update.stage} (${update.percent}%)"
-                            } else {
-                                update.stage
-                            }
-                            adapter.updateItem(pkg.id)
-                        }
-                    }
-                }
-                android.util.Log.d("LibrariesActivity", "Uninstall result code: ${result.first}")
-
-                if (pkg.id == "miniconda") {
-                    // Clean up any remaining host files just in case
-                    runtime.purgeCondaFromHost()
-                }
-
-                // Verify via checkInstalledCommand with timeout
-                val verifyResult = withContext(Dispatchers.IO) {
-                    if (pkg.id == "miniconda") {
-                        val stillOnHost = runtime.isCondaInstalled()
-                        if (stillOnHost) Pair(0, "") else runtime.runCommand(pkg.checkInstalledCommand, timeoutSeconds = 10L)
-                    } else {
-                        runtime.runCommand(pkg.checkInstalledCommand, timeoutSeconds = 15L)
-                    }
-                }
-                val isStillInstalled = verifyResult.first == 0
-
-                withContext(Dispatchers.Main) {
-                    pkg.isUninstalling = false
-                    if (!isStillInstalled) {
-                        pkg.isInstalled = false
-                        pkg.isActivated = false
-                        pkg.progressPercent = -1
-                        pkg.statusText = "Ready to install"
-
-                        // Remove from persistent disk cache
-                        val prefs = getSharedPreferences("packages_state_cache", Context.MODE_PRIVATE)
-                        val currentSet = getCachedInstalledIds(prefs)
-                        currentSet.remove(pkg.id)
-                        val editor = prefs.edit().putStringSet("installed_ids", currentSet)
-                        if (pkg.id == "miniconda") {
-                            editor.putBoolean("conda_active", false)
-                        }
-                        editor.apply()
-
-                        lifecycleScope.launch(Dispatchers.IO) {
-                            try {
-                                runtime.installCommandWrappers()
-                            } catch (ignored: Exception) {}
-                        }
-
-                        adapter.updateItem(pkg.id)
-                        Toast.makeText(
-                            this@LibrariesActivity,
-                            "${pkg.name} permanently uninstalled and cleaned.",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    } else {
-                        pkg.isInstalled = true
-                        pkg.progressPercent = -1
-                        pkg.statusText = if (result.first == -2) "Uninstall timed out" else "Uninstall incomplete (still detected)"
-                        adapter.updateItem(pkg.id)
-                        Toast.makeText(
-                            this@LibrariesActivity,
-                            "Warning: ${pkg.name} uninstall incomplete.",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    pkg.isUninstalling = false
-                    pkg.progressPercent = -1
-                    pkg.statusText = "Uninstall error: ${e.message}"
-                    adapter.updateItem(pkg.id)
-                    Toast.makeText(
-                        this@LibrariesActivity,
-                        "Error uninstalling ${pkg.name}: ${e.message}",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-            } finally {
-                isUninstallRunning = false
-            }
-        }
     }
 
     /**
@@ -887,7 +556,7 @@ class LibrariesActivity : AppCompatActivity() {
      */
     private fun activateConda(pkg: LinuxPackage) {
         if (pkg.isActivating) return
-        if (isQueueProcessing) {
+        if (installerManager.isAnyInstallInProgress()) {
             Toast.makeText(this, "Please wait for current installation to finish before activating Conda.", Toast.LENGTH_SHORT).show()
             return
         }

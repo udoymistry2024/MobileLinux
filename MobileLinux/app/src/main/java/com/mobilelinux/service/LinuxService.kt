@@ -103,6 +103,9 @@ class LinuxService : LifecycleService() {
                 terminalManager.createSession()
                 updateNotification()
             }
+            ACTION_UPDATE_STATUS -> {
+                updateNotification()
+            }
         }
 
         return START_STICKY  // Restart if killed by OS
@@ -191,12 +194,12 @@ class LinuxService : LifecycleService() {
             PendingIntent.FLAG_IMMUTABLE
         )
 
+        val content = customStatusText ?: if (sessionCount == 0) "Ubuntu environment ready"
+        else "$sessionCount session${if (sessionCount > 1) "s" else ""} running"
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("MobileLinux")
-            .setContentText(
-                if (sessionCount == 0) "Ubuntu environment ready"
-                else "$sessionCount session${if (sessionCount > 1) "s" else ""} running"
-            )
+            .setContentText(content)
             .setSmallIcon(R.drawable.ic_terminal)
             .setContentIntent(openIntent)
             .setOngoing(true)
@@ -225,6 +228,22 @@ class LinuxService : LifecycleService() {
     companion object {
         const val ACTION_KILL_ALL = "com.mobilelinux.KILL_ALL"
         const val ACTION_NEW_SESSION = "com.mobilelinux.NEW_SESSION"
+        const val ACTION_UPDATE_STATUS = "com.mobilelinux.UPDATE_STATUS"
+        const val EXTRA_STATUS_TEXT = "extra_status_text"
+
+        @Volatile
+        private var customStatusText: String? = null
+
+        fun updateCustomStatus(context: Context, status: String?) {
+            customStatusText = status
+            try {
+                val intent = Intent(context, LinuxService::class.java).apply {
+                    action = ACTION_UPDATE_STATUS
+                    putExtra(EXTRA_STATUS_TEXT, status)
+                }
+                context.startService(intent)
+            } catch (ignored: Exception) {}
+        }
 
         fun start(context: Context) {
             val intent = Intent(context, LinuxService::class.java)

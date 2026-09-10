@@ -1578,17 +1578,45 @@ class UbuntuRuntime(private val context: Context) {
             }
 
             val ffWrapper = File(usrLocalBin, "firefox")
-            if (File(rootfsDir, "usr/lib/firefox/firefox").exists() || File(rootfsDir, "usr/bin/firefox-esr").exists()) {
+            if (File(rootfsDir, "usr/lib/firefox/firefox").exists() ||
+                File(rootfsDir, "opt/firefox/firefox").exists() ||
+                File(rootfsDir, "usr/bin/firefox-esr").exists() ||
+                File(rootfsDir, "usr/bin/firefox").exists()) {
                 safeWriteFile(
                     ffWrapper,
                     "#!/bin/bash\n" +
+                    "export DISPLAY=\"\${DISPLAY:-:1}\"\n" +
                     "export MOZ_FAKE_NO_SANDBOX=1\n" +
+                    "export MOZ_DISABLE_CONTENT_SANDBOX=1\n" +
+                    "export MOZ_DISABLE_GMP_SANDBOX=1\n" +
+                    "export MOZ_DISABLE_RDD_SANDBOX=1\n" +
+                    "export LIBGL_ALWAYS_SOFTWARE=1\n" +
+                    "export NO_AT_BRIDGE=1\n" +
+                    "unset GDK_SYNCHRONIZE\n" +
+                    "chmod 777 /tmp/.X11-unix /tmp/.X11-unix/* 2>/dev/null || true\n" +
+                    "xhost + >/dev/null 2>&1 || true\n" +
+                    "\n" +
+                    "REAL_FF=\"\"\n" +
                     "if [ -x /usr/lib/firefox/firefox ]; then\n" +
-                    "    exec /usr/lib/firefox/firefox \"\$@\"\n" +
+                    "    REAL_FF=\"/usr/lib/firefox/firefox\"\n" +
+                    "elif [ -x /opt/firefox/firefox ]; then\n" +
+                    "    REAL_FF=\"/opt/firefox/firefox\"\n" +
                     "elif [ -x /usr/bin/firefox-esr ]; then\n" +
-                    "    exec /usr/bin/firefox-esr \"\$@\"\n" +
+                    "    REAL_FF=\"/usr/bin/firefox-esr\"\n" +
+                    "elif [ -x /usr/bin/firefox ] && [ \"\$(readlink -f /usr/bin/firefox 2>/dev/null)\" != \"/usr/local/bin/firefox\" ]; then\n" +
+                    "    REAL_FF=\"/usr/bin/firefox\"\n" +
                     "fi\n" +
-                    "exit 1\n"
+                    "\n" +
+                    "if [ -z \"\$REAL_FF\" ]; then\n" +
+                    "    echo 'Firefox binary not found.'\n" +
+                    "    exit 1\n" +
+                    "fi\n" +
+                    "\n" +
+                    "if [ \"\$(id -u)\" = \"0\" ]; then\n" +
+                    "    exec su - ubuntu -c \"export DISPLAY='\$DISPLAY'; export MOZ_FAKE_NO_SANDBOX=1; export MOZ_DISABLE_CONTENT_SANDBOX=1; export LIBGL_ALWAYS_SOFTWARE=1; export NO_AT_BRIDGE=1; unset GDK_SYNCHRONIZE; '\$REAL_FF' \$(printf '%q ' \\\"\\$@\\\")\"\n" +
+                    "else\n" +
+                    "    exec \"\$REAL_FF\" \"\$@\"\n" +
+                    "fi\n"
                 )
                 ffWrapper.setExecutable(true, false)
                 ffWrapper.setReadable(true, false)
@@ -4631,6 +4659,17 @@ class UbuntuRuntime(private val context: Context) {
     var isInstallingTools = false
         private set
 
+    private var essentialToolsJob: kotlinx.coroutines.Job? = null
+
+    fun cancelEssentialToolsInstall() {
+        if (isInstallingTools) {
+            Log.d(TAG, "Cancelling background essential tools install for user priority task...")
+            essentialToolsJob?.cancel()
+            isInstallingTools = false
+            cleanupAptLocks()
+        }
+    }
+
     private fun installEssentialToolsInBackground() {
         val marker = File(rootfsDir, "etc/mobilelinux/.tools_installed")
         if (marker.exists()) return
@@ -4655,7 +4694,7 @@ class UbuntuRuntime(private val context: Context) {
         }
 
         isInstallingTools = true
-        CoroutineScope(Dispatchers.IO).launch {
+        essentialToolsJob = CoroutineScope(Dispatchers.IO).launch {
             try {
                 // Wait 4 seconds after session starts so interactive terminal loads immediately without apt lock contention
                 delay(4000)
@@ -4669,15 +4708,17 @@ class UbuntuRuntime(private val context: Context) {
 
                 val installCmd = "export DEBIAN_FRONTEND=noninteractive && " +
                         "rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true; " +
-                        "(apt-get -o DPkg::Lock::Timeout=60 -o Acquire::ForceIPv4=true update || true) && " +
-                        "apt-get -o DPkg::Lock::Timeout=60 -o Acquire::ForceIPv4=true install -y --no-install-recommends curl wget ca-certificates nano vim-tiny git python3-pip htop tree unzip zip && " +
+                        "(apt-get -o DPkg::Lock::Timeout=15 -o Acquire::ForceIPv4=true update || true) && " +
+                        "apt-get -o DPkg::Lock::Timeout=15 -o Acquire::ForceIPv4=true install -y --no-install-recommends curl wget ca-certificates nano && " +
                         "touch /etc/mobilelinux/.tools_installed"
 
-                val result = runCommand(installCmd)
-                if (result.first == 0) {
-                    Log.i(TAG, "Essential tools auto-installed successfully! ✓")
-                } else {
-                    Log.w(TAG, "Background auto-install exit code ${result.first}: ${result.second}")
+                kotlinx.coroutines.withTimeoutOrNull(45_000) {
+                    val result = runCommand(installCmd)
+                    if (result.first == 0) {
+                        Log.i(TAG, "Essential tools auto-installed successfully! ✓")
+                    } else {
+                        Log.w(TAG, "Background auto-install exit code ${result.first}: ${result.second}")
+                    }
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Background auto-install exception: ${e.message}")

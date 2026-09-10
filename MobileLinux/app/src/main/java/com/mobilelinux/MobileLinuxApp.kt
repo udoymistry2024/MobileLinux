@@ -34,6 +34,37 @@ class MobileLinuxApp : Application() {
         var isLowRamDevice: Boolean = false
             private set
 
+        private var currentActivityRef: java.lang.ref.WeakReference<android.app.Activity>? = null
+
+        fun updateWindowKeepScreenOn(activity: android.app.Activity?) {
+            if (activity == null || activity.isFinishing || activity.isDestroyed) return
+            try {
+                val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(activity)
+                val keepScreenOnPref = prefs.getBoolean("pref_keep_screen_on", false)
+                val isInstalling = try {
+                    com.mobilelinux.service.PackageInstallationManager.getInstance(activity).isAnyInstallInProgress()
+                } catch (e: Exception) {
+                    false
+                }
+
+                if (keepScreenOnPref || isInstalling) {
+                    activity.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                } else {
+                    activity.window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "updateWindowKeepScreenOn error: ${e.message}")
+            }
+        }
+
+        fun notifyScreenKeepOnChanged() {
+            currentActivityRef?.get()?.let { act ->
+                act.runOnUiThread {
+                    updateWindowKeepScreenOn(act)
+                }
+            }
+        }
+
         /**
          * Suggested scrollback capacity tailored to device RAM tier:
          * - Devices <= 6GB RAM: 2,000 lines
@@ -53,6 +84,43 @@ class MobileLinuxApp : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+
+        // Global Keep-Screen-On lifecycle listener & SharedPreferences observer
+        try {
+            val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this)
+            prefs.registerOnSharedPreferenceChangeListener { _, key ->
+                if (key == "pref_keep_screen_on") {
+                    notifyScreenKeepOnChanged()
+                }
+            }
+
+            registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+                override fun onActivityCreated(activity: android.app.Activity, savedInstanceState: android.os.Bundle?) {
+                    updateWindowKeepScreenOn(activity)
+                }
+
+                override fun onActivityStarted(activity: android.app.Activity) {
+                    updateWindowKeepScreenOn(activity)
+                }
+
+                override fun onActivityResumed(activity: android.app.Activity) {
+                    currentActivityRef = java.lang.ref.WeakReference(activity)
+                    updateWindowKeepScreenOn(activity)
+                }
+
+                override fun onActivityPaused(activity: android.app.Activity) {
+                    if (currentActivityRef?.get() === activity) {
+                        currentActivityRef = null
+                    }
+                }
+
+                override fun onActivityStopped(activity: android.app.Activity) {}
+                override fun onActivitySaveInstanceState(activity: android.app.Activity, outState: android.os.Bundle) {}
+                override fun onActivityDestroyed(activity: android.app.Activity) {}
+            })
+        } catch (e: Exception) {
+            Log.w(TAG, "ActivityLifecycleCallbacks error: ${e.message}")
+        }
 
         // Early sanitation: ensure dead sockets and stale locks from any previous crash / force-stop are purged
         try {

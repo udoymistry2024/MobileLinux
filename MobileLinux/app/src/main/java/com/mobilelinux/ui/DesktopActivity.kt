@@ -456,6 +456,11 @@ class DesktopActivity : AppCompatActivity(),
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        com.mobilelinux.MobileLinuxApp.updateWindowKeepScreenOn(this)
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         vncCanvas.disconnect()

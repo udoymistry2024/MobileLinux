@@ -10,7 +10,7 @@
   [![Platform](https://img.shields.io/badge/Platform-Android%208.0%2B-3DDC84.svg?logo=android&logoColor=white)](https://github.com/udoymistry2024/MobileLinux/releases)
   [![OS: Ubuntu 24.04 LTS](https://img.shields.io/badge/Ubuntu-24.04%20LTS-E95420.svg?logo=ubuntu&logoColor=white)](https://ubuntu.com)
   [![Architecture](https://img.shields.io/badge/Arch-ARM64%20%7C%20ARMv7-007ACC.svg)](#architecture)
-  [![Version](https://img.shields.io/badge/Version-1.6.0--Desktop+--Edition-blueviolet.svg)](https://github.com/udoymistry2024/MobileLinux/releases)
+  [![Version](https://img.shields.io/badge/Version-1.6.1--Beta-blueviolet.svg)](https://github.com/udoymistry2024/MobileLinux/releases)
 
   <p align="center">
     <a href="#key-features">Key Features</a> •
@@ -92,7 +92,7 @@ Whether you are compiling C/C++ projects with `gcc`, running a **Miniforge / Con
 
 ### 1. Download & Install
 Download the latest signed release APK from [**GitHub Releases**](https://github.com/udoymistry2024/MobileLinux/releases):
-- **`MobileLinux-v1.6.0.apk`** (or `MobileLinux-latest.apk`)
+- **`MobileLinux-v1.6.1-beta.apk`** (or `MobileLinux-v1.6.1.apk`)
 
 Install the APK on any device running **Android 8.0 (Oreo) or higher** (Targeting Android 15 / API 35).
 
@@ -138,6 +138,20 @@ bash Miniforge3-Linux-aarch64.sh
 
 <a name="whats-new"></a>
 ## 🆕 What's New
+
+### v1.6.1 (Beta)
+- 📦 **Desktop Applications in Built-in Libraries & Package Store:**
+  - Added full graphical desktop applications directly to the built-in Package Store: **Firefox Browser**, **Chromium Browser**, **VLC Media Player**, **GIMP Image Editor**, **LibreOffice Suite**, **Geany IDE**, and **Inkscape Vector Graphics**.
+  - One-click seamless installation and uninstallation with live percentage tracking.
+  - Automatic desktop shortcuts in XFCE Application Menu, PRoot root bypass wrappers, and sandbox workarounds.
+- ⚡ **Desktop Startup & Performance Optimization:**
+  - Resolved display server startup failure (`code 2`) by fixing script parsing and adding robust TigerVNC fallback.
+  - Disabled software compositing and UI animations in XFCE for snappy 60fps mobile responsiveness.
+- 🔋 **Global Screen Wake Lock & Persistent Background Installs:**
+  - "Keep Screen On" toggle now functions globally across all screens (Terminal, Desktop, Libraries, Settings) in real-time.
+  - Dedicated background package manager (`PackageInstallationManager`) with WakeLock and Android Foreground Service notifications keeps downloads and installations running uninterrupted when navigating away or minimizing the app.
+- 🦊 **Native ARM64 & AMD64 Firefox Browser:**
+  - Integrated official Launchpad Mozilla Team PPA repository and automatic portable bundle fallback for seamless Firefox installations.
 
 ### v1.6.0 (Desktop+ Edition)
 - 🖥️ **Full Linux Desktop Mode (XFCE4 & TigerVNC):**

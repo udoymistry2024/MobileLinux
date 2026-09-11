@@ -1,32 +1,44 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:padding="20dp">
+    android:orientation="vertical">
 
+    <!-- Keep ID for compatibility, hidden because CustomDialog has its own message text -->
     <TextView
         android:id="@+id/tv_dialog_prompt"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textColor="@color/text_secondary"
-        android:textSize="14sp"
-        android:text="Enter name:" />
+        android:visibility="gone" />
 
     <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/til_file_name"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+        android:layout_marginTop="4dp"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+        app:boxCornerRadiusTopStart="8dp"
+        app:boxCornerRadiusTopEnd="8dp"
+        app:boxCornerRadiusBottomStart="8dp"
+        app:boxCornerRadiusBottomEnd="8dp"
+        app:boxStrokeColor="@color/accent_blue"
+        app:boxStrokeWidth="1dp"
+        app:boxStrokeWidthFocused="1.5dp"
+        app:hintTextColor="@color/accent_blue"
+        android:textColorHint="@color/text_secondary">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/et_file_name"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:textColor="@color/text_primary"
-            android:textSize="15sp"
+            android:textSize="14sp"
+            android:fontFamily="@font/inter_regular"
             android:singleLine="true"
-            android:imeOptions="actionDone" />
+            android:imeOptions="actionDone"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp" />
     </com.google.android.material.textfield.TextInputLayout>
 
 </LinearLayout>

@@ -5,10 +5,10 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
-import androidx.appcompat.widget.PopupMenu
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.mobilelinux.R
+import com.mobilelinux.ui.MenuHelper
 import java.io.File
 
 data class FileTreeNode(
@@ -158,31 +158,27 @@ class FileTreeAdapter(
     }
 
     private fun showContextMenu(anchor: View, file: File) {
-        val popup = PopupMenu(anchor.context, anchor)
+        val items = mutableListOf<MenuHelper.Item>()
         if (file.isDirectory) {
-            popup.menu.add(0, 10, 0, "📂 Open as Project")
-            popup.menu.add(0, 1, 1, "New File Inside")
-            popup.menu.add(0, 2, 2, "New Folder Inside")
+            items.add(MenuHelper.Item.Action(R.drawable.ic_folder_open, "Open as Project") { onOpenAsProject(file) })
+            items.add(MenuHelper.Item.Action(R.drawable.ic_file_plus, "New File Inside") { onNewFile(file) })
+            items.add(MenuHelper.Item.Action(R.drawable.ic_folder_plus, "New Folder Inside") { onNewFolder(file) })
+            items.add(MenuHelper.Item.Divider)
         } else {
-            popup.menu.add(0, 3, 0, "Open File")
+            items.add(MenuHelper.Item.Action(R.drawable.ic_code, "Open File") { onFileClick(file) })
+            items.add(MenuHelper.Item.Divider)
         }
-        popup.menu.add(0, 4, 3, "Rename")
-        popup.menu.add(0, 5, 4, "Delete")
-        popup.menu.add(0, 6, 5, "Copy Path")
+        items.add(MenuHelper.Item.Action(R.drawable.ic_edit, "Rename") { onRename(file) })
+        items.add(MenuHelper.Item.Action(R.drawable.ic_copy, "Copy Path") { onCopyPath(file) })
+        items.add(MenuHelper.Item.Divider)
+        items.add(MenuHelper.Item.Action(R.drawable.ic_trash, "Delete", destructive = true) { onDelete(file) })
 
-        popup.setOnMenuItemClickListener { item ->
-            when (item.itemId) {
-                10 -> onOpenAsProject(file)
-                1 -> onNewFile(file)
-                2 -> onNewFolder(file)
-                3 -> onFileClick(file)
-                4 -> onRename(file)
-                5 -> onDelete(file)
-                6 -> onCopyPath(file)
-            }
-            true
-        }
-        popup.show()
+        MenuHelper.show(
+            context = anchor.context,
+            anchor = anchor,
+            title = file.name,
+            items = items
+        )
     }
 
     override fun getItemCount(): Int = visibleNodes.size

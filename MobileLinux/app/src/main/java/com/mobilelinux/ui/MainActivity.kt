@@ -18,6 +18,7 @@ import android.provider.Settings
 import android.view.MenuItem
 import android.view.View
 import android.view.animation.AccelerateDecelerateInterpolator
+import android.widget.ImageButton
 import android.widget.ImageView
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -454,25 +455,70 @@ class MainActivity : AppCompatActivity() {
                 }
                 true
             }
-            R.id.action_desktop_mode -> {
-                launchDesktopMode()
+            R.id.action_overflow -> {
+                val anchor = toolbar.findViewById<View>(R.id.action_overflow)
+                    ?: findViewById<View>(R.id.action_overflow)
+                    ?: toolbar
+                showCustomMenu(anchor)
                 true
             }
-            R.id.action_code_ide -> {
-                openCodeIde()
+            // Overflow items are handled via custom menu — intercepted here as fallback
+            R.id.action_desktop_mode -> { launchDesktopMode(); true }
+            R.id.action_code_ide    -> { openCodeIde(); true }
+            R.id.action_libraries   -> { openLibraries(); true }
+            R.id.action_settings    -> { openSettings(); true }
+            android.R.id.home       -> {
+                // Home icon → open / close the navigation drawer
+                if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
+                    drawerLayout.closeDrawer(GravityCompat.START)
+                } else {
+                    drawerLayout.openDrawer(GravityCompat.START)
+                }
                 true
-            }
-            R.id.action_libraries -> {
-                openLibraries(); true
-            }
-            R.id.action_settings -> {
-                openSettings(); true
             }
             else -> super.onOptionsItemSelected(item)
         }
     }
 
+    /** Shows the custom dark-themed anchored popup menu replacing the Android overflow popup. */
+    private fun showCustomMenu(anchor: View? = null) {
+        val targetAnchor = anchor
+            ?: toolbar.findViewById<View>(R.id.action_overflow)
+            ?: findViewById<View>(R.id.action_overflow)
+            ?: toolbar
+        MenuHelper.show(
+            context = this,
+            anchor = targetAnchor,
+            title = "Options",
+            items = listOf(
+                MenuHelper.Item.Action(
+                    icon = R.drawable.ic_desktop,
+                    title = "Desktop Mode"
+                ) { launchDesktopMode() },
+
+                MenuHelper.Item.Action(
+                    icon = R.drawable.ic_code,
+                    title = "Code IDE"
+                ) { openCodeIde() },
+
+                MenuHelper.Item.Action(
+                    icon = R.drawable.ic_library,
+                    title = "Libraries & Packages"
+                ) { openLibraries() },
+
+                MenuHelper.Item.Divider,
+
+                MenuHelper.Item.Action(
+                    icon = R.drawable.ic_settings,
+                    title = "Settings"
+                ) { openSettings() }
+            )
+        )
+    }
+
     override fun onCreateOptionsMenu(menu: android.view.Menu): Boolean {
+        // Inflate only the always-visible toolbar action items (Browser + New Session).
+        // The overflow (three-dot) menu is replaced by our custom BottomSheet.
         menuInflater.inflate(R.menu.menu_main, menu)
         return true
     }
@@ -511,16 +557,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showInstallDesktopPrompt() {
-        MaterialAlertDialogBuilder(this)
+        CustomDialog.Builder(this)
+            .setIcon(R.drawable.ic_desktop, ContextCompat.getColor(this, R.color.accent_blue))
             .setTitle("Reinstall Desktop Mode?")
             .setMessage("Desktop Mode is currently not installed. Would you like to reinstall and launch the XFCE4 desktop environment now?")
-            .setPositiveButton("Reinstall & Launch") { _, _ ->
-                startDesktopInstallation()
-            }
-            .setNeutralButton("Libraries & Packages") { _, _ ->
-                openLibraries()
-            }
-            .setNegativeButton("Cancel", null)
+            .setNeutralButton("Cancel")
+            .setNegativeButton("Libraries & Packages") { openLibraries() }
+            .setPositiveButton("Reinstall & Launch") { startDesktopInstallation() }
             .show()
     }
 
@@ -545,13 +588,13 @@ class MainActivity : AppCompatActivity() {
         progressLayout.addView(progressBar)
         progressLayout.addView(statusTv)
 
-        val dialog = MaterialAlertDialogBuilder(this)
+        val dialog = CustomDialog.Builder(this)
+            .setIcon(R.drawable.ic_desktop, ContextCompat.getColor(this, R.color.accent_blue))
             .setTitle("Installing XFCE4 & TigerVNC")
+            .setMessage("Downloading and setting up graphical desktop packages...")
             .setView(progressLayout)
             .setCancelable(false)
-            .create()
-
-        dialog.show()
+            .show()
 
         lifecycleScope.launch(Dispatchers.IO) {
             val cmd = "export DEBIAN_FRONTEND=noninteractive; sudo apt-get update && sudo apt-get install -y --no-install-recommends xfce4 xfce4-terminal tigervnc-standalone-server tigervnc-common dbus-x11"
@@ -579,11 +622,12 @@ class MainActivity : AppCompatActivity() {
                     Toast.makeText(this@MainActivity, "Desktop Installed Successfully!", Toast.LENGTH_SHORT).show()
                     startActivity(Intent(this@MainActivity, DesktopActivity::class.java))
                 } else {
-                    MaterialAlertDialogBuilder(this@MainActivity)
+                    CustomDialog.Builder(this@MainActivity)
+                        .setIcon(R.drawable.ic_shield_check, ContextCompat.getColor(this@MainActivity, R.color.accent_red))
                         .setTitle("Installation Incomplete")
                         .setMessage("Installation finished with exit code ${result.first}. Please check your internet connection or try installing via 'Libraries & Packages'.")
-                        .setPositiveButton("OK", null)
-                        .setNeutralButton("Open Store") { _, _ -> openLibraries() }
+                        .setPositiveButton("Open Store") { openLibraries() }
+                        .setNeutralButton("Dismiss")
                         .show()
                 }
             }

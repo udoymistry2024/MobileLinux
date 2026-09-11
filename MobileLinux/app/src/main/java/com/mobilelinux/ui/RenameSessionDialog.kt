@@ -1,42 +1,47 @@
 package com.mobilelinux.ui
 
-import android.app.Dialog
-import android.os.Bundle
+import android.content.Context
+import android.view.LayoutInflater
 import android.widget.EditText
-import androidx.appcompat.app.AlertDialog
-import androidx.fragment.app.DialogFragment
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentManager
 import com.mobilelinux.R
 
-class RenameSessionDialog : DialogFragment() {
+/**
+ * Modern custom dialog for renaming terminal sessions.
+ */
+object RenameSessionDialog {
 
-    private var onResult: ((String) -> Unit)? = null
-    private var currentName: String = ""
+    fun show(context: Context, currentName: String, onResult: (String) -> Unit) {
+        val dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_file_action, null)
+        val etName = dialogView.findViewById<EditText>(R.id.et_file_name)
+        val til = dialogView.findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.til_file_name)
+        til?.hint = "Session name"
+        etName.setText(currentName)
+        etName.setSelection(etName.text.length)
 
-    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        val editText = EditText(requireContext()).apply {
-            setText(currentName)
-            selectAll()
-            setPadding(48, 24, 48, 24)
-        }
-
-        return AlertDialog.Builder(requireContext())
+        CustomDialog.Builder(context)
+            .setIcon(R.drawable.ic_edit, ContextCompat.getColor(context, R.color.accent_yellow))
             .setTitle("Rename Session")
-            .setView(editText)
-            .setPositiveButton("Rename") { _, _ ->
-                val name = editText.text.toString().trim()
-                if (name.isNotEmpty()) onResult?.invoke(name)
+            .setMessage("Enter a new name for this session:")
+            .setView(dialogView)
+            .setPositiveButtonWithResult("Rename") {
+                val name = etName.text.toString().trim()
+                if (name.isNotEmpty()) {
+                    onResult(name)
+                    true
+                } else {
+                    false
+                }
             }
-            .setNegativeButton("Cancel", null)
-            .create()
+            .setNeutralButton("Cancel")
+            .show()
     }
 
-    companion object {
-        fun show(fm: FragmentManager, currentName: String, onResult: (String) -> Unit) {
-            RenameSessionDialog().apply {
-                this.currentName = currentName
-                this.onResult = onResult
-            }.show(fm, "rename_dialog")
+    fun show(fm: FragmentManager, currentName: String, onResult: (String) -> Unit) {
+        val ctx = fm.fragments.firstOrNull()?.context
+        if (ctx != null) {
+            show(ctx, currentName, onResult)
         }
     }
 }

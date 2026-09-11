@@ -2,46 +2,56 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
+    <!-- Always-visible toolbar shortcut: Browser -->
     <item
         android:id="@+id/action_open_browser"
         android:title="Browser"
         android:icon="@drawable/ic_globe"
-        app:showAsAction="ifRoom"
-        android:orderInCategory="0" />
+        app:showAsAction="always"
+        android:orderInCategory="10" />
 
+    <!-- Always-visible toolbar shortcut: New Session -->
     <item
         android:id="@+id/action_new_session"
         android:title="@string/action_new_session"
         android:icon="@drawable/ic_add_session"
-        app:showAsAction="ifRoom"
-        android:orderInCategory="1" />
+        app:showAsAction="always"
+        android:orderInCategory="20" />
 
+    <!-- Always-visible toolbar overflow menu (three dots) - at the far right corner -->
+    <item
+        android:id="@+id/action_overflow"
+        android:title="More options"
+        android:icon="@drawable/ic_more_vert"
+        app:showAsAction="always"
+        android:orderInCategory="30" />
     <item
         android:id="@+id/action_desktop_mode"
         android:title="Desktop Mode"
-        android:icon="@drawable/ic_desktop"
         app:showAsAction="never"
-        android:orderInCategory="85" />
+        android:orderInCategory="85"
+        android:visible="false" />
 
     <item
         android:id="@+id/action_code_ide"
         android:title="Code IDE"
-        android:icon="@drawable/ic_code"
         app:showAsAction="never"
-        android:orderInCategory="88" />
+        android:orderInCategory="88"
+        android:visible="false" />
 
     <item
         android:id="@+id/action_libraries"
         android:title="Libraries &amp; Packages"
-        android:icon="@drawable/ic_library"
         app:showAsAction="never"
-        android:orderInCategory="90" />
+        android:orderInCategory="90"
+        android:visible="false" />
 
     <item
         android:id="@+id/action_settings"
         android:title="@string/action_settings"
-        android:icon="@drawable/ic_settings"
         app:showAsAction="never"
-        android:orderInCategory="100" />
+        android:orderInCategory="100"
+        android:visible="false" />
 
 </menu>
+

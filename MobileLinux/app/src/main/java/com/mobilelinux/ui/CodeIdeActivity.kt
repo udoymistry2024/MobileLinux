@@ -7,6 +7,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
@@ -22,7 +24,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.widget.PopupMenu
+import androidx.core.content.ContextCompat
 import androidx.core.view.GravityCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -516,21 +518,20 @@ class CodeIdeActivity : AppCompatActivity() {
     }
 
     private fun showRenameTerminalDialog(item: IdeTerminalTabItem) {
-        val input = EditText(this).apply {
-            setText(item.name)
-            setSingleLine(true)
-            setSelection(text.length)
-        }
-        val frame = FrameLayout(this).apply {
-            val pad = (20 * resources.displayMetrics.density).toInt()
-            setPadding(pad, pad / 2, pad, 0)
-            addView(input)
-        }
-        AlertDialog.Builder(this)
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_file_action, null)
+        val etName = dialogView.findViewById<EditText>(R.id.et_file_name)
+        val til = dialogView.findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.til_file_name)
+        til?.hint = "Terminal name"
+        etName.setText(item.name)
+        etName.setSelection(etName.text.length)
+
+        CustomDialog.Builder(this)
+            .setIcon(R.drawable.ic_terminal_small, ContextCompat.getColor(this, R.color.accent_blue))
             .setTitle("Rename Terminal")
-            .setView(frame)
-            .setPositiveButton("Save") { _, _ ->
-                val newName = input.text.toString().trim()
+            .setMessage("Enter a new name for this terminal session:")
+            .setView(dialogView)
+            .setPositiveButtonWithResult("Save") {
+                val newName = etName.text.toString().trim()
                 if (newName.isNotEmpty()) {
                     item.name = newName
                     terminalManager.renameSession(item.sessionId, newName)
@@ -538,9 +539,12 @@ class CodeIdeActivity : AppCompatActivity() {
                     if (item.sessionId == activeIdeSessionId) {
                         tvConsoleStatus.text = "Terminal ($newName) — Ready"
                     }
+                    true
+                } else {
+                    false
                 }
             }
-            .setNegativeButton("Cancel", null)
+            .setNeutralButton("Cancel")
             .show()
     }
 
@@ -635,33 +639,36 @@ class CodeIdeActivity : AppCompatActivity() {
         val btnCancel = dialogView.findViewById<Button>(R.id.btn_picker_cancel)
         val btnClose = dialogView.findViewById<ImageView>(R.id.btn_picker_close)
 
-        val chipHome = dialogView.findViewById<TextView>(R.id.chip_linux_home)
-        val chipShared = dialogView.findViewById<TextView>(R.id.chip_shared_storage)
-        val chipDevice = dialogView.findViewById<TextView>(R.id.chip_device_storage)
+        val chipHome = dialogView.findViewById<View>(R.id.chip_linux_home)
+        val chipShared = dialogView.findViewById<View>(R.id.chip_shared_storage)
+        val chipDevice = dialogView.findViewById<View>(R.id.chip_device_storage)
 
         rvFolders.layoutManager = LinearLayoutManager(this)
+        val dm = resources.displayMetrics
+        val preferredListHeight = (dm.heightPixels * 0.45).toInt().coerceIn((300 * dm.density).toInt(), (440 * dm.density).toInt())
+        (rvFolders.parent as? View)?.layoutParams?.height = preferredListHeight
 
-        var dialog: AlertDialog? = null
+        var dialog: android.app.Dialog? = null
         lateinit var pickerAdapter: FolderPickerAdapter
 
         fun loadSubfolders(dir: File) {
             currentBrowseDir = dir
             tvCurrentPath.text = codeRunner.toLinuxPath(dir)
 
-            val subdirs = dir.listFiles()
-                ?.filter { it.isDirectory && !it.name.startsWith(".") }
-                ?.sortedBy { it.name.lowercase() }
+            val allEntries = dir.listFiles()
+                ?.filter { !it.name.startsWith(".") }
+                ?.sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() }))
                 ?: emptyList()
 
-            tvEmpty.visibility = if (subdirs.isEmpty()) View.VISIBLE else View.GONE
-            pickerAdapter.updateFolders(subdirs)
+            tvEmpty.visibility = if (allEntries.isEmpty()) View.VISIBLE else View.GONE
+            pickerAdapter.updateFolders(allEntries)
 
             val parent = dir.parentFile
             val canUp = parent != null && parent.canRead()
             btnUp.alpha = if (canUp) 1.0f else 0.35f
             btnUp.isEnabled = canUp
 
-            btnSelect.text = "Select \"${dir.name}\" as Project"
+            btnSelect.text = "Open Folder"
         }
 
         pickerAdapter = FolderPickerAdapter(emptyList()) { selectedSubfolder ->
@@ -675,7 +682,10 @@ class CodeIdeActivity : AppCompatActivity() {
 
         // Location Chips
         chipHome.setOnClickListener { loadSubfolders(defaultHome) }
-        chipShared.setOnClickListener { loadSubfolders(sharedDir) }
+        chipShared.setOnClickListener {
+            if (!sharedDir.exists()) sharedDir.mkdirs()
+            loadSubfolders(sharedDir)
+        }
         chipDevice.setOnClickListener {
             if (sdcard != null && sdcard.exists()) loadSubfolders(sdcard)
         }
@@ -703,10 +713,14 @@ class CodeIdeActivity : AppCompatActivity() {
         btnCancel.setOnClickListener { dialog?.dismiss() }
         btnClose.setOnClickListener { dialog?.dismiss() }
 
-        dialog = MaterialAlertDialogBuilder(this)
-            .setView(dialogView)
-            .setCancelable(true)
-            .show()
+        val customDialog = android.app.Dialog(this, R.style.Theme_MobileLinux_CustomDialog)
+        customDialog.setContentView(dialogView)
+        customDialog.setCancelable(true)
+        customDialog.setCanceledOnTouchOutside(true)
+        val width = (dm.widthPixels - (32 * dm.density).toInt()).coerceAtMost((460 * dm.density).toInt())
+        customDialog.window?.setLayout(width, android.view.ViewGroup.LayoutParams.WRAP_CONTENT)
+        customDialog.show()
+        dialog = customDialog
     }
 
     private fun setupTabs() {
@@ -1305,17 +1319,18 @@ class CodeIdeActivity : AppCompatActivity() {
         val tab = openTabs[index]
 
         if (tab.isDirty) {
-            MaterialAlertDialogBuilder(this)
+            CustomDialog.Builder(this)
+                .setIcon(R.drawable.ic_save, ContextCompat.getColor(this, R.color.accent_yellow))
                 .setTitle("Unsaved Changes")
                 .setMessage("Save changes to \"${tab.title}\" before closing?")
-                .setPositiveButton("Save & Close") { _, _ ->
+                .setPositiveButton("Save & Close") {
                     saveCurrentFile()
                     performCloseTab(index)
                 }
-                .setNegativeButton("Discard") { _, _ ->
+                .setNegativeButton("Discard", destructive = true) {
                     performCloseTab(index)
                 }
-                .setNeutralButton("Cancel", null)
+                .setNeutralButton("Cancel")
                 .show()
         } else {
             performCloseTab(index)
@@ -1378,23 +1393,27 @@ class CodeIdeActivity : AppCompatActivity() {
         val defaultCmd = codeRunner.buildCommandForFile(linuxPath, file)
 
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_file_action, null)
-        val promptText = dialogView.findViewById<TextView>(R.id.tv_dialog_prompt)
         val etCommand = dialogView.findViewById<EditText>(R.id.et_file_name)
-
-        promptText.text = "Customize run command or arguments:"
+        val til = dialogView.findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.til_file_name)
+        til?.hint = "Run command"
         etCommand.setText(defaultCmd)
         etCommand.setSelection(etCommand.text.length)
 
-        MaterialAlertDialogBuilder(this)
+        CustomDialog.Builder(this)
+            .setIcon(R.drawable.ic_play, ContextCompat.getColor(this, R.color.accent_green))
             .setTitle("Run Configuration")
+            .setMessage("Customize run command or arguments:")
             .setView(dialogView)
-            .setPositiveButton("Run") { _, _ ->
+            .setPositiveButtonWithResult("Run") {
                 val customCmd = etCommand.text.toString().trim()
                 if (customCmd.isNotEmpty()) {
                     executeCommandInTerminal(file, customCmd)
+                    true
+                } else {
+                    false
                 }
             }
-            .setNegativeButton("Cancel", null)
+            .setNeutralButton("Cancel")
             .show()
     }
 
@@ -1437,16 +1456,16 @@ class CodeIdeActivity : AppCompatActivity() {
 
     private fun showNewFileDialog(parentDir: File) {
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_file_action, null)
-        val promptText = dialogView.findViewById<TextView>(R.id.tv_dialog_prompt)
         val etName = dialogView.findViewById<EditText>(R.id.et_file_name)
+        val til = dialogView.findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.til_file_name)
+        til?.hint = "File name (e.g. main.py, test.c)"
 
-        promptText.text = "New file in ${parentDir.name}:"
-        etName.hint = "e.g. main.py, test.c, app.js"
-
-        MaterialAlertDialogBuilder(this)
+        CustomDialog.Builder(this)
+            .setIcon(R.drawable.ic_file_plus, ContextCompat.getColor(this, R.color.accent_blue))
             .setTitle("New File")
+            .setMessage("Create a new file in ${parentDir.name}:")
             .setView(dialogView)
-            .setPositiveButton("Create") { _, _ ->
+            .setPositiveButtonWithResult("Create") {
                 val name = etName.text.toString().trim()
                 if (name.isNotEmpty()) {
                     val newFile = File(parentDir, name)
@@ -1455,27 +1474,32 @@ class CodeIdeActivity : AppCompatActivity() {
                         fileTreeAdapter.reload()
                         openFileInEditor(newFile)
                         Toast.makeText(this, "Created $name", Toast.LENGTH_SHORT).show()
+                        true
                     } else {
                         Toast.makeText(this, "File already exists", Toast.LENGTH_SHORT).show()
+                        false
                     }
+                } else {
+                    Toast.makeText(this, "Please enter a file name", Toast.LENGTH_SHORT).show()
+                    false
                 }
             }
-            .setNegativeButton("Cancel", null)
+            .setNeutralButton("Cancel")
             .show()
     }
 
     private fun showNewFolderDialog(parentDir: File, onCreated: ((File) -> Unit)? = null) {
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_file_action, null)
-        val promptText = dialogView.findViewById<TextView>(R.id.tv_dialog_prompt)
         val etName = dialogView.findViewById<EditText>(R.id.et_file_name)
+        val til = dialogView.findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.til_file_name)
+        til?.hint = "Folder name"
 
-        promptText.text = "New folder in ${parentDir.name}:"
-        etName.hint = "Folder name"
-
-        MaterialAlertDialogBuilder(this)
+        CustomDialog.Builder(this)
+            .setIcon(R.drawable.ic_folder_plus, ContextCompat.getColor(this, R.color.accent_green))
             .setTitle("New Folder")
+            .setMessage("Create a new folder in ${parentDir.name}:")
             .setView(dialogView)
-            .setPositiveButton("Create") { _, _ ->
+            .setPositiveButtonWithResult("Create") {
                 val name = etName.text.toString().trim()
                 if (name.isNotEmpty()) {
                     val newFolder = File(parentDir, name)
@@ -1483,25 +1507,34 @@ class CodeIdeActivity : AppCompatActivity() {
                         fileTreeAdapter.reload()
                         Toast.makeText(this, "Created folder $name", Toast.LENGTH_SHORT).show()
                         onCreated?.invoke(newFolder)
+                        true
+                    } else {
+                        Toast.makeText(this, "Could not create folder or already exists", Toast.LENGTH_SHORT).show()
+                        false
                     }
+                } else {
+                    Toast.makeText(this, "Please enter a folder name", Toast.LENGTH_SHORT).show()
+                    false
                 }
             }
-            .setNegativeButton("Cancel", null)
+            .setNeutralButton("Cancel")
             .show()
     }
 
     private fun showRenameDialog(target: File) {
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_file_action, null)
-        val promptText = dialogView.findViewById<TextView>(R.id.tv_dialog_prompt)
         val etName = dialogView.findViewById<EditText>(R.id.et_file_name)
-
-        promptText.text = "Rename \"${target.name}\" to:"
+        val til = dialogView.findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.til_file_name)
+        til?.hint = "New name"
         etName.setText(target.name)
+        etName.setSelection(etName.text.length)
 
-        MaterialAlertDialogBuilder(this)
+        CustomDialog.Builder(this)
+            .setIcon(R.drawable.ic_edit, ContextCompat.getColor(this, R.color.accent_yellow))
             .setTitle("Rename")
+            .setMessage("Rename \"${target.name}\" to:")
             .setView(dialogView)
-            .setPositiveButton("Rename") { _, _ ->
+            .setPositiveButtonWithResult("Rename") {
                 val newName = etName.text.toString().trim()
                 if (newName.isNotEmpty() && newName != target.name) {
                     val dest = File(target.parentFile, newName)
@@ -1516,19 +1549,26 @@ class CodeIdeActivity : AppCompatActivity() {
                         fileTreeAdapter.reload()
                         updateProjectBanner()
                         Toast.makeText(this, "Renamed to $newName", Toast.LENGTH_SHORT).show()
+                        true
+                    } else {
+                        Toast.makeText(this, "Failed to rename", Toast.LENGTH_SHORT).show()
+                        false
                     }
+                } else {
+                    false
                 }
             }
-            .setNegativeButton("Cancel", null)
+            .setNeutralButton("Cancel")
             .show()
     }
 
     private fun confirmDelete(target: File) {
         val type = if (target.isDirectory) "folder" else "file"
-        MaterialAlertDialogBuilder(this)
+        CustomDialog.Builder(this)
+            .setIcon(R.drawable.ic_trash, ContextCompat.getColor(this, R.color.accent_red))
             .setTitle("Delete $type?")
             .setMessage("Are you sure you want to permanently delete \"${target.name}\"?")
-            .setPositiveButton("Delete") { _, _ ->
+            .setPositiveButton("Delete", destructive = true) {
                 if (target.isDirectory) {
                     val tabsToClose = openTabs.filter { it.file.absolutePath.startsWith(target.absolutePath) }
                     for (tab in tabsToClose) {
@@ -1548,74 +1588,109 @@ class CodeIdeActivity : AppCompatActivity() {
                 updateProjectBanner()
                 Toast.makeText(this, "Deleted ${target.name}", Toast.LENGTH_SHORT).show()
             }
-            .setNegativeButton("Cancel", null)
+            .setNeutralButton("Cancel")
             .show()
     }
 
     private fun showOverflowMenu(anchor: View) {
-        val popup = PopupMenu(this, anchor)
-        popup.menu.add(0, 1, 0, "Find / Replace")
-        popup.menu.add(0, 2, 1, if (isWordWrap) "Disable Word Wrap" else "Enable Word Wrap")
-        popup.menu.add(0, 3, 2, "Increase Font (${currentFontSize + 2}px)")
-        popup.menu.add(0, 4, 3, "Decrease Font (${currentFontSize - 2}px)")
-        popup.menu.add(0, 5, 4, "Theme: One Dark")
-        popup.menu.add(0, 6, 5, "Theme: Monokai")
-        popup.menu.add(0, 7, 6, "Theme: Dracula")
-        popup.menu.add(0, 8, 7, "Minimize to Terminal")
-        popup.menu.add(0, 9, 8, "Close All Tabs")
-        popup.menu.add(0, 10, 9, "Exit IDE")
+        MenuHelper.show(
+            context = this,
+            anchor = anchor,
+            title = "Code IDE",
+            items = listOf(
+                MenuHelper.Item.Action(
+                    icon = R.drawable.ic_code,
+                    title = "Find / Replace"
+                ) { editorWebView.evaluateJavascript("window.editorFind();", null) },
 
-        popup.setOnMenuItemClickListener { item ->
-            when (item.itemId) {
-                1 -> editorWebView.evaluateJavascript("window.editorFind();", null)
-                2 -> {
+                MenuHelper.Item.Action(
+                    icon = R.drawable.ic_settings,
+                    title = if (isWordWrap) "Disable Word Wrap" else "Enable Word Wrap",
+                    badge = if (isWordWrap) "ON" else null
+                ) {
                     isWordWrap = !isWordWrap
                     editorWebView.evaluateJavascript("window.editorSetWordWrap($isWordWrap);", null)
-                }
-                3 -> {
+                },
+
+                MenuHelper.Item.Divider,
+
+                MenuHelper.Item.Action(
+                    icon = R.drawable.ic_add_session,
+                    title = "Increase Font (${currentFontSize + 2}px)"
+                ) {
                     currentFontSize += 2
                     editorWebView.evaluateJavascript("window.editorSetFontSize($currentFontSize);", null)
-                }
-                4 -> {
+                },
+
+                MenuHelper.Item.Action(
+                    icon = R.drawable.ic_settings,
+                    title = "Decrease Font (${currentFontSize - 2}px)",
+                    enabled = currentFontSize > 10
+                ) {
                     if (currentFontSize > 10) currentFontSize -= 2
                     editorWebView.evaluateJavascript("window.editorSetFontSize($currentFontSize);", null)
-                }
-                5 -> editorWebView.evaluateJavascript("window.editorSetTheme('one_dark');", null)
-                6 -> editorWebView.evaluateJavascript("window.editorSetTheme('monokai');", null)
-                7 -> editorWebView.evaluateJavascript("window.editorSetTheme('dracula');", null)
-                8 -> {
-                    minimizeToTerminal()
-                }
-                9 -> {
+                },
+
+                MenuHelper.Item.Divider,
+
+                MenuHelper.Item.Action(
+                    icon = R.drawable.ic_globe,
+                    title = "Theme: One Dark"
+                ) { editorWebView.evaluateJavascript("window.editorSetTheme('one_dark');", null) },
+
+                MenuHelper.Item.Action(
+                    icon = R.drawable.ic_globe,
+                    title = "Theme: Monokai"
+                ) { editorWebView.evaluateJavascript("window.editorSetTheme('monokai');", null) },
+
+                MenuHelper.Item.Action(
+                    icon = R.drawable.ic_globe,
+                    title = "Theme: Dracula"
+                ) { editorWebView.evaluateJavascript("window.editorSetTheme('dracula');", null) },
+
+                MenuHelper.Item.Divider,
+
+                MenuHelper.Item.Action(
+                    icon = R.drawable.ic_arrow_back,
+                    title = "Minimize to Terminal"
+                ) { minimizeToTerminal() },
+
+                MenuHelper.Item.Action(
+                    icon = R.drawable.ic_close,
+                    title = "Close All Tabs",
+                    destructive = true
+                ) {
                     while (openTabs.isNotEmpty()) {
                         performCloseTab(0)
                     }
-                }
-                10 -> {
-                    confirmAndExitIde()
-                }
-            }
-            true
-        }
-        popup.show()
+                },
+
+                MenuHelper.Item.Action(
+                    icon = R.drawable.ic_close,
+                    title = "Exit IDE",
+                    destructive = true
+                ) { confirmAndExitIde() }
+            )
+        )
     }
 
     private fun confirmAndExitIde() {
         val unsavedCount = openTabs.count { it.isDirty }
         if (unsavedCount > 0) {
-            MaterialAlertDialogBuilder(this)
+            CustomDialog.Builder(this)
+                .setIcon(R.drawable.ic_close, ContextCompat.getColor(this, R.color.accent_red))
                 .setTitle("Exit Code IDE")
                 .setMessage("You have $unsavedCount unsaved file(s). Do you want to save before exiting?")
-                .setPositiveButton("Save & Exit") { _, _ ->
+                .setNeutralButton("Cancel")
+                .setNegativeButton("Exit Without Saving", destructive = true) {
+                    saveTabsState()
+                    finish()
+                }
+                .setPositiveButton("Save & Exit") {
                     saveCurrentFile()
                     saveTabsState()
                     finish()
                 }
-                .setNegativeButton("Exit Without Saving") { _, _ ->
-                    saveTabsState()
-                    finish()
-                }
-                .setNeutralButton("Cancel", null)
                 .show()
         } else {
             saveTabsState()
@@ -1725,10 +1800,11 @@ class CodeIdeActivity : AppCompatActivity() {
     }
 
     private fun showCloseAllTerminalsDialog() {
-        AlertDialog.Builder(this)
+        CustomDialog.Builder(this)
+            .setIcon(R.drawable.ic_trash, ContextCompat.getColor(this, R.color.accent_red))
             .setTitle("Close All Terminals")
             .setMessage("Do you want to terminate all open IDE terminal sessions?")
-            .setPositiveButton("Close All") { _, _ ->
+            .setPositiveButton("Close All", destructive = true) {
                 val tm = terminalManager
                 for (tab in ideTabs.toList()) {
                     try {
@@ -1743,7 +1819,7 @@ class CodeIdeActivity : AppCompatActivity() {
                 terminalTabAdapter.submitTabs(ideTabs, null)
                 toggleConsole(show = false)
             }
-            .setNegativeButton("Cancel", null)
+            .setNeutralButton("Cancel")
             .show()
     }
 
@@ -1783,16 +1859,17 @@ class CodeIdeActivity : AppCompatActivity() {
     }
 
     private fun showNavigationDialog() {
-        MaterialAlertDialogBuilder(this)
+        CustomDialog.Builder(this)
+            .setIcon(R.drawable.ic_code, ContextCompat.getColor(this, R.color.accent_blue))
             .setTitle("Code IDE Navigation")
             .setMessage("Do you want to minimize Code IDE (keep running in background) or exit completely?")
-            .setPositiveButton("Minimize") { _, _ ->
-                minimizeToTerminal()
-            }
-            .setNegativeButton("Exit IDE") { _, _ ->
+            .setNeutralButton("Cancel")
+            .setNegativeButton("Exit IDE", destructive = true) {
                 confirmAndExitIde()
             }
-            .setNeutralButton("Cancel", null)
+            .setPositiveButton("Minimize") {
+                minimizeToTerminal()
+            }
             .show()
     }
 

@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    layout_custom_dialog.xml
+    Custom premium dialog layout for MobileLinux.
+    Features icon badge, clean Inter typography, and beautifully styled action buttons.
+-->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_dialog_card"
+    android:padding="22dp">
+
+    <!-- Top Icon Badge (optional) -->
+    <FrameLayout
+        android:id="@+id/dialog_icon_container"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:background="@drawable/bg_dialog_icon_circle"
+        android:layout_marginBottom="14dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/dialog_icon"
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:layout_gravity="center"
+            android:scaleType="fitCenter"
+            android:contentDescription="@null"
+            app:tint="@color/accent_blue" />
+    </FrameLayout>
+
+    <!-- Title -->
+    <TextView
+        android:id="@+id/dialog_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="17sp"
+        android:textColor="@color/text_primary"
+        android:fontFamily="@font/inter_bold"
+        android:letterSpacing="0.01" />
+
+    <!-- Message Description -->
+    <TextView
+        android:id="@+id/dialog_message"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:textSize="13.5sp"
+        android:textColor="@color/text_secondary"
+        android:fontFamily="@font/inter_regular"
+        android:lineSpacingMultiplier="1.25" />
+
+    <!-- Optional Custom Content Container (for inputs, progress, etc.) -->
+    <FrameLayout
+        android:id="@+id/dialog_custom_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:visibility="gone" />
+
+    <!-- Action Buttons -->
+    <LinearLayout
+        android:id="@+id/dialog_button_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="22dp"
+        android:orientation="horizontal"
+        android:gravity="end|center_vertical">
+
+        <!-- Neutral / Cancel Button (placed on the left) -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_dialog_neutral"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="38dp"
+            android:textColor="@color/text_secondary"
+            android:fontFamily="@font/inter_medium"
+            android:textSize="13sp"
+            android:textAllCaps="false"
+            android:visibility="gone"
+            app:cornerRadius="8dp" />
+
+        <!-- Spacer to push cancel button to left and action buttons to right -->
+        <View
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <!-- Negative / Destructive Button -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_dialog_negative"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="38dp"
+            android:textColor="@color/accent_red"
+            app:strokeColor="@color/border_color"
+            android:fontFamily="@font/inter_medium"
+            android:textSize="13sp"
+            android:textAllCaps="false"
+            android:visibility="gone"
+            android:layout_marginEnd="8dp"
+            app:cornerRadius="8dp" />
+
+        <!-- Positive / Primary Button -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_dialog_positive"
+            style="@style/Widget.MaterialComponents.Button"
+            android:layout_width="wrap_content"
+            android:layout_height="38dp"
+            android:backgroundTint="@color/accent_blue"
+            android:textColor="@color/colorOnPrimary"
+            android:fontFamily="@font/inter_medium"
+            android:textSize="13sp"
+            android:textAllCaps="false"
+            android:visibility="gone"
+            app:cornerRadius="8dp" />
+
+    </LinearLayout>
+
+</LinearLayout>

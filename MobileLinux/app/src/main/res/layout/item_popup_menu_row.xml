@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    item_popup_menu_row.xml
+    Single item row inside the anchored popup menu.
+    Displays icon + title + optional subtitle + optional badge/checkmark.
+-->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:minHeight="42dp"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingStart="14dp"
+    android:paddingEnd="14dp"
+    android:paddingTop="9dp"
+    android:paddingBottom="9dp"
+    android:layout_marginStart="4dp"
+    android:layout_marginEnd="4dp"
+    android:background="@drawable/bg_popup_item"
+    android:clickable="true"
+    android:focusable="true">
+
+    <ImageView
+        android:id="@+id/iv_popup_item_icon"
+        android:layout_width="18dp"
+        android:layout_height="18dp"
+        android:layout_marginEnd="12dp"
+        android:scaleType="fitCenter"
+        android:contentDescription="@null"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tv_popup_item_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="13.5sp"
+            android:textColor="#FFE6EDF3"
+            android:fontFamily="@font/inter_medium"
+            android:singleLine="true"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/tv_popup_item_subtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="11sp"
+            android:textColor="#FF8B949E"
+            android:fontFamily="@font/inter_regular"
+            android:visibility="gone"
+            android:layout_marginTop="1dp" />
+
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tv_popup_item_badge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:textSize="12sp"
+        android:textColor="@color/accent_blue"
+        android:fontFamily="@font/inter_bold"
+        android:visibility="gone" />
+
+</LinearLayout>

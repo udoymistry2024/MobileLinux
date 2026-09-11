@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    layout_popup_menu.xml
+    Container for the anchored popup menu. Rendered inside a PopupWindow.
+    Dark card with rounded corners, elevation shadow, custom item rows.
+-->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_popup_menu"
+    android:paddingTop="6dp"
+    android:paddingBottom="6dp"
+    android:clipToPadding="false">
+
+    <!-- Optional section title (hidden by default) -->
+    <TextView
+        android:id="@+id/tv_popup_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="4dp"
+        android:textSize="10sp"
+        android:letterSpacing="0.12"
+        android:textColor="#FF8B949E"
+        android:fontFamily="@font/inter_medium"
+        android:visibility="gone" />
+
+    <!-- Divider below title (hidden by default) -->
+    <View
+        android:id="@+id/divider_popup_title"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#FF30363D"
+        android:layout_marginBottom="4dp"
+        android:visibility="gone" />
+
+    <!-- Dynamic menu item rows are injected here -->
+    <LinearLayout
+        android:id="@+id/container_popup_items"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical" />
+
+</LinearLayout>

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="46dp"
@@ -12,11 +13,12 @@
     android:focusable="true">
 
     <ImageView
+        android:id="@+id/iv_picker_item_icon"
         android:layout_width="22dp"
         android:layout_height="22dp"
         android:src="@drawable/ic_folder"
-        android:tint="@color/accent_blue"
-        android:contentDescription="Folder" />
+        app:tint="@color/accent_blue"
+        android:contentDescription="Icon" />
 
     <TextView
         android:id="@+id/tv_picker_folder_name"
@@ -25,18 +27,19 @@
         android:layout_marginStart="12dp"
         android:layout_weight="1"
         android:ellipsize="middle"
-        android:fontFamily="sans-serif-medium"
+        android:fontFamily="@font/inter_medium"
         android:singleLine="true"
         android:textColor="@color/text_primary"
-        android:textSize="14sp"
+        android:textSize="13.5sp"
         tools:text="flask_project" />
 
     <ImageView
+        android:id="@+id/iv_picker_item_arrow"
         android:layout_width="16dp"
         android:layout_height="16dp"
         android:src="@drawable/ic_arrow_back"
         android:rotation="180"
-        android:tint="@color/text_secondary"
+        app:tint="@color/text_secondary"
         android:contentDescription="Open" />
 
 </LinearLayout>

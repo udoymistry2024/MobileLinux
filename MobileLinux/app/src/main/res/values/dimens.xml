@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Toolbar icon touch padding (uniform, matches Material guidelines ~12dp) -->
+    <dimen name="toolbar_icon_padding">10dp</dimen>
+</resources>

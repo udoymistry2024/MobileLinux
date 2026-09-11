@@ -18,7 +18,6 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.text.format.DateUtils
 import android.view.LayoutInflater
-import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
@@ -30,7 +29,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
-import androidx.appcompat.widget.PopupMenu
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.webkit.WebSettingsCompat
@@ -427,13 +426,14 @@ class DevBrowserActivity : AppCompatActivity() {
             return
         }
 
-        MaterialAlertDialogBuilder(this)
+        CustomDialog.Builder(this)
+            .setIcon(R.drawable.ic_close, ContextCompat.getColor(this, R.color.accent_red))
             .setTitle("Close All Tabs")
             .setMessage("Are you sure you want to close all $count tabs? A clean home tab will be opened.")
-            .setPositiveButton("OK") { _, _ ->
+            .setNeutralButton("Cancel")
+            .setPositiveButton("Close All", destructive = true) {
                 closeAllTabs()
             }
-            .setNegativeButton("Cancel", null)
             .show()
     }
 
@@ -603,11 +603,12 @@ class DevBrowserActivity : AppCompatActivity() {
                 ) {
                     handler?.proceed()
                 } else {
-                    MaterialAlertDialogBuilder(this@DevBrowserActivity)
+                    CustomDialog.Builder(this@DevBrowserActivity)
+                        .setIcon(R.drawable.ic_shield_check, ContextCompat.getColor(this@DevBrowserActivity, R.color.accent_yellow))
                         .setTitle("SSL Certificate Warning")
                         .setMessage("The certificate for '${url.take(50)}' is not trusted.\n\nDo you want to proceed anyway?")
-                        .setPositiveButton("Proceed (Unsafe)") { _, _ -> handler?.proceed() }
-                        .setNegativeButton("Cancel") { _, _ -> handler?.cancel() }
+                        .setPositiveButton("Proceed (Unsafe)", destructive = true) { handler?.proceed() }
+                        .setNeutralButton("Cancel") { handler?.cancel() }
                         .show()
                 }
             }
@@ -961,30 +962,38 @@ class DevBrowserActivity : AppCompatActivity() {
     }
 
     private fun showOverflowMenu(anchor: View) {
-        val popup = PopupMenu(this, anchor)
-        popup.menuInflater.inflate(R.menu.menu_dev_browser, popup.menu)
-
         val tab = currentTab
-        popup.menu.findItem(R.id.menu_desktop_mode)?.isChecked = tab?.isDesktopMode ?: false
+        val isDesktopMode = tab?.isDesktopMode ?: false
 
-        popup.setOnMenuItemClickListener { item: MenuItem ->
-            when (item.itemId) {
-                R.id.menu_refresh -> {
-                    tab?.webView?.reload()
-                    true
-                }
-                R.id.menu_new_tab -> {
-                    createNewTab(DEFAULT_HOME_URL, select = true)
-                    true
-                }
-                R.id.menu_history -> {
-                    showHistoryBottomSheet()
-                    true
-                }
-                R.id.menu_desktop_mode -> {
+        MenuHelper.show(
+            context = this,
+            anchor = anchor,
+            title = "Browser",
+            items = listOf(
+                MenuHelper.Item.Action(
+                    icon = R.drawable.ic_refresh,
+                    title = "Refresh"
+                ) { tab?.webView?.reload() },
+
+                MenuHelper.Item.Action(
+                    icon = R.drawable.ic_add_session,
+                    title = "New Tab"
+                ) { createNewTab(DEFAULT_HOME_URL, select = true) },
+
+                MenuHelper.Item.Action(
+                    icon = R.drawable.ic_history,
+                    title = "History"
+                ) { showHistoryBottomSheet() },
+
+                MenuHelper.Item.Divider,
+
+                MenuHelper.Item.Action(
+                    icon = R.drawable.ic_globe,
+                    title = "Desktop Site",
+                    badge = if (isDesktopMode) "✓" else null
+                ) {
                     if (tab != null) {
                         tab.isDesktopMode = !tab.isDesktopMode
-                        item.isChecked = tab.isDesktopMode
                         val settings = tab.webView.settings
                         if (tab.isDesktopMode) {
                             settings.userAgentString = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
@@ -993,58 +1002,74 @@ class DevBrowserActivity : AppCompatActivity() {
                         }
                         tab.webView.reload()
                     }
-                    true
-                }
-                R.id.menu_inspect_element -> {
-                    toggleInspectElement(tab)
-                    true
-                }
-                R.id.menu_view_console -> {
-                    showConsoleLogsDialog()
-                    true
-                }
-                R.id.menu_copy_url -> {
+                },
+
+                MenuHelper.Item.Action(
+                    icon = R.drawable.ic_code,
+                    title = "Inspect Element (DevTools)"
+                ) { toggleInspectElement(tab) },
+
+                MenuHelper.Item.Action(
+                    icon = R.drawable.ic_library,
+                    title = "Console Logs"
+                ) { showConsoleLogsDialog() },
+
+                MenuHelper.Item.Divider,
+
+                MenuHelper.Item.Action(
+                    icon = R.drawable.ic_globe,
+                    title = "Copy URL"
+                ) {
                     val currentUrl = tab?.webView?.url ?: etUrl.text.toString()
                     val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
                     clipboard?.setPrimaryClip(ClipData.newPlainText("URL", currentUrl))
                     Toast.makeText(this, "URL copied to clipboard", Toast.LENGTH_SHORT).show()
-                    true
-                }
-                R.id.menu_open_external -> {
+                },
+
+                MenuHelper.Item.Action(
+                    icon = R.drawable.ic_globe,
+                    title = "Open in External Browser"
+                ) {
                     val currentUrl = tab?.webView?.url ?: etUrl.text.toString()
                     try {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(currentUrl))
-                        startActivity(intent)
+                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(currentUrl)))
                     } catch (e: Exception) {
                         Toast.makeText(this, "Could not open external browser: ${e.message}", Toast.LENGTH_SHORT).show()
                     }
-                    true
-                }
-                R.id.menu_clear_cache -> {
+                },
+
+                MenuHelper.Item.Action(
+                    icon = R.drawable.ic_settings,
+                    title = "Clear Cache & Storage"
+                ) {
                     tab?.webView?.clearCache(true)
                     tab?.webView?.clearHistory()
                     WebStorage.getInstance().deleteAllData()
                     CookieManager.getInstance().removeAllCookies(null)
                     Toast.makeText(this, "Cache and cookies cleared", Toast.LENGTH_SHORT).show()
                     tab?.webView?.reload()
-                    true
-                }
-                R.id.menu_close_tab -> {
-                    closeTab(activeTabIndex)
-                    true
-                }
-                R.id.menu_minimize_to_terminal -> {
-                    minimizeToTerminal()
-                    true
-                }
-                R.id.menu_exit_browser -> {
-                    finish()
-                    true
-                }
-                else -> false
-            }
-        }
-        popup.show()
+                },
+
+                MenuHelper.Item.Divider,
+
+                MenuHelper.Item.Action(
+                    icon = R.drawable.ic_close,
+                    title = "Close Tab",
+                    destructive = true
+                ) { closeTab(activeTabIndex) },
+
+                MenuHelper.Item.Action(
+                    icon = R.drawable.ic_arrow_back,
+                    title = "Minimize to Terminal"
+                ) { minimizeToTerminal() },
+
+                MenuHelper.Item.Action(
+                    icon = R.drawable.ic_close,
+                    title = "Exit Browser",
+                    destructive = true
+                ) { finish() }
+            )
+        )
     }
 
     private var erudaScriptCache: String? = null
@@ -1140,15 +1165,16 @@ class DevBrowserActivity : AppCompatActivity() {
         })
 
         btnClearAll.setOnClickListener {
-            MaterialAlertDialogBuilder(this)
+            CustomDialog.Builder(this)
+                .setIcon(R.drawable.ic_trash, ContextCompat.getColor(this, R.color.accent_red))
                 .setTitle("Clear Browsing History")
                 .setMessage("Are you sure you want to clear all browsing history? This cannot be undone.")
-                .setPositiveButton("Clear All") { _, _ ->
+                .setPositiveButton("Clear All", destructive = true) {
                     historyDb.clearAllHistory()
                     refreshList()
                     Toast.makeText(this, "Browsing history cleared", Toast.LENGTH_SHORT).show()
                 }
-                .setNegativeButton("Cancel", null)
+                .setNeutralButton("Cancel")
                 .show()
         }
 
@@ -1173,13 +1199,15 @@ class DevBrowserActivity : AppCompatActivity() {
 
         val sv = ScrollView(this).apply {
             addView(tv)
+            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dpToPx(280))
         }
 
-        MaterialAlertDialogBuilder(this)
+        CustomDialog.Builder(this)
+            .setIcon(R.drawable.ic_terminal_small, ContextCompat.getColor(this, R.color.accent_blue))
             .setTitle("Browser Console Logs")
             .setView(sv)
-            .setPositiveButton("Close", null)
-            .setNegativeButton("Clear") { _, _ ->
+            .setPositiveButton("Close")
+            .setNegativeButton("Clear", destructive = true) {
                 consoleLogs.clear()
             }
             .show()
@@ -1194,16 +1222,17 @@ class DevBrowserActivity : AppCompatActivity() {
     }
 
     private fun showExitConfirmationDialog() {
-        MaterialAlertDialogBuilder(this)
+        CustomDialog.Builder(this)
+            .setIcon(R.drawable.ic_globe, ContextCompat.getColor(this, R.color.accent_blue))
             .setTitle("Browser Navigation")
             .setMessage("Do you want to minimize the browser (keep tabs running in background) or exit completely?")
-            .setPositiveButton("Minimize") { _, _ ->
-                minimizeToTerminal()
-            }
-            .setNegativeButton("Exit Browser") { _, _ ->
+            .setNeutralButton("Cancel")
+            .setNegativeButton("Exit Browser", destructive = true) {
                 finish()
             }
-            .setNeutralButton("Cancel", null)
+            .setPositiveButton("Minimize") {
+                minimizeToTerminal()
+            }
             .show()
     }
 

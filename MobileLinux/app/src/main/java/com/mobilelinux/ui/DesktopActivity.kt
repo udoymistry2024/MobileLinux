@@ -17,6 +17,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -441,13 +442,14 @@ class DesktopActivity : AppCompatActivity(),
     }
 
     private fun confirmExit() {
-        MaterialAlertDialogBuilder(this)
+        CustomDialog.Builder(this)
+            .setIcon(R.drawable.ic_desktop, ContextCompat.getColor(this, R.color.accent_red))
             .setTitle("Exit Desktop Mode?")
             .setMessage("All running graphical desktop applications will be cleanly closed, and background memory will be released.")
-            .setPositiveButton("Exit & Free RAM") { _, _ ->
+            .setPositiveButton("Exit & Free RAM", destructive = true) {
                 shutdownAndExit()
             }
-            .setNegativeButton("Cancel", null)
+            .setNeutralButton("Cancel")
             .show()
     }
 

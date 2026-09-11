@@ -12,8 +12,8 @@ android {
         applicationId = "com.mobilelinux.app"
         minSdk = 26          // Android 8.0 minimum
         targetSdk = 35       // Target Android 15
-        versionCode = 96
-        versionName = "1.7.2"
+        versionCode = 106
+        versionName = "1.7.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -87,6 +87,44 @@ android {
     // Don't compress specific asset types
     androidResources {
         noCompress += listOf("tar", "xz", "gz", "sh")
+    }
+}
+
+// ─── Auto-copy APK to project root after every build ──────────────────────────
+// After assembleDebug or assembleRelease succeeds, the generated APK is
+// automatically copied to the Mobile_Linux root folder as MobileLinux-vX.Y.Z.apk
+// and any previously existing MobileLinux-*.apk files there are deleted first.
+afterEvaluate {
+    val rootFolder = rootProject.projectDir.parentFile   // .../Mobile_Linux/
+    val versionLabel = android.defaultConfig.versionName ?: "unknown"
+    val destApkName = "MobileLinux-v$versionLabel.apk"
+
+    listOf("assembleDebug", "assembleRelease").forEach { taskName ->
+        tasks.findByName(taskName)?.doLast {
+            val buildType = if (taskName == "assembleRelease") "release" else "debug"
+            val apkDir = layout.buildDirectory.dir("outputs/apk/$buildType").get().asFile
+
+            val builtApk = apkDir.listFiles()
+                ?.filter { it.extension == "apk" }
+                ?.maxByOrNull { it.lastModified() }
+
+            if (builtApk != null && builtApk.exists()) {
+                // Remove all old MobileLinux-*.apk files from root
+                rootFolder.listFiles()
+                    ?.filter { it.name.startsWith("MobileLinux-") && it.extension == "apk" }
+                    ?.forEach { old ->
+                        old.delete()
+                        println("🗑️  Deleted old APK: ${old.name}")
+                    }
+
+                // Copy new APK to root
+                val destFile = File(rootFolder, destApkName)
+                builtApk.copyTo(destFile, overwrite = true)
+                println("✅ APK copied to root → $destApkName  (${destFile.length() / 1_048_576} MB)")
+            } else {
+                println("⚠️  No APK found in $apkDir — skipping copy.")
+            }
+        }
     }
 }
 

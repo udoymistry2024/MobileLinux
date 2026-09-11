@@ -56,8 +56,8 @@ class SessionSidebarFragment : Fragment() {
                     }
                 }
             },
-            onSessionRename = { session ->
-                showRenameDialog(session)
+            onSessionLongPress = { session, anchorView ->
+                showSessionContextMenu(session, anchorView)
             }
         )
         recyclerView.adapter = adapter
@@ -107,8 +107,38 @@ class SessionSidebarFragment : Fragment() {
         }
     }
 
+    private fun showSessionContextMenu(session: TerminalSession, anchor: View) {
+        MenuHelper.show(
+            context = requireContext(),
+            anchor = anchor,
+            title = session.name,
+            items = listOf(
+                MenuHelper.Item.Action(
+                    icon = R.drawable.ic_settings,
+                    title = "Rename Session"
+                ) { showRenameDialog(session) },
+
+                MenuHelper.Item.Divider,
+
+                MenuHelper.Item.Action(
+                    icon = R.drawable.ic_close,
+                    title = "Close Session",
+                    destructive = true
+                ) {
+                    val remaining = viewModel.closeSession(session.id, autoCreateFallback = false)
+                    if (remaining <= 0) {
+                        (activity as? MainActivity)?.let { act ->
+                            LinuxService.stop(act)
+                            act.finishAffinity()
+                        }
+                    }
+                }
+            )
+        )
+    }
+
     private fun showRenameDialog(session: TerminalSession) {
-        RenameSessionDialog.show(childFragmentManager, session.name) { newName ->
+        RenameSessionDialog.show(requireContext(), session.name) { newName ->
             viewModel.renameSession(session.id, newName)
         }
     }
@@ -120,7 +150,7 @@ class SessionSidebarFragment : Fragment() {
 class SessionAdapter(
     private val onSessionClick: (TerminalSession) -> Unit,
     private val onSessionClose: (TerminalSession) -> Unit,
-    private val onSessionRename: (TerminalSession) -> Unit
+    private val onSessionLongPress: (TerminalSession, View) -> Unit
 ) : RecyclerView.Adapter<SessionAdapter.ViewHolder>() {
 
     private var sessions = listOf<TerminalSession>()
@@ -174,7 +204,7 @@ class SessionAdapter(
         holder.itemView.isSelected = isActive
 
         holder.itemView.setOnClickListener { onSessionClick(session) }
-        holder.itemView.setOnLongClickListener { onSessionRename(session); true }
+        holder.itemView.setOnLongClickListener { onSessionLongPress(session, it); true }
         holder.btnClose.setOnClickListener { onSessionClose(session) }
     }
 

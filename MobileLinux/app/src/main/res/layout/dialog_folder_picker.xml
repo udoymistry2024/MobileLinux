@@ -5,163 +5,200 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:background="@color/card_bg"
-    android:padding="16dp">
+    android:background="@drawable/bg_dialog_card"
+    android:padding="20dp">
 
-    <!-- Header -->
+    <!-- Header with Icon Badge, Title, and Close Button -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
-        <ImageView
-            android:layout_width="22dp"
-            android:layout_height="22dp"
-            android:src="@drawable/ic_folder_open"
-            android:tint="@color/accent_blue"
-            android:contentDescription="Folder" />
+        <FrameLayout
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:background="@drawable/bg_dialog_icon_circle">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_folder_open"
+                app:tint="@color/accent_blue"
+                android:contentDescription="Folder" />
+        </FrameLayout>
 
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
+            android:layout_marginStart="12dp"
             android:layout_weight="1"
-            android:fontFamily="sans-serif-medium"
+            android:fontFamily="@font/inter_bold"
             android:text="Open Project Folder"
             android:textColor="@color/text_primary"
-            android:textSize="16sp" />
+            android:textSize="17sp"
+            android:letterSpacing="0.01" />
 
         <ImageView
             android:id="@+id/btn_picker_close"
-            android:layout_width="28dp"
-            android:layout_height="28dp"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="Close"
-            android:padding="5dp"
+            android:padding="6dp"
             android:src="@drawable/ic_close"
-            android:tint="@color/text_secondary" />
+            app:tint="@color/text_secondary" />
 
     </LinearLayout>
 
-    <!-- Quick Location Chips -->
-    <HorizontalScrollView
+    <!-- Quick Location Buttons (With real vector icons, no emojis) -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:overScrollMode="never"
-        android:scrollbars="none">
+        android:layout_marginTop="14dp"
+        android:orientation="horizontal">
 
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/chip_linux_home"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_weight="1.05"
+            android:layout_height="36dp"
+            android:text="Linux Home"
+            android:textColor="@color/text_primary"
+            android:textSize="11.5sp"
+            android:fontFamily="@font/inter_medium"
+            android:textAllCaps="false"
+            app:cornerRadius="8dp"
+            app:strokeColor="@color/border_color"
+            app:strokeWidth="1dp"
+            app:backgroundTint="@color/extra_keys_bg"
+            app:icon="@drawable/ic_home"
+            app:iconSize="13dp"
+            app:iconTint="@color/accent_blue"
+            app:iconGravity="textStart"
+            app:iconPadding="6dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp" />
 
-            <TextView
-                android:id="@+id/chip_linux_home"
-                android:layout_width="wrap_content"
-                android:layout_height="32dp"
-                android:background="@drawable/bg_accessory_key"
-                android:gravity="center"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:text="🏠 Linux Home"
-                android:textColor="@color/text_primary"
-                android:textSize="12sp" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/chip_shared_storage"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_weight="0.95"
+            android:layout_height="36dp"
+            android:layout_marginStart="6dp"
+            android:text="Shared"
+            android:textColor="@color/text_primary"
+            android:textSize="11.5sp"
+            android:fontFamily="@font/inter_medium"
+            android:textAllCaps="false"
+            app:cornerRadius="8dp"
+            app:strokeColor="@color/border_color"
+            app:strokeWidth="1dp"
+            app:backgroundTint="@color/extra_keys_bg"
+            app:icon="@drawable/ic_folder"
+            app:iconSize="13dp"
+            app:iconTint="@color/accent_yellow"
+            app:iconGravity="textStart"
+            app:iconPadding="6dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp" />
 
-            <TextView
-                android:id="@+id/chip_shared_storage"
-                android:layout_width="wrap_content"
-                android:layout_height="32dp"
-                android:layout_marginStart="6dp"
-                android:background="@drawable/bg_accessory_key"
-                android:gravity="center"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:text="📁 Shared (/sdcard/MobileLinux)"
-                android:textColor="@color/text_primary"
-                android:textSize="12sp" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/chip_device_storage"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_weight="0.95"
+            android:layout_height="36dp"
+            android:layout_marginStart="6dp"
+            android:text="Device"
+            android:textColor="@color/text_primary"
+            android:textSize="11.5sp"
+            android:fontFamily="@font/inter_medium"
+            android:textAllCaps="false"
+            app:cornerRadius="8dp"
+            app:strokeColor="@color/border_color"
+            app:strokeWidth="1dp"
+            app:backgroundTint="@color/extra_keys_bg"
+            app:icon="@drawable/ic_device_mobile"
+            app:iconSize="13dp"
+            app:iconTint="@color/accent_green"
+            app:iconGravity="textStart"
+            app:iconPadding="6dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp" />
 
-            <TextView
-                android:id="@+id/chip_device_storage"
-                android:layout_width="wrap_content"
-                android:layout_height="32dp"
-                android:layout_marginStart="6dp"
-                android:background="@drawable/bg_accessory_key"
-                android:gravity="center"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:text="📱 Device Storage"
-                android:textColor="@color/text_primary"
-                android:textSize="12sp" />
+    </LinearLayout>
 
-        </LinearLayout>
-
-    </HorizontalScrollView>
-
-    <!-- Path & Up / New Folder Navigation Bar -->
+    <!-- Path & Navigation Bar -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="40dp"
-        android:layout_marginTop="10dp"
-        android:background="#161B22"
+        android:layout_marginTop="12dp"
+        android:background="@drawable/bg_picker_path_bar"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingStart="6dp"
-        android:paddingEnd="6dp">
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp">
 
         <ImageView
             android:id="@+id/btn_picker_up"
-            android:layout_width="30dp"
-            android:layout_height="30dp"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="Parent Folder"
-            android:padding="6dp"
+            android:padding="5dp"
             android:src="@drawable/ic_arrow_up"
-            android:tint="@color/accent_yellow" />
+            app:tint="@color/accent_yellow" />
 
         <TextView
             android:id="@+id/tv_picker_current_path"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="6dp"
-            android:layout_marginEnd="6dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
             android:layout_weight="1"
             android:ellipsize="start"
             android:fontFamily="monospace"
             android:singleLine="true"
-            android:textColor="@color/accent_blue"
+            android:textColor="@color/accent_cyan"
             android:textSize="12sp"
             tools:text="~/home/ubuntu" />
 
         <ImageView
             android:id="@+id/btn_picker_new_folder"
-            android:layout_width="30dp"
-            android:layout_height="30dp"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="New Folder Here"
-            android:padding="6dp"
+            android:padding="5dp"
             android:src="@drawable/ic_folder_plus"
-            android:tint="@color/accent_green" />
+            app:tint="@color/accent_green" />
 
     </LinearLayout>
 
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:background="@color/border_color" />
-
-    <!-- Subfolders RecyclerView -->
+    <!-- Subfolders RecyclerView Container -->
     <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="220dp"
-        android:background="#0D1117">
+        android:layout_height="340dp"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/bg_picker_list_container">
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rv_picker_folders"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:overScrollMode="never" />
+            android:overScrollMode="never"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp" />
 
         <TextView
             android:id="@+id/tv_picker_empty"
@@ -169,25 +206,21 @@
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:gravity="center"
-            android:padding="16dp"
-            android:text="No subfolders in this directory.\nYou can select this folder as project or create a new subfolder."
+            android:padding="20dp"
+            android:fontFamily="@font/inter_regular"
+            android:text="This folder is empty.\nYou can select it as project or create new files/folders."
             android:textColor="@color/text_secondary"
-            android:textSize="12sp"
+            android:textSize="12.5sp"
             android:visibility="gone"
             tools:visibility="visible" />
 
     </FrameLayout>
 
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:background="@color/border_color" />
-
-    <!-- Bottom Buttons -->
+    <!-- Bottom Action Buttons -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="16dp"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
@@ -195,10 +228,13 @@
             android:id="@+id/btn_picker_cancel"
             style="@style/Widget.MaterialComponents.Button.TextButton"
             android:layout_width="wrap_content"
-            android:layout_height="40dp"
+            android:layout_height="38dp"
             android:text="Cancel"
             android:textColor="@color/text_secondary"
-            android:textSize="13sp" />
+            android:fontFamily="@font/inter_medium"
+            android:textSize="13sp"
+            android:textAllCaps="false"
+            app:cornerRadius="8dp" />
 
         <View
             android:layout_width="0dp"
@@ -207,15 +243,20 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_picker_select_folder"
+            style="@style/Widget.MaterialComponents.Button"
             android:layout_width="wrap_content"
-            android:layout_height="42dp"
+            android:layout_height="40dp"
             android:backgroundTint="@color/accent_blue"
-            android:text="Select This Folder as Project"
-            android:textColor="@android:color/white"
+            android:text="Open Folder"
+            android:textColor="@color/colorOnPrimary"
+            android:fontFamily="@font/inter_medium"
             android:textSize="13sp"
+            android:textAllCaps="false"
             app:cornerRadius="8dp"
             app:icon="@drawable/ic_folder_open"
-            app:iconTint="@android:color/white" />
+            app:iconSize="16dp"
+            app:iconTint="@color/colorOnPrimary"
+            app:iconPadding="6dp" />
 
     </LinearLayout>
 

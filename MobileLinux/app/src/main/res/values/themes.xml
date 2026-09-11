@@ -33,6 +33,10 @@
         <item name="materialButtonStyle">@style/Widget.MobileLinux.Button</item>
         <item name="materialButtonOutlinedStyle">@style/Widget.MobileLinux.Button.Outlined</item>
         <item name="chipStyle">@style/Widget.MobileLinux.Chip</item>
+
+        <!-- Dialog themes -->
+        <item name="alertDialogTheme">@style/Theme.MobileLinux.Dialog</item>
+        <item name="materialAlertDialogTheme">@style/Theme.MobileLinux.Dialog</item>
     </style>
 
     <!-- Setup activity theme (same dark, but with system bars) -->
@@ -96,14 +100,57 @@
 
     <!-- Dialog -->
     <style name="Theme.MobileLinux.Dialog" parent="ThemeOverlay.MaterialComponents.Dialog.Alert">
-        <item name="android:background">@color/sidebar_bg</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
         <item name="colorPrimary">@color/accent_blue</item>
+        <item name="colorSurface">@color/card_bg</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+        <item name="shapeAppearanceMediumComponent">@style/ShapeAppearance.MobileLinux.Dialog</item>
+    </style>
+
+    <style name="ShapeAppearance.MobileLinux.Dialog" parent="ShapeAppearance.MaterialComponents.MediumComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">16dp</item>
+    </style>
+
+    <style name="Theme.MobileLinux.CustomDialog" parent="Theme.MaterialComponents.DayNight.Dialog">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowIsFloating">true</item>
+        <item name="android:windowAnimationStyle">@style/PopupMenuAnimation</item>
+    </style>
+
+    <!-- Custom BottomSheet menu style -->
+    <style name="Theme.MobileLinux.BottomSheet" parent="Theme.MaterialComponents.BottomSheetDialog">
+        <item name="android:background">@android:color/transparent</item>
+        <item name="bottomSheetStyle">@style/Widget.MobileLinux.BottomSheet</item>
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+    </style>
+
+    <style name="Widget.MobileLinux.BottomSheet" parent="Widget.MaterialComponents.BottomSheet">
+        <item name="android:background">@drawable/bg_bottom_sheet</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.MobileLinux.BottomSheet</item>
+    </style>
+
+    <style name="ShapeAppearance.MobileLinux.BottomSheet" parent="ShapeAppearance.MaterialComponents.LargeComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSizeTopLeft">20dp</item>
+        <item name="cornerSizeTopRight">20dp</item>
+        <item name="cornerSizeBottomLeft">0dp</item>
+        <item name="cornerSizeBottomRight">0dp</item>
     </style>
 
     <!-- Preference theme -->
     <style name="PreferenceThemeOverlay.MobileLinux" parent="PreferenceThemeOverlay.v14.Material">
         <item name="android:background">@color/terminal_bg</item>
+    </style>
+
+    <!-- Custom anchored PopupMenu animation -->
+    <style name="PopupMenuAnimation">
+        <item name="android:windowEnterAnimation">@anim/popup_enter</item>
+        <item name="android:windowExitAnimation">@anim/popup_exit</item>
     </style>
 
 </resources>

@@ -23,15 +23,15 @@
         android:paddingTop="6dp"
         android:paddingBottom="6dp">
 
-        <!-- Back to Terminal button -->
+        <!-- Back / Minimize to Terminal button -->
         <ImageButton
             android:id="@+id/btn_browser_close"
             android:layout_width="36dp"
             android:layout_height="36dp"
-            android:src="@drawable/ic_close"
+            android:src="@drawable/ic_arrow_back"
             android:background="?attr/selectableItemBackgroundBorderless"
             app:tint="@color/text_primary"
-            android:contentDescription="Close Browser" />
+            android:contentDescription="Minimize to Terminal" />
 
         <!-- Home Button -->
         <ImageButton

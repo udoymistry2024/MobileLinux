@@ -41,6 +41,7 @@ import com.mobilelinux.terminal.TerminalBuffer
 import com.mobilelinux.terminal.TerminalManager
 import com.mobilelinux.terminal.TerminalView
 import com.mobilelinux.util.StorageHelper
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
@@ -53,10 +54,17 @@ class CodeIdeActivity : AppCompatActivity() {
 
     private val TAG = "CodeIdeActivity"
 
+    companion object {
+        private const val KEY_IDE_WELCOME_SHOWN = "initial_welcome_shown"
+        private const val KEY_SAVED_OPEN_TABS = "saved_open_tabs"
+        private const val KEY_ACTIVE_TAB_PATH = "saved_active_tab_path"
+    }
+
     // UI Components
     private lateinit var drawerLayout: DrawerLayout
     private lateinit var editorWebView: WebView
     private lateinit var tvActiveFilename: TextView
+    private lateinit var btnMinimizeIde: ImageView
     private lateinit var btnToggleTerminal: ImageView
     private lateinit var btnSaveFile: ImageView
     private lateinit var btnRunCode: MaterialButton
@@ -173,14 +181,16 @@ class CodeIdeActivity : AppCompatActivity() {
         // Bind LinuxService to power the embedded TerminalView
         bindLinuxService()
 
-        // Open default home file or create example script if directory is empty
-        ensureInitialFile()
+        // Restore last session tabs or show welcome/clean workspace
+        restoreOrInitIdeSession()
     }
 
     private fun initViews() {
         drawerLayout = findViewById(R.id.drawer_layout)
         editorWebView = findViewById(R.id.editor_webview)
         tvActiveFilename = findViewById(R.id.tv_active_filename)
+        btnMinimizeIde = findViewById(R.id.btn_minimize_ide)
+        btnMinimizeIde.setOnClickListener { minimizeToTerminal() }
         btnToggleTerminal = findViewById(R.id.btn_toggle_terminal)
         btnSaveFile = findViewById(R.id.btn_save_file)
         btnRunCode = findViewById(R.id.btn_run_code)
@@ -1228,6 +1238,7 @@ class CodeIdeActivity : AppCompatActivity() {
         val newIndex = openTabs.size - 1
         tabsAdapter.notifyItemInserted(newIndex)
         switchTab(newIndex)
+        saveTabsState()
     }
 
     private fun switchTab(index: Int) {
@@ -1247,6 +1258,7 @@ class CodeIdeActivity : AppCompatActivity() {
         } else {
             pendingFileToOpen = activeTab.file
         }
+        saveTabsState()
     }
 
     private fun loadFileIntoEditor(file: File) {
@@ -1326,6 +1338,7 @@ class CodeIdeActivity : AppCompatActivity() {
             val nextIndex = if (index >= openTabs.size) openTabs.size - 1 else index
             switchTab(nextIndex)
         }
+        saveTabsState()
     }
 
     // =========================================================================
@@ -1502,6 +1515,7 @@ class CodeIdeActivity : AppCompatActivity() {
                             tabsAdapter.notifyItemChanged(idx)
                             if (activeTabIndex == idx) tvActiveFilename.text = dest.name
                         }
+                        saveTabsState()
                         fileTreeAdapter.reload()
                         updateProjectBanner()
                         Toast.makeText(this, "Renamed to $newName", Toast.LENGTH_SHORT).show()
@@ -1518,15 +1532,21 @@ class CodeIdeActivity : AppCompatActivity() {
             .setTitle("Delete $type?")
             .setMessage("Are you sure you want to permanently delete \"${target.name}\"?")
             .setPositiveButton("Delete") { _, _ ->
-                val openIdx = openTabs.indexOfFirst { it.file.absolutePath == target.absolutePath }
-                if (openIdx != -1) {
-                    performCloseTab(openIdx)
-                }
                 if (target.isDirectory) {
+                    val tabsToClose = openTabs.filter { it.file.absolutePath.startsWith(target.absolutePath) }
+                    for (tab in tabsToClose) {
+                        val idx = openTabs.indexOf(tab)
+                        if (idx != -1) performCloseTab(idx)
+                    }
                     target.deleteRecursively()
                 } else {
+                    val openIdx = openTabs.indexOfFirst { it.file.absolutePath == target.absolutePath }
+                    if (openIdx != -1) {
+                        performCloseTab(openIdx)
+                    }
                     target.delete()
                 }
+                saveTabsState()
                 fileTreeAdapter.reload()
                 updateProjectBanner()
                 Toast.makeText(this, "Deleted ${target.name}", Toast.LENGTH_SHORT).show()
@@ -1544,7 +1564,7 @@ class CodeIdeActivity : AppCompatActivity() {
         popup.menu.add(0, 5, 4, "Theme: One Dark")
         popup.menu.add(0, 6, 5, "Theme: Monokai")
         popup.menu.add(0, 7, 6, "Theme: Dracula")
-        popup.menu.add(0, 8, 7, "Open Terminal App")
+        popup.menu.add(0, 8, 7, "Minimize to Terminal")
         popup.menu.add(0, 9, 8, "Close All Tabs")
         popup.menu.add(0, 10, 9, "Exit IDE")
 
@@ -1567,7 +1587,7 @@ class CodeIdeActivity : AppCompatActivity() {
                 6 -> editorWebView.evaluateJavascript("window.editorSetTheme('monokai');", null)
                 7 -> editorWebView.evaluateJavascript("window.editorSetTheme('dracula');", null)
                 8 -> {
-                    startActivity(Intent(this, MainActivity::class.java))
+                    minimizeToTerminal()
                 }
                 9 -> {
                     while (openTabs.isNotEmpty()) {
@@ -1591,35 +1611,120 @@ class CodeIdeActivity : AppCompatActivity() {
                 .setMessage("You have $unsavedCount unsaved file(s). Do you want to save before exiting?")
                 .setPositiveButton("Save & Exit") { _, _ ->
                     saveCurrentFile()
+                    saveTabsState()
                     finish()
                 }
                 .setNegativeButton("Exit Without Saving") { _, _ ->
+                    saveTabsState()
                     finish()
                 }
                 .setNeutralButton("Cancel", null)
                 .show()
         } else {
+            saveTabsState()
             finish()
         }
     }
 
-    private fun ensureInitialFile() {
-        val root = currentRootDir ?: getDefaultLinuxHome()
-        val exampleFile = File(root, "hello.py")
-        if (!exampleFile.exists()) {
-            try {
-                exampleFile.writeText(
-                    "# Welcome to MobileLinux Code IDE!\n" +
-                    "# Write, edit and run Python, C, Node.js and Bash scripts natively.\n\n" +
-                    "def main():\n" +
-                    "    print(\"Hello from MobileLinux Code IDE!\")\n" +
-                    "    print(\"Powered by Ubuntu 24.04 PRoot Engine.\")\n\n" +
-                    "if __name__ == '__main__':\n" +
-                    "    main()\n"
-                )
-            } catch (ignored: Exception) {}
+    private fun saveTabsState() {
+        try {
+            val prefs = getSharedPreferences("ide_prefs", Context.MODE_PRIVATE)
+            val tabPaths = JSONArray()
+            for (tab in openTabs) {
+                tabPaths.put(tab.file.absolutePath)
+            }
+            val activePath = if (activeTabIndex in openTabs.indices) {
+                openTabs[activeTabIndex].file.absolutePath
+            } else null
+
+            prefs.edit()
+                .putString(KEY_SAVED_OPEN_TABS, tabPaths.toString())
+                .putString(KEY_ACTIVE_TAB_PATH, activePath)
+                .apply()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error saving tabs state: ${e.message}")
         }
-        openFileInEditor(exampleFile)
+    }
+
+    private fun restoreOrInitIdeSession() {
+        val prefs = getSharedPreferences("ide_prefs", Context.MODE_PRIVATE)
+        val welcomeShown = prefs.getBoolean(KEY_IDE_WELCOME_SHOWN, false)
+        if (!welcomeShown) {
+            // First time user launch: create hello.py welcome script
+            prefs.edit().putBoolean(KEY_IDE_WELCOME_SHOWN, true).apply()
+            val root = currentRootDir ?: getDefaultLinuxHome()
+            val exampleFile = File(root, "hello.py")
+            if (!exampleFile.exists()) {
+                try {
+                    exampleFile.writeText(
+                        "# Welcome to MobileLinux Code IDE!\n" +
+                        "# Write, edit and run Python, C, Node.js and Bash scripts natively.\n\n" +
+                        "def main():\n" +
+                        "    print(\"Hello from MobileLinux Code IDE!\")\n" +
+                        "    print(\"Powered by Ubuntu 24.04 PRoot Engine.\")\n\n" +
+                        "if __name__ == '__main__':\n" +
+                        "    main()\n"
+                    )
+                } catch (ignored: Exception) {}
+            }
+            openFileInEditor(exampleFile)
+            saveTabsState()
+            return
+        }
+
+        // Subsequent runs: Restore last opened tabs
+        val savedTabsRaw = prefs.getString(KEY_SAVED_OPEN_TABS, null)
+        val savedActivePath = prefs.getString(KEY_ACTIVE_TAB_PATH, null)
+
+        if (!savedTabsRaw.isNullOrEmpty()) {
+            try {
+                val jsonArr = JSONArray(savedTabsRaw)
+                val filesToOpen = mutableListOf<File>()
+                for (i in 0 until jsonArr.length()) {
+                    val path = jsonArr.optString(i)
+                    if (!path.isNullOrEmpty()) {
+                        val file = File(path)
+                        if (file.exists() && file.isFile) {
+                            filesToOpen.add(file)
+                        }
+                    }
+                }
+
+                if (filesToOpen.isNotEmpty()) {
+                    for (file in filesToOpen) {
+                        val tab = IdeTab(file = file)
+                        openTabs.add(tab)
+                    }
+                    tabsAdapter.notifyDataSetChanged()
+
+                    var targetIdx = -1
+                    if (!savedActivePath.isNullOrEmpty()) {
+                        targetIdx = openTabs.indexOfFirst { it.file.absolutePath == savedActivePath }
+                    }
+                    if (targetIdx == -1) targetIdx = openTabs.size - 1
+                    switchTab(targetIdx)
+                    return
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to restore tabs: ${e.message}")
+            }
+        }
+
+        // If no tabs were restored or all were closed by user: keep clean workspace
+        openTabs.clear()
+        activeTabIndex = -1
+        tvActiveFilename.text = "MobileLinux IDE"
+        editorWebView.visibility = View.INVISIBLE
+        layoutEmptyWelcome.visibility = View.VISIBLE
+    }
+
+    private fun minimizeToTerminal() {
+        saveTabsState()
+        val intent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+        }
+        startActivity(intent)
+        Toast.makeText(this, "Code IDE running in background", Toast.LENGTH_SHORT).show()
     }
 
     private fun showCloseAllTerminalsDialog() {
@@ -1664,19 +1769,29 @@ class CodeIdeActivity : AppCompatActivity() {
         super.onDestroy()
     }
 
+    override fun onPause() {
+        super.onPause()
+        saveTabsState()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intent.data?.path?.let { filePath ->
+            val file = File(filePath)
+            if (file.exists() && file.isFile) {
+                openFileInEditor(file)
+            }
+        }
+    }
+
     private fun handleBackPressed() {
         if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
             drawerLayout.closeDrawer(GravityCompat.START)
         } else if (layoutConsoleBody.visibility == View.VISIBLE) {
             toggleConsole(show = false)
         } else {
-            // Requirement: Do not exit via phone back button / gesture!
-            // The user must use 3-dot menu -> Exit IDE
-            Toast.makeText(
-                this,
-                "To exit IDE, select 'Exit IDE' from the 3-dot (⋮) menu",
-                Toast.LENGTH_SHORT
-            ).show()
+            minimizeToTerminal()
         }
     }
 

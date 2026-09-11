@@ -32,6 +32,18 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp">
 
+                <!-- Back / Minimize to Terminal -->
+                <ImageView
+                    android:id="@+id/btn_minimize_ide"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginEnd="4dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Minimize to Terminal"
+                    android:padding="7dp"
+                    android:src="@drawable/ic_arrow_back"
+                    app:tint="@color/text_primary" />
+
                 <!-- Drawer Toggle (Files) -->
                 <ImageView
                     android:id="@+id/btn_toggle_drawer"

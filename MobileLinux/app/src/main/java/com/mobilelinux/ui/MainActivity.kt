@@ -490,8 +490,14 @@ class MainActivity : AppCompatActivity() {
     fun closeDrawer() = drawerLayout.closeDrawer(GravityCompat.START)
     fun openLibraries() = startActivity(Intent(this, LibrariesActivity::class.java))
     fun openSettings() = startActivity(Intent(this, SettingsActivity::class.java))
-    fun openCodeIde() = startActivity(Intent(this, CodeIdeActivity::class.java))
-    fun openDevBrowser(url: String = DevBrowserActivity.DEFAULT_HOME_URL) {
+    fun openCodeIde() {
+        val intent = Intent(this, CodeIdeActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+        }
+        startActivity(intent)
+    }
+
+    fun openDevBrowser(url: String? = null) {
         DevBrowserActivity.openUrl(this, url)
     }
 

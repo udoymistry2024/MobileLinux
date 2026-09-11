@@ -1,6 +1,7 @@
 package com.mobilelinux.ui
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.app.DownloadManager
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -270,7 +271,7 @@ class DevBrowserActivity : AppCompatActivity() {
         topBar = findViewById(R.id.browser_top_bar)
 
         btnClose.setOnClickListener {
-            showExitConfirmationDialog()
+            minimizeToTerminal()
         }
 
         btnHome.setOnClickListener {
@@ -1038,6 +1039,14 @@ class DevBrowserActivity : AppCompatActivity() {
                     closeTab(activeTabIndex)
                     true
                 }
+                R.id.menu_minimize_to_terminal -> {
+                    minimizeToTerminal()
+                    true
+                }
+                R.id.menu_exit_browser -> {
+                    finish()
+                    true
+                }
                 else -> false
             }
         }
@@ -1182,14 +1191,25 @@ class DevBrowserActivity : AppCompatActivity() {
             .show()
     }
 
+    private fun minimizeToTerminal() {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+        }
+        startActivity(intent)
+        Toast.makeText(this, "Browser running in background", Toast.LENGTH_SHORT).show()
+    }
+
     private fun showExitConfirmationDialog() {
         MaterialAlertDialogBuilder(this)
-            .setTitle("Exit Browser?")
-            .setMessage("Are you sure you want to close the browser and return to the terminal?")
-            .setPositiveButton("Exit") { _, _ ->
+            .setTitle("Browser Navigation")
+            .setMessage("Do you want to minimize the browser (keep tabs running in background) or exit completely?")
+            .setPositiveButton("Minimize") { _, _ ->
+                minimizeToTerminal()
+            }
+            .setNegativeButton("Exit Browser") { _, _ ->
                 finish()
             }
-            .setNegativeButton("Cancel", null)
+            .setNeutralButton("Cancel", null)
             .show()
     }
 
@@ -1350,10 +1370,12 @@ class DevBrowserActivity : AppCompatActivity() {
         const val EXTRA_URL = "extra_url"
         const val DEFAULT_HOME_URL = "https://www.google.com"
 
-        fun openUrl(context: Context, url: String) {
+        fun openUrl(context: Context, url: String? = null) {
             val intent = Intent(context, DevBrowserActivity::class.java).apply {
-                putExtra(EXTRA_URL, url)
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                if (!url.isNullOrEmpty()) {
+                    putExtra(EXTRA_URL, url)
+                }
+                flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or (if (context !is Activity) Intent.FLAG_ACTIVITY_NEW_TASK else 0)
             }
             context.startActivity(intent)
         }

@@ -56,4 +56,16 @@
         android:title="Close Tab"
         app:showAsAction="never" />
 
+    <item
+        android:id="@+id/menu_minimize_to_terminal"
+        android:title="Minimize to Terminal"
+        android:icon="@drawable/ic_arrow_back"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/menu_exit_browser"
+        android:title="Exit Browser"
+        android:icon="@drawable/ic_close"
+        app:showAsAction="never" />
+
 </menu>

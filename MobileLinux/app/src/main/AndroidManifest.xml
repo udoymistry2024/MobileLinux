@@ -104,6 +104,7 @@
             android:screenOrientation="unspecified"
             android:windowSoftInputMode="adjustResize"
             android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|smallestScreenSize|orientation|uiMode"
+            android:launchMode="singleTop"
             android:theme="@style/Theme.MobileLinux">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -123,6 +124,7 @@
             android:screenOrientation="unspecified"
             android:windowSoftInputMode="adjustResize"
             android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|smallestScreenSize|orientation|uiMode"
+            android:launchMode="singleTop"
             android:theme="@style/Theme.MobileLinux"
             android:hardwareAccelerated="true" />
 

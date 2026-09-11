@@ -14,6 +14,7 @@ import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
+import android.view.WindowManager
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.widget.*
@@ -78,7 +79,7 @@ class CodeIdeActivity : AppCompatActivity() {
         TERMINAL
     }
 
-    // Terminal Panel UI
+    private lateinit var layoutTabsBar: View
     private lateinit var layoutExecutionPanel: View
     private lateinit var layoutConsoleHeader: View
     private lateinit var layoutConsoleBody: View
@@ -88,6 +89,12 @@ class CodeIdeActivity : AppCompatActivity() {
     private lateinit var btnClearConsole: ImageView
     private lateinit var btnCloseConsole: ImageView
     private lateinit var btnToggleConsole: ImageView
+
+    // Dynamic sizing & keyboard state tracking
+    private var userConsoleHeight: Int = -1
+    private var lastKeyboardVisible: Boolean = false
+    private var lastImeBottom: Int = 0
+    private var lastStatusBarTop: Int = 0
 
     // Drawer Project & File Explorer UI
     private lateinit var rvFileTree: RecyclerView
@@ -137,6 +144,7 @@ class CodeIdeActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         setContentView(R.layout.activity_code_ide)
 
         codeRunner = CodeRunner(this)
@@ -175,6 +183,7 @@ class CodeIdeActivity : AppCompatActivity() {
         btnIdeOverflow = findViewById(R.id.btn_ide_overflow)
         btnToggleDrawer = findViewById(R.id.btn_toggle_drawer)
         layoutEmptyWelcome = findViewById(R.id.layout_empty_welcome)
+        layoutTabsBar = findViewById(R.id.layout_tabs_bar)
         rvIdeTabs = findViewById(R.id.rv_ide_tabs)
         btnNewScratchTab = findViewById(R.id.btn_new_scratch_tab)
         extraKeysContainer = findViewById(R.id.extra_keys_container)
@@ -275,9 +284,71 @@ class CodeIdeActivity : AppCompatActivity() {
         ViewCompat.setOnApplyWindowInsetsListener(extraKeysContainer) { v, insets ->
             val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
             val navBars = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
-            val bottomPadding = if (ime.bottom > 0) ime.bottom else navBars.bottom
+            val statusBars = insets.getInsets(
+                WindowInsetsCompat.Type.statusBars() or
+                WindowInsetsCompat.Type.displayCutout()
+            )
+            val isKeyboardVisible = ime.bottom > 0
+            val bottomPadding = if (isKeyboardVisible) ime.bottom else navBars.bottom
             v.updatePadding(bottom = bottomPadding)
+
+            adjustConsoleHeightForKeyboard(isKeyboardVisible, ime.bottom, statusBars.top)
+
             insets
+        }
+    }
+
+    private fun adjustConsoleHeightForKeyboard(isKeyboardVisible: Boolean, imeBottom: Int, statusBarTop: Int) {
+        lastKeyboardVisible = isKeyboardVisible
+        lastImeBottom = imeBottom
+        lastStatusBarTop = statusBarTop
+
+        if (layoutConsoleBody.visibility != View.VISIBLE) return
+
+        val density = resources.displayMetrics.density
+        val minTerminalHeight = (80 * density).toInt()
+
+        if (isKeyboardVisible) {
+            val rootHeight = drawerLayout.height.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels
+            val toolbarHeight = findViewById<View>(R.id.ide_toolbar).height.takeIf { it > 0 } ?: (52 * density).toInt()
+            val tabsHeight = if (layoutTabsBar.visibility == View.VISIBLE) {
+                layoutTabsBar.height.takeIf { it > 0 } ?: (38 * density).toInt()
+            } else {
+                0
+            }
+            val consoleHeaderHeight = layoutConsoleHeader.height.takeIf { it > 0 } ?: (42 * density).toInt()
+            val extraKeysHeight = extraKeysView.height.takeIf { it > 0 } ?: (78 * density).toInt()
+            val dividerHeight = (4 * density).toInt()
+
+            val fixedOverhead = statusBarTop + toolbarHeight + tabsHeight + consoleHeaderHeight + extraKeysHeight + dividerHeight + imeBottom
+            val maxAvailableConsoleHeight = (rootHeight - fixedOverhead).coerceAtLeast(minTerminalHeight)
+
+            val preferredHeight = if (userConsoleHeight > 0) userConsoleHeight else (220 * density).toInt()
+
+            val targetHeight = if (activeFocusTarget == FocusTarget.TERMINAL) {
+                minOf(preferredHeight, maxAvailableConsoleHeight)
+            } else {
+                // If user is editing code in editorWebView, keep console at minimum so editor has space
+                minOf(minTerminalHeight, maxAvailableConsoleHeight / 2)
+            }
+
+            val params = layoutConsoleBody.layoutParams
+            if (params.height != targetHeight) {
+                params.height = targetHeight
+                layoutConsoleBody.layoutParams = params
+            }
+            ideTerminalView.post {
+                ideTerminalView.scrollToBottom()
+            }
+        } else {
+            // Restore user's preferred height when keyboard closes
+            if (userConsoleHeight > 0) {
+                val params = layoutConsoleBody.layoutParams
+                if (params.height != userConsoleHeight) {
+                    params.height = userConsoleHeight
+                    layoutConsoleBody.layoutParams = params
+                }
+            }
         }
     }
 
@@ -616,18 +687,49 @@ class CodeIdeActivity : AppCompatActivity() {
 
     @SuppressLint("ClickableViewAccessibility")
     private fun setupExtraKeys() {
-        // Track focus target via touch
+        // Track focus target via touch & focus
         editorWebView.setOnTouchListener { _, _ ->
             activeFocusTarget = FocusTarget.EDITOR
             extraKeysView.setModifierActive("Ctrl", isEditorCtrlActive)
             extraKeysView.setModifierActive("Alt", isEditorAltActive)
             extraKeysView.setModifierActive("Shift", isEditorShiftActive)
+            if (lastKeyboardVisible) {
+                adjustConsoleHeightForKeyboard(true, lastImeBottom, lastStatusBarTop)
+            }
             false
+        }
+        editorWebView.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus) {
+                activeFocusTarget = FocusTarget.EDITOR
+                extraKeysView.setModifierActive("Ctrl", isEditorCtrlActive)
+                extraKeysView.setModifierActive("Alt", isEditorAltActive)
+                extraKeysView.setModifierActive("Shift", isEditorShiftActive)
+                if (lastKeyboardVisible) {
+                    adjustConsoleHeightForKeyboard(true, lastImeBottom, lastStatusBarTop)
+                }
+            }
         }
 
         ideTerminalView.setOnTouchListener { _, _ ->
             activeFocusTarget = FocusTarget.TERMINAL
+            extraKeysView.setModifierActive("Ctrl", ideTerminalView.isCtrlActive)
+            extraKeysView.setModifierActive("Alt", ideTerminalView.isAltActive)
+            extraKeysView.setModifierActive("Shift", ideTerminalView.isShiftActive)
+            if (lastKeyboardVisible) {
+                adjustConsoleHeightForKeyboard(true, lastImeBottom, lastStatusBarTop)
+            }
             false
+        }
+        ideTerminalView.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus) {
+                activeFocusTarget = FocusTarget.TERMINAL
+                extraKeysView.setModifierActive("Ctrl", ideTerminalView.isCtrlActive)
+                extraKeysView.setModifierActive("Alt", ideTerminalView.isAltActive)
+                extraKeysView.setModifierActive("Shift", ideTerminalView.isShiftActive)
+                if (lastKeyboardVisible) {
+                    adjustConsoleHeightForKeyboard(true, lastImeBottom, lastStatusBarTop)
+                }
+            }
         }
 
         extraKeysView.onKeyListener = { action ->
@@ -849,6 +951,9 @@ class CodeIdeActivity : AppCompatActivity() {
         // Touch Drag-to-Resize on Terminal Header
         val minHeight = (80 * resources.displayMetrics.density).toInt()
         val defaultHeight = (220 * resources.displayMetrics.density).toInt()
+        if (userConsoleHeight <= 0) {
+            userConsoleHeight = defaultHeight
+        }
         var touchStartY = 0f
         var initialHeight = 0
         var isDrag = false
@@ -885,6 +990,9 @@ class CodeIdeActivity : AppCompatActivity() {
                             val params = layoutConsoleBody.layoutParams
                             params.height = clamped
                             layoutConsoleBody.layoutParams = params
+                            if (!lastKeyboardVisible) {
+                                userConsoleHeight = clamped
+                            }
                         }
                     }
                     true
@@ -910,6 +1018,17 @@ class CodeIdeActivity : AppCompatActivity() {
         btnStopExecution.visibility = if (willShow) View.VISIBLE else View.GONE
 
         if (willShow) {
+            if (userConsoleHeight <= 0) {
+                userConsoleHeight = (220 * resources.displayMetrics.density).toInt()
+            }
+            val params = layoutConsoleBody.layoutParams
+            params.height = userConsoleHeight
+            layoutConsoleBody.layoutParams = params
+
+            if (lastKeyboardVisible) {
+                adjustConsoleHeightForKeyboard(true, lastImeBottom, lastStatusBarTop)
+            }
+
             if (!isTerminalAttached) {
                 attachOrCreateIdeTerminalSession()
             }

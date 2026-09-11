@@ -500,6 +500,10 @@ class DevBrowserActivity : AppCompatActivity() {
         settings.databaseEnabled = true
         settings.allowFileAccess = true
         settings.allowContentAccess = true
+        @Suppress("DEPRECATION")
+        settings.allowFileAccessFromFileURLs = true
+        @Suppress("DEPRECATION")
+        settings.allowUniversalAccessFromFileURLs = true
 
         // Viewport & Scale
         settings.loadWithOverviewMode = true
@@ -626,7 +630,12 @@ class DevBrowserActivity : AppCompatActivity() {
                     Log.e("DevBrowser", "onReceivedError ($errCode): $errDesc for $failingUrl")
                     progressBar.visibility = View.GONE
                     layoutError.visibility = View.VISIBLE
-                    tvErrorDesc.text = "Could not connect to:\n$failingUrl\n\nEnsure your local server (e.g. Jupyter, Node.js, Flask) is actively running in the terminal."
+                    val hint = if (failingUrl.startsWith("file://", ignoreCase = true)) {
+                        "Ensure the local HTML file exists and is accessible."
+                    } else {
+                        "Ensure your local server (e.g. Jupyter, Node.js, Flask) is actively running in the terminal."
+                    }
+                    tvErrorDesc.text = "Could not connect to:\n$failingUrl\n\n$hint"
                 }
             }
 
@@ -634,7 +643,7 @@ class DevBrowserActivity : AppCompatActivity() {
                 val uri = request?.url ?: return false
                 val scheme = uri.scheme?.lowercase() ?: return false
 
-                if (scheme == "http" || scheme == "https") {
+                if (scheme == "http" || scheme == "https" || scheme == "file" || scheme == "about" || scheme == "javascript") {
                     return false
                 }
 
@@ -912,8 +921,11 @@ class DevBrowserActivity : AppCompatActivity() {
         val trimmed = input.trim()
         val finalUrl = when {
             trimmed.isEmpty() || trimmed == "about:blank" -> "about:blank"
-            trimmed.startsWith("http://") || trimmed.startsWith("https://") -> trimmed
-            trimmed.startsWith("localhost") || trimmed.startsWith("127.0.0.1") || trimmed.startsWith("0.0.0.0") -> "http://$trimmed"
+            trimmed.startsWith("file://", ignoreCase = true) -> trimmed
+            trimmed.startsWith("/") -> "file://$trimmed"
+            trimmed.startsWith("content://", ignoreCase = true) -> trimmed
+            trimmed.startsWith("http://", ignoreCase = true) || trimmed.startsWith("https://", ignoreCase = true) -> trimmed
+            trimmed.startsWith("localhost", ignoreCase = true) || trimmed.startsWith("127.0.0.1") || trimmed.startsWith("0.0.0.0") -> "http://$trimmed"
             trimmed.contains(".") && !trimmed.contains(" ") -> "https://$trimmed"
             else -> "https://www.google.com/search?q=" + URLEncoder.encode(trimmed, "UTF-8")
         }
@@ -930,10 +942,15 @@ class DevBrowserActivity : AppCompatActivity() {
     }
 
     private fun updateSslIndicator(url: String) {
-        if (url.startsWith("https://")) {
+        if (url.startsWith("https://", ignoreCase = true)) {
             ivSslIndicator.setImageResource(R.drawable.ic_shield_check)
             ivSslIndicator.imageTintList = android.content.res.ColorStateList.valueOf(
                 androidx.core.content.ContextCompat.getColor(this, R.color.accent_green)
+            )
+        } else if (url.startsWith("file://", ignoreCase = true) || url.startsWith("/")) {
+            ivSslIndicator.setImageResource(R.drawable.ic_code)
+            ivSslIndicator.imageTintList = android.content.res.ColorStateList.valueOf(
+                androidx.core.content.ContextCompat.getColor(this, R.color.accent_blue)
             )
         } else if (url.contains("localhost") || url.contains("127.0.0.1") || url.contains("0.0.0.0")) {
             ivSslIndicator.setImageResource(R.drawable.ic_globe)

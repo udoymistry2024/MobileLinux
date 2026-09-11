@@ -376,12 +376,14 @@ class CodeIdeActivity : AppCompatActivity() {
         if (isTerminalAttached) return
 
         val initialDir = currentRootDir?.let { codeRunner.toLinuxPath(it) } ?: "/home/ubuntu"
-        lastExecutionDir = initialDir
 
         // Look for an existing "IDE Terminal" session or create a new one directly in project directory
         val existingSession = tm.sessions.value.find { it.name == "IDE Terminal" }
         val session = existingSession ?: tm.createSession("IDE Terminal", initialDir = initialDir)
         ideSessionId = session.id
+        if (existingSession == null) {
+            lastExecutionDir = initialDir
+        }
 
         val sessionProcess = tm.getSessionProcess(session.id)
         if (sessionProcess != null) {
@@ -1501,6 +1503,7 @@ class CodeIdeActivity : AppCompatActivity() {
         }
         isTerminalAttached = false
         ideSessionId = null
+        lastExecutionDir = null
 
         // Clear terminal buffer so old screen content disappears
         ideTerminalView.attachBuffer(TerminalBuffer())

@@ -941,6 +941,18 @@ class UbuntuRuntime(private val context: Context) {
         // Ensure .bashrc, .profile, and shell launcher are in place (cached in-memory after first run)
         ensureBashConfigured()
 
+        // Guarantee mobilelinux-shell.sh on disk is updated with TARGET_DIR support
+        try {
+            val usrLocalBin = File(rootfsDir, "usr/local/bin")
+            val shellLauncher = File(usrLocalBin, "mobilelinux-shell.sh")
+            val currentLauncher = if (shellLauncher.exists()) shellLauncher.readText() else ""
+            if (!currentLauncher.contains("TARGET_DIR")) {
+                safeWriteFile(shellLauncher, getShellLauncher())
+                shellLauncher.setReadable(true, false)
+                shellLauncher.setExecutable(true, false)
+            }
+        } catch (ignored: Exception) {}
+
         // Auto-install essential terminal tools in background if online & interactive session
         if (execCommand == null) {
             installEssentialToolsInBackground()
@@ -1061,7 +1073,8 @@ class UbuntuRuntime(private val context: Context) {
             "ANDROID_HOST=true",
             "MOBILELINUX_MODE=proot",
             "MOBILELINUX_SESSION=$sessionId",
-            "BROWSER=/usr/local/bin/xdg-open"
+            "BROWSER=/usr/local/bin/xdg-open",
+            "INITIAL_CWD=$workingDir"
         )
         val netlinkShim = File(rootfsDir, "usr/local/lib/libfixgetifaddrs.so")
         if (netlinkShim.exists()) {
@@ -1080,6 +1093,7 @@ class UbuntuRuntime(private val context: Context) {
             // Run interactive shell launcher
             cmd.add("/bin/bash")
             cmd.add("/usr/local/bin/mobilelinux-shell.sh")
+            cmd.add(workingDir)
         }
         return cmd
     }
@@ -1107,11 +1121,11 @@ class UbuntuRuntime(private val context: Context) {
                 append("LANG=C.UTF-8 ")
                 append("LC_ALL=C.UTF-8 ")
                 append("PATH=/home/ubuntu/.local/bin:/root/.local/bin:/home/ubuntu/go/bin:/root/go/bin:/home/ubuntu/.cargo/bin:/root/.cargo/bin:/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/home/ubuntu/miniconda3/bin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ")
-                append("USER=ubuntu SHELL=/usr/bin/bash ANDROID_HOST=true MOBILELINUX_MODE=chroot TMPDIR=/tmp ")
+                append("USER=ubuntu SHELL=/usr/bin/bash ANDROID_HOST=true MOBILELINUX_MODE=chroot TMPDIR=/tmp INITIAL_CWD='$workingDir' ")
                 if (execCmd != null) {
                     append("/usr/bin/bash -c 'cd \"$workingDir\" && $execCmd'")
                 } else {
-                    append("/usr/bin/bash -c 'cd \"$workingDir\" && exec /bin/bash /usr/local/bin/mobilelinux-shell.sh'")
+                    append("/usr/bin/bash -c 'cd \"$workingDir\" && exec /bin/bash /usr/local/bin/mobilelinux-shell.sh \"$workingDir\"'")
                 }
             }
         )
@@ -3468,7 +3482,12 @@ class UbuntuRuntime(private val context: Context) {
         "export LANG=C.UTF-8",
         "export LC_ALL=C.UTF-8",
         "export TMPDIR=/tmp",
-        "cd /home/ubuntu",
+        "TARGET_DIR=\"\${INITIAL_CWD:-\$1}\"",
+        "if [ -n \"\$TARGET_DIR\" ] && [ -d \"\$TARGET_DIR\" ]; then",
+        "    cd \"\$TARGET_DIR\"",
+        "elif [ -d \"/home/ubuntu\" ]; then",
+        "    cd /home/ubuntu",
+        "fi",
         "",
         "# Fast check: ensure environment & storage symlinks are initialized once per boot",
         "if [ ! -f /tmp/.mobilelinux_env_ready ]; then",
@@ -3502,6 +3521,11 @@ class UbuntuRuntime(private val context: Context) {
         "        ln -s /sdcard /root/sdcard 2>/dev/null || true",
         "    fi",
         "    touch /tmp/.mobilelinux_env_ready 2>/dev/null || true",
+        "fi",
+        "",
+        "# Re-affirm target directory before shell handoff",
+        "if [ -n \"\$TARGET_DIR\" ] && [ -d \"\$TARGET_DIR\" ]; then",
+        "    cd \"\$TARGET_DIR\"",
         "fi",
         "",
         "# Enable bash automatic window size checking on resize signals",

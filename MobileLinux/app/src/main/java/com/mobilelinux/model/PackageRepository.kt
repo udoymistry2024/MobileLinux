@@ -193,7 +193,7 @@ object PackageRepository {
                 return "echo '[MobileLinux] Removing Open Interpreter...'; " +
                         "pip3 uninstall -y --break-system-packages open-interpreter 2>&1 || true; " +
                         "/home/ubuntu/miniforge3/bin/pip uninstall -y open-interpreter 2>&1 || true; " +
-                        "rm -f /home/ubuntu/.local/bin/interpreter /home/ubuntu/miniforge3/bin/interpreter /root/.local/bin/interpreter /usr/local/bin/interpreter 2>/dev/null || true; " +
+                        "rm -f /home/ubuntu/.local/bin/interpreter /home/ubuntu/miniforge3/bin/interpreter /root/.local/bin/interpreter /usr/local/bin/interpreter /usr/local/bin/opencode 2>/dev/null || true; " +
                         "echo '[MobileLinux] Open Interpreter uninstalled!'"
             }
             "chatdev" -> {
@@ -2369,8 +2369,8 @@ object PackageRepository {
             category = PackageCategory.DEV_TOOLS,
             version = "Latest",
             description = "Open-source natural language code execution agent that runs Python, Bash, and JavaScript locally.",
-            installCommand = "export PATH=\"/home/ubuntu/miniforge3/bin:\$HOME/.local/bin:\$PATH\" && (pip install --break-system-packages open-interpreter || /home/ubuntu/miniforge3/bin/pip install open-interpreter || pip3 install --break-system-packages open-interpreter)",
-            checkInstalledCommand = "which interpreter || test -f /home/ubuntu/.local/bin/interpreter || test -f /home/ubuntu/miniforge3/bin/interpreter || test -f /root/.local/bin/interpreter",
+            installCommand = "((which gcc >/dev/null 2>&1 && python3 -c 'import psutil' >/dev/null 2>&1) || (sudo apt-get update || true; sudo apt-get install -y python3-psutil python3-dev build-essential)) && export PATH=\"/home/ubuntu/miniforge3/bin:\$HOME/.local/bin:\$PATH\" && (pip install --break-system-packages --prefer-binary open-interpreter || /home/ubuntu/miniforge3/bin/pip install --prefer-binary open-interpreter || pip3 install --break-system-packages --prefer-binary open-interpreter); which interpreter >/dev/null 2>&1 || ([ -f /home/ubuntu/.local/bin/interpreter ] && sudo ln -sf /home/ubuntu/.local/bin/interpreter /usr/local/bin/interpreter || true); [ -f /usr/local/bin/interpreter ] && sudo ln -sf /usr/local/bin/interpreter /usr/local/bin/opencode || true",
+            checkInstalledCommand = "which interpreter || which opencode || test -f /home/ubuntu/.local/bin/interpreter || test -f /home/ubuntu/miniforge3/bin/interpreter || test -f /root/.local/bin/interpreter",
             launchUrl = null
         ),
         LinuxPackage(

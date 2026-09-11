@@ -37,6 +37,7 @@ import com.mobilelinux.ide.*
 import com.mobilelinux.runtime.UbuntuRuntime
 import com.mobilelinux.service.LinuxService
 import com.mobilelinux.terminal.SpecialKey
+import com.mobilelinux.terminal.TerminalBuffer
 import com.mobilelinux.terminal.TerminalManager
 import com.mobilelinux.terminal.TerminalView
 import com.mobilelinux.util.StorageHelper
@@ -924,15 +925,23 @@ class CodeIdeActivity : AppCompatActivity() {
         btnToggleConsole.setOnClickListener { toggleConsole() }
 
         btnCloseConsole.setOnClickListener {
-            toggleConsole(show = false)
+            closeAndResetIdeTerminalSession(closePanel = true)
+        }
+        btnCloseConsole.setOnLongClickListener {
+            closeAndResetIdeTerminalSession(closePanel = false)
+            true
         }
 
+        btnToggleTerminal.contentDescription = "Toggle Terminal"
+        btnToggleTerminal.tooltipText = "Toggle Terminal"
+        btnToggleConsole.contentDescription = "Minimize Terminal"
+        btnToggleConsole.tooltipText = "Minimize Terminal"
         btnStopExecution.contentDescription = "Stop Process (Ctrl+C)"
         btnStopExecution.tooltipText = "Stop Process (Ctrl+C)"
         btnClearConsole.contentDescription = "Clear Terminal"
         btnClearConsole.tooltipText = "Clear Terminal"
-        btnCloseConsole.contentDescription = "Minimize Terminal"
-        btnCloseConsole.tooltipText = "Minimize Terminal"
+        btnCloseConsole.contentDescription = "Close & Reset Session (Long-press to restart)"
+        btnCloseConsole.tooltipText = "Close & Reset Session (Long-press to restart)"
 
         // Clear terminal
         btnClearConsole.setOnClickListener {
@@ -979,12 +988,25 @@ class CodeIdeActivity : AppCompatActivity() {
                     if (isDrag) {
                         if (layoutConsoleBody.visibility != View.VISIBLE) {
                             layoutConsoleBody.visibility = View.VISIBLE
-                            btnToggleTerminal.setColorFilter(getColor(R.color.accent_blue))
+                            val activeColor = getColor(R.color.accent_blue)
+                            btnToggleTerminal.setColorFilter(activeColor)
+                            btnToggleConsole.setColorFilter(activeColor)
+                            btnStopExecution.visibility = View.VISIBLE
+                            if (!isTerminalAttached) {
+                                attachOrCreateIdeTerminalSession()
+                            }
+                            activeFocusTarget = FocusTarget.TERMINAL
+                            ideTerminalView.requestFocus()
                         }
                         val newHeight = (initialHeight + deltaY).toInt()
                         if (newHeight < minHeight - (35 * resources.displayMetrics.density).toInt()) {
                             layoutConsoleBody.visibility = View.GONE
-                            btnToggleTerminal.setColorFilter(getColor(R.color.text_secondary))
+                            val inactiveColor = getColor(R.color.text_secondary)
+                            btnToggleTerminal.setColorFilter(inactiveColor)
+                            btnToggleConsole.setColorFilter(inactiveColor)
+                            btnStopExecution.visibility = View.GONE
+                            activeFocusTarget = FocusTarget.EDITOR
+                            editorWebView.requestFocus()
                         } else {
                             val clamped = newHeight.coerceIn(minHeight, maxHeight)
                             val params = layoutConsoleBody.layoutParams
@@ -1450,7 +1472,42 @@ class CodeIdeActivity : AppCompatActivity() {
         openFileInEditor(exampleFile)
     }
 
+    private fun closeAndResetIdeTerminalSession(closePanel: Boolean = true) {
+        val tm = terminalManager
+        val targetId = ideSessionId ?: tm.sessions.value.find { it.name == "IDE Terminal" }?.id
+
+        if (targetId != null) {
+            try {
+                tm.closeSession(targetId)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error closing IDE terminal session: ${e.message}")
+            }
+        }
+        isTerminalAttached = false
+        ideSessionId = null
+
+        // Clear terminal buffer so old screen content disappears
+        ideTerminalView.attachBuffer(TerminalBuffer())
+        tvConsoleStatus.text = "Terminal (bash) — Idle"
+
+        if (closePanel) {
+            toggleConsole(show = false)
+        } else {
+            // Immediate in-place restart
+            attachOrCreateIdeTerminalSession()
+            ideTerminalView.requestFocus()
+            activeFocusTarget = FocusTarget.TERMINAL
+        }
+    }
+
     override fun onDestroy() {
+        val tm = terminalManager
+        val targetId = ideSessionId ?: tm.sessions.value.find { it.name == "IDE Terminal" }?.id
+        if (targetId != null) {
+            try {
+                tm.closeSession(targetId)
+            } catch (ignored: Exception) {}
+        }
         if (isServiceBound) {
             try {
                 unbindService(serviceConnection)

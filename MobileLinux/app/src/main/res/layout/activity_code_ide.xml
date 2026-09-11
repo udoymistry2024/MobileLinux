@@ -340,24 +340,61 @@
 
             </LinearLayout>
 
-            <!-- Terminal Body (Collapsible & Draggable Resize with Real Linux Terminal) -->
-            <FrameLayout
+            <!-- Terminal Body (Collapsible & Draggable Resize with Real Linux Terminal & Multi-Tabs) -->
+            <LinearLayout
                 android:id="@+id/layout_console_body"
                 android:layout_width="match_parent"
                 android:layout_height="220dp"
+                android:orientation="vertical"
                 android:visibility="gone"
                 tools:visibility="visible">
+
+                <!-- Terminal Sessions Tab Bar -->
+                <LinearLayout
+                    android:id="@+id/layout_terminal_tabs_bar"
+                    android:layout_width="match_parent"
+                    android:layout_height="32dp"
+                    android:background="#0F1319"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/rv_terminal_tabs"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:orientation="horizontal"
+                        android:overScrollMode="never"
+                        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
+
+                    <ImageView
+                        android:id="@+id/btn_new_terminal_tab"
+                        android:layout_width="32dp"
+                        android:layout_height="match_parent"
+                        android:background="?attr/selectableItemBackground"
+                        android:contentDescription="New Terminal Session"
+                        android:padding="7dp"
+                        android:src="@drawable/ic_add_session"
+                        android:tint="@color/accent_blue" />
+
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="@color/border_color" />
 
                 <!-- Real Linux PRoot TerminalView -->
                 <com.mobilelinux.terminal.TerminalView
                     android:id="@+id/ide_terminal_view"
                     android:layout_width="match_parent"
-                    android:layout_height="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
                     android:background="@color/terminal_bg"
                     android:focusable="true"
                     android:focusableInTouchMode="true" />
 
-            </FrameLayout>
+            </LinearLayout>
 
         </LinearLayout>
 

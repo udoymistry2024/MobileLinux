@@ -121,11 +121,15 @@ class CodeIdeActivity : AppCompatActivity() {
     private var currentFontSize = 14
     private var isWordWrap = false
 
-    // Real Linux Terminal Service & Session
+    // Real Linux Terminal Service & Multi-Terminal Sessions
     private val terminalManager: TerminalManager by lazy { TerminalManager.getInstance(applicationContext) }
     private var linuxService: LinuxService? = null
     private var isServiceBound = false
-    private var ideSessionId: String? = null
+    private val ideTabs = mutableListOf<IdeTerminalTabItem>()
+    private var activeIdeSessionId: String? = null
+    private lateinit var rvTerminalTabs: RecyclerView
+    private lateinit var btnNewTerminalTab: ImageView
+    private lateinit var terminalTabAdapter: IdeTerminalTabAdapter
     private var isTerminalAttached = false
     private var isDraggingConsole = false
 
@@ -200,6 +204,25 @@ class CodeIdeActivity : AppCompatActivity() {
         btnClearConsole = findViewById(R.id.btn_clear_console)
         btnCloseConsole = findViewById(R.id.btn_close_console)
         btnToggleConsole = findViewById(R.id.btn_toggle_console)
+        rvTerminalTabs = findViewById(R.id.rv_terminal_tabs)
+        btnNewTerminalTab = findViewById(R.id.btn_new_terminal_tab)
+
+        terminalTabAdapter = IdeTerminalTabAdapter(
+            onTabClick = { item ->
+                switchToIdeSession(item.sessionId)
+            },
+            onTabClose = { item ->
+                closeIdeSession(item)
+            },
+            onTabLongClick = { item ->
+                showRenameTerminalDialog(item)
+            }
+        )
+        rvTerminalTabs.adapter = terminalTabAdapter
+
+        btnNewTerminalTab.setOnClickListener {
+            createNewIdeTerminalSession()
+        }
 
         rvFileTree = findViewById(R.id.rv_file_tree)
         tvProjectFolderName = findViewById(R.id.tv_project_folder_name)
@@ -373,40 +396,145 @@ class CodeIdeActivity : AppCompatActivity() {
 
     private fun attachOrCreateIdeTerminalSession() {
         val tm = terminalManager
-        if (isTerminalAttached) return
-
-        val initialDir = currentRootDir?.let { codeRunner.toLinuxPath(it) } ?: "/home/ubuntu"
-
-        // Look for an existing "IDE Terminal" session or create a new one directly in project directory
-        val existingSession = tm.sessions.value.find { it.name == "IDE Terminal" }
-        val session = existingSession ?: tm.createSession("IDE Terminal", initialDir = initialDir)
-        ideSessionId = session.id
-        if (existingSession == null) {
-            lastExecutionDir = initialDir
+        if (isTerminalAttached && activeIdeSessionId != null) {
+            val sessionProcess = tm.getSessionProcess(activeIdeSessionId!!)
+            if (sessionProcess != null && sessionProcess.isAlive) {
+                return
+            }
         }
 
-        val sessionProcess = tm.getSessionProcess(session.id)
+        // Restore any existing IDE terminal sessions from TerminalManager if available
+        if (ideTabs.isEmpty()) {
+            val existingSessions = tm.sessions.value.filter {
+                it.name.startsWith("Terminal") || it.name == "IDE Terminal"
+            }
+            if (existingSessions.isNotEmpty()) {
+                ideTabs.clear()
+                for (sess in existingSessions) {
+                    ideTabs.add(IdeTerminalTabItem(sess.id, sess.name))
+                }
+                val targetId = activeIdeSessionId ?: ideTabs.first().sessionId
+                switchToIdeSession(targetId)
+                return
+            }
+        } else if (activeIdeSessionId != null) {
+            switchToIdeSession(activeIdeSessionId!!)
+            return
+        }
+
+        // Create first session
+        createNewIdeTerminalSession("Terminal 1")
+    }
+
+    private fun createNewIdeTerminalSession(customName: String? = null): String {
+        val tm = terminalManager
+        val initialDir = currentRootDir?.let { codeRunner.toLinuxPath(it) } ?: "/home/ubuntu"
+        val sessionName = customName ?: run {
+            val nextNum = ideTabs.size + 1
+            "Terminal $nextNum"
+        }
+
+        val session = tm.createSession(sessionName, initialDir = initialDir)
+        val tabItem = IdeTerminalTabItem(session.id, sessionName)
+        ideTabs.add(tabItem)
+
+        switchToIdeSession(session.id)
+
+        rvTerminalTabs.post {
+            if (ideTabs.isNotEmpty()) {
+                rvTerminalTabs.smoothScrollToPosition(ideTabs.size - 1)
+            }
+        }
+        return session.id
+    }
+
+    private fun switchToIdeSession(sessionId: String) {
+        val tm = terminalManager
+        activeIdeSessionId = sessionId
+        lastExecutionDir = currentRootDir?.let { codeRunner.toLinuxPath(it) } ?: "/home/ubuntu"
+
+        val sessionProcess = tm.getSessionProcess(sessionId)
         if (sessionProcess != null) {
             ideTerminalView.attachBuffer(sessionProcess.terminalBuffer)
             ideTerminalView.applyPreferences()
             isTerminalAttached = true
-            tvConsoleStatus.text = "Terminal (bash) — Ready"
+
+            val tabItem = ideTabs.find { it.sessionId == sessionId }
+            val tabName = tabItem?.name ?: "bash"
+            tvConsoleStatus.text = "Terminal ($tabName) — Ready"
 
             ideTerminalView.onInputListener = { data ->
-                tm.sendInput(session.id, data)
+                tm.sendInput(sessionId, data)
             }
             ideTerminalView.onTerminalResize = { cols, rows ->
-                tm.resizeSession(session.id, cols, rows)
+                tm.resizeSession(sessionId, cols, rows)
             }
             ideTerminalView.onModifierChanged = { key, active ->
                 if (activeFocusTarget == FocusTarget.TERMINAL) {
                     extraKeysView.setModifierActive(key, active)
                 }
             }
-
-            // Note: Initial working directory is configured natively in PRoot/Chroot (--cwd).
-            // No piped "cd ..." command is typed into the shell, keeping terminal startup 100% clean.
         }
+
+        terminalTabAdapter.submitTabs(ideTabs, activeIdeSessionId)
+        ideTerminalView.scrollToBottom()
+        ideTerminalView.requestFocus()
+    }
+
+    private fun closeIdeSession(item: IdeTerminalTabItem) {
+        val tm = terminalManager
+        try {
+            tm.closeSession(item.sessionId)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error closing session ${item.sessionId}: ${e.message}")
+        }
+
+        ideTabs.remove(item)
+
+        if (item.sessionId == activeIdeSessionId) {
+            if (ideTabs.isNotEmpty()) {
+                switchToIdeSession(ideTabs.last().sessionId)
+            } else {
+                isTerminalAttached = false
+                activeIdeSessionId = null
+                ideTerminalView.attachBuffer(TerminalBuffer())
+                tvConsoleStatus.text = "Terminal (bash) — Idle"
+                terminalTabAdapter.submitTabs(ideTabs, null)
+                // Auto-create a fresh Terminal 1 for convenience
+                createNewIdeTerminalSession("Terminal 1")
+            }
+        } else {
+            terminalTabAdapter.submitTabs(ideTabs, activeIdeSessionId)
+        }
+    }
+
+    private fun showRenameTerminalDialog(item: IdeTerminalTabItem) {
+        val input = EditText(this).apply {
+            setText(item.name)
+            setSingleLine(true)
+            setSelection(text.length)
+        }
+        val frame = FrameLayout(this).apply {
+            val pad = (20 * resources.displayMetrics.density).toInt()
+            setPadding(pad, pad / 2, pad, 0)
+            addView(input)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Rename Terminal")
+            .setView(frame)
+            .setPositiveButton("Save") { _, _ ->
+                val newName = input.text.toString().trim()
+                if (newName.isNotEmpty()) {
+                    item.name = newName
+                    terminalManager.renameSession(item.sessionId, newName)
+                    terminalTabAdapter.notifyDataSetChanged()
+                    if (item.sessionId == activeIdeSessionId) {
+                        tvConsoleStatus.text = "Terminal ($newName) — Ready"
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun setupProjectDirectory() {
@@ -443,7 +571,7 @@ class CodeIdeActivity : AppCompatActivity() {
         lastExecutionDir = linuxPath
 
         // Sync terminal working directory to newly opened project
-        ideSessionId?.let { sessId ->
+        activeIdeSessionId?.let { sessId ->
             val tm = terminalManager
             tm.sendInput(sessId, "cd \"$linuxPath\"\n".toByteArray())
         }
@@ -937,11 +1065,13 @@ class CodeIdeActivity : AppCompatActivity() {
         // Toggle when clicking header or icon
         btnToggleConsole.setOnClickListener { toggleConsole() }
 
+        btnCloseConsole.contentDescription = "Minimize Terminal (Long-press to close all)"
+        btnCloseConsole.tooltipText = "Minimize Terminal"
         btnCloseConsole.setOnClickListener {
-            closeAndResetIdeTerminalSession(closePanel = true)
+            toggleConsole(show = false)
         }
         btnCloseConsole.setOnLongClickListener {
-            closeAndResetIdeTerminalSession(closePanel = false)
+            showCloseAllTerminalsDialog()
             true
         }
 
@@ -953,19 +1083,17 @@ class CodeIdeActivity : AppCompatActivity() {
         btnStopExecution.tooltipText = "Stop Process (Ctrl+C)"
         btnClearConsole.contentDescription = "Clear Terminal"
         btnClearConsole.tooltipText = "Clear Terminal"
-        btnCloseConsole.contentDescription = "Close & Reset Session (Long-press to restart)"
-        btnCloseConsole.tooltipText = "Close & Reset Session (Long-press to restart)"
 
         // Clear terminal
         btnClearConsole.setOnClickListener {
-            ideSessionId?.let { sessId ->
+            activeIdeSessionId?.let { sessId ->
                 terminalManager.sendInput(sessId, "clear\n".toByteArray())
             }
         }
 
         // Stop / Interrupt running command (Ctrl+C)
         btnStopExecution.setOnClickListener {
-            ideSessionId?.let { sessId ->
+            activeIdeSessionId?.let { sessId ->
                 terminalManager.sendKey(sessId, SpecialKey.CTRL_C)
             }
         }
@@ -1070,7 +1198,7 @@ class CodeIdeActivity : AppCompatActivity() {
                 adjustConsoleHeightForKeyboard(true, lastImeBottom, lastStatusBarTop)
             }
 
-            if (!isTerminalAttached) {
+            if (!isTerminalAttached || activeIdeSessionId == null) {
                 attachOrCreateIdeTerminalSession()
             }
             activeFocusTarget = FocusTarget.TERMINAL
@@ -1267,8 +1395,12 @@ class CodeIdeActivity : AppCompatActivity() {
         toggleConsole(show = true)
         activeFocusTarget = FocusTarget.TERMINAL
 
+        if (activeIdeSessionId == null || ideTabs.isEmpty()) {
+            createNewIdeTerminalSession()
+        }
+
         val tm = terminalManager
-        val sessId = ideSessionId
+        val sessId = activeIdeSessionId
 
         if (sessId != null) {
             val linuxPath = codeRunner.toLinuxPath(file)
@@ -1490,43 +1622,39 @@ class CodeIdeActivity : AppCompatActivity() {
         openFileInEditor(exampleFile)
     }
 
-    private fun closeAndResetIdeTerminalSession(closePanel: Boolean = true) {
-        val tm = terminalManager
-        val targetId = ideSessionId ?: tm.sessions.value.find { it.name == "IDE Terminal" }?.id
-
-        if (targetId != null) {
-            try {
-                tm.closeSession(targetId)
-            } catch (e: Exception) {
-                Log.e(TAG, "Error closing IDE terminal session: ${e.message}")
+    private fun showCloseAllTerminalsDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Close All Terminals")
+            .setMessage("Do you want to terminate all open IDE terminal sessions?")
+            .setPositiveButton("Close All") { _, _ ->
+                val tm = terminalManager
+                for (tab in ideTabs.toList()) {
+                    try {
+                        tm.closeSession(tab.sessionId)
+                    } catch (ignored: Exception) {}
+                }
+                ideTabs.clear()
+                activeIdeSessionId = null
+                isTerminalAttached = false
+                ideTerminalView.attachBuffer(TerminalBuffer())
+                tvConsoleStatus.text = "Terminal (bash) — Idle"
+                terminalTabAdapter.submitTabs(ideTabs, null)
+                toggleConsole(show = false)
             }
-        }
-        isTerminalAttached = false
-        ideSessionId = null
-        lastExecutionDir = null
-
-        // Clear terminal buffer so old screen content disappears
-        ideTerminalView.attachBuffer(TerminalBuffer())
-        tvConsoleStatus.text = "Terminal (bash) — Idle"
-
-        if (closePanel) {
-            toggleConsole(show = false)
-        } else {
-            // Immediate in-place restart
-            attachOrCreateIdeTerminalSession()
-            ideTerminalView.requestFocus()
-            activeFocusTarget = FocusTarget.TERMINAL
-        }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     override fun onDestroy() {
         val tm = terminalManager
-        val targetId = ideSessionId ?: tm.sessions.value.find { it.name == "IDE Terminal" }?.id
-        if (targetId != null) {
+        for (tab in ideTabs.toList()) {
             try {
-                tm.closeSession(targetId)
+                tm.closeSession(tab.sessionId)
             } catch (ignored: Exception) {}
         }
+        ideTabs.clear()
+        activeIdeSessionId = null
+
         if (isServiceBound) {
             try {
                 unbindService(serviceConnection)

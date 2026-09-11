@@ -104,6 +104,8 @@ class TerminalBuffer(
     var isCursorVisible: Boolean = true
     var applicationCursorKeys: Boolean = false
     var applicationKeypad: Boolean = false
+    var autoWrapMode: Boolean = true
+    private var wrapPending: Boolean = false
 
     // DECSTBM Scrolling margins (0-based inclusive indices)
     var scrollTop: Int = 0
@@ -172,13 +174,21 @@ class TerminalBuffer(
 
         when (ch) {
             '\u001B' -> { // ESC
+                wrapPending = false
                 parsingEscape = true
                 escBuffer.clear()
                 parsingCSI = false
             }
-            '\r' -> { cursorCol = 0 }
-            '\n' -> { newLine() }
+            '\r' -> {
+                wrapPending = false
+                cursorCol = 0
+            }
+            '\n' -> {
+                wrapPending = false
+                newLine()
+            }
             '\t' -> { // Tab stop (every 8 cols)
+                wrapPending = false
                 cursorCol = ((cursorCol / 8) + 1) * 8
                 if (cursorCol >= cols) cursorCol = cols - 1
             }
@@ -186,15 +196,23 @@ class TerminalBuffer(
                 onBell?.invoke()
             }
             '\u0008' -> { // Backspace
+                wrapPending = false
                 if (cursorCol > 0) cursorCol--
             }
             else -> {
                 if (ch.code >= 32) {
-                    putChar(cursorRow, cursorCol, ch)
-                    cursorCol++
-                    if (cursorCol >= cols) {
+                    if (wrapPending) {
+                        wrapPending = false
                         cursorCol = 0
                         newLine()
+                    }
+                    putChar(cursorRow, cursorCol, ch)
+                    if (cursorCol + 1 >= cols) {
+                        if (autoWrapMode) {
+                            wrapPending = true
+                        }
+                    } else {
+                        cursorCol++
                     }
                 }
             }
@@ -240,15 +258,9 @@ class TerminalBuffer(
         }
 
         for (r in top until bottom) {
-            screen[r] = screen[r + 1]
-            fgColors[r] = fgColors[r + 1]
-            bgColors[r] = bgColors[r + 1]
-            attributes[r] = attributes[r + 1]
+            copyRow(r + 1, r)
         }
-        screen[bottom] = CharArray(cols) { ' ' }
-        fgColors[bottom] = IntArray(cols) { TerminalColors.DEFAULT_FG }
-        bgColors[bottom] = IntArray(cols) { TerminalColors.DEFAULT_BG }
-        attributes[bottom] = IntArray(cols) { 0 }
+        clearLine(bottom)
     }
 
     /**
@@ -259,15 +271,17 @@ class TerminalBuffer(
         val bottom = scrollBottom.coerceIn(top, rows - 1)
 
         for (r in bottom downTo top + 1) {
-            screen[r] = screen[r - 1]
-            fgColors[r] = fgColors[r - 1]
-            bgColors[r] = bgColors[r - 1]
-            attributes[r] = attributes[r - 1]
+            copyRow(r - 1, r)
         }
-        screen[top] = CharArray(cols) { ' ' }
-        fgColors[top] = IntArray(cols) { TerminalColors.DEFAULT_FG }
-        bgColors[top] = IntArray(cols) { TerminalColors.DEFAULT_BG }
-        attributes[top] = IntArray(cols) { 0 }
+        clearLine(top)
+    }
+
+    private fun copyRow(src: Int, dst: Int) {
+        if (src !in 0 until rows || dst !in 0 until rows || src == dst) return
+        System.arraycopy(screen[src], 0, screen[dst], 0, cols)
+        System.arraycopy(fgColors[src], 0, fgColors[dst], 0, cols)
+        System.arraycopy(bgColors[src], 0, bgColors[dst], 0, cols)
+        System.arraycopy(attributes[src], 0, attributes[dst], 0, cols)
     }
 
     private fun clearLine(r: Int) {
@@ -291,15 +305,11 @@ class TerminalBuffer(
             2 -> {
                 // CSI 2 J: Erase entire visible display
                 for (r in 0 until rows) clearLine(r)
-                cursorRow = 0
-                cursorCol = 0
             }
             3 -> {
                 // CSI 3 J: Erase saved lines (scrollback history) - xterm E3 capability
                 history.clear()
                 for (r in 0 until rows) clearLine(r)
-                cursorRow = 0
-                cursorCol = 0
                 onHistoryCleared?.invoke()
             }
         }
@@ -318,10 +328,7 @@ class TerminalBuffer(
         val maxShift = scrollBottom - cursorRow + 1
         val n = min(count, maxShift)
         for (r in scrollBottom downTo cursorRow + n) {
-            screen[r] = screen[r - n]
-            fgColors[r] = fgColors[r - n]
-            bgColors[r] = bgColors[r - n]
-            attributes[r] = attributes[r - n]
+            copyRow(r - n, r)
         }
         for (r in cursorRow until min(cursorRow + n, scrollBottom + 1)) {
             clearLine(r)
@@ -333,10 +340,7 @@ class TerminalBuffer(
         val maxShift = scrollBottom - cursorRow + 1
         val n = min(count, maxShift)
         for (r in cursorRow until scrollBottom - n + 1) {
-            screen[r] = screen[r + n]
-            fgColors[r] = fgColors[r + n]
-            bgColors[r] = bgColors[r + n]
-            attributes[r] = attributes[r + n]
+            copyRow(r + n, r)
         }
         for (r in max(cursorRow, scrollBottom - n + 1)..scrollBottom) {
             clearLine(r)
@@ -425,6 +429,7 @@ class TerminalBuffer(
     }
 
     private fun handleEscapeSequence(ch: Char) {
+        wrapPending = false
         if (parsingOSC) {
             if (ch == '\u0007') { // BEL terminates OSC
                 parsingOSC = false
@@ -527,6 +532,7 @@ class TerminalBuffer(
     }
 
     private fun processCSI(seq: String) {
+        wrapPending = false
         val inner = seq.substring(1, seq.length - 1)
         val cmd = seq.last()
         val params = if (inner.isEmpty()) emptyList() else inner.removePrefix("?").split(";").map { it.toIntOrNull() ?: 0 }
@@ -537,8 +543,16 @@ class TerminalBuffer(
         }
 
         when (cmd) {
-            'A' -> cursorRow = max(0, cursorRow - max(1, p(0, 1)))
-            'B' -> cursorRow = min(rows - 1, cursorRow + max(1, p(0, 1)))
+            'A' -> {
+                val count = max(1, p(0, 1))
+                val minRow = if (cursorRow in scrollTop..scrollBottom) scrollTop else 0
+                cursorRow = max(minRow, cursorRow - count)
+            }
+            'B' -> {
+                val count = max(1, p(0, 1))
+                val maxRow = if (cursorRow in scrollTop..scrollBottom) scrollBottom else rows - 1
+                cursorRow = min(maxRow, cursorRow + count)
+            }
             'C' -> cursorCol = min(cols - 1, cursorCol + max(1, p(0, 1)))
             'D' -> cursorCol = max(0, cursorCol - max(1, p(0, 1)))
             'E' -> { cursorRow = min(rows - 1, cursorRow + max(1, p(0, 1))); cursorCol = 0 }
@@ -594,6 +608,7 @@ class TerminalBuffer(
                     for (mode in modes) {
                         when (mode) {
                             1 -> applicationCursorKeys = true
+                            7 -> autoWrapMode = true
                             25 -> isCursorVisible = true
                             47, 1047, 1049 -> enterAlternateBuffer()
                             2004 -> bracketedPasteMode = true
@@ -607,6 +622,7 @@ class TerminalBuffer(
                     for (mode in modes) {
                         when (mode) {
                             1 -> applicationCursorKeys = false
+                            7 -> autoWrapMode = false
                             25 -> isCursorVisible = false
                             47, 1047, 1049 -> exitAlternateBuffer()
                             2004 -> bracketedPasteMode = false
@@ -685,6 +701,8 @@ class TerminalBuffer(
         isCursorVisible = true
         applicationCursorKeys = false
         applicationKeypad = false
+        autoWrapMode = true
+        wrapPending = false
         history.clear()
         onHistoryCleared?.invoke()
     }
@@ -762,6 +780,7 @@ class TerminalBuffer(
         // Reset scroll margins to full screen for the new dimensions
         scrollTop = 0
         scrollBottom = rows - 1
+        wrapPending = false
     }
 
     @Synchronized

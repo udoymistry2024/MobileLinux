@@ -64,7 +64,6 @@ class CodeIdeActivity : AppCompatActivity() {
     private lateinit var drawerLayout: DrawerLayout
     private lateinit var editorWebView: WebView
     private lateinit var tvActiveFilename: TextView
-    private lateinit var btnMinimizeIde: ImageView
     private lateinit var btnToggleTerminal: ImageView
     private lateinit var btnSaveFile: ImageView
     private lateinit var btnRunCode: MaterialButton
@@ -189,8 +188,6 @@ class CodeIdeActivity : AppCompatActivity() {
         drawerLayout = findViewById(R.id.drawer_layout)
         editorWebView = findViewById(R.id.editor_webview)
         tvActiveFilename = findViewById(R.id.tv_active_filename)
-        btnMinimizeIde = findViewById(R.id.btn_minimize_ide)
-        btnMinimizeIde.setOnClickListener { minimizeToTerminal() }
         btnToggleTerminal = findViewById(R.id.btn_toggle_terminal)
         btnSaveFile = findViewById(R.id.btn_save_file)
         btnRunCode = findViewById(R.id.btn_run_code)
@@ -1785,13 +1782,27 @@ class CodeIdeActivity : AppCompatActivity() {
         }
     }
 
+    private fun showNavigationDialog() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Code IDE Navigation")
+            .setMessage("Do you want to minimize Code IDE (keep running in background) or exit completely?")
+            .setPositiveButton("Minimize") { _, _ ->
+                minimizeToTerminal()
+            }
+            .setNegativeButton("Exit IDE") { _, _ ->
+                confirmAndExitIde()
+            }
+            .setNeutralButton("Cancel", null)
+            .show()
+    }
+
     private fun handleBackPressed() {
         if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
             drawerLayout.closeDrawer(GravityCompat.START)
         } else if (layoutConsoleBody.visibility == View.VISIBLE) {
             toggleConsole(show = false)
         } else {
-            minimizeToTerminal()
+            showNavigationDialog()
         }
     }
 

@@ -62,7 +62,6 @@ class DevBrowserActivity : AppCompatActivity() {
     private lateinit var webviewContainer: FrameLayout
     private lateinit var etUrl: EditText
     private lateinit var btnClearUrl: ImageButton
-    private lateinit var btnClose: ImageButton
     private lateinit var btnHome: ImageButton
     private lateinit var btnTabSwitcher: FrameLayout
     private lateinit var tvTabCount: TextView
@@ -258,7 +257,6 @@ class DevBrowserActivity : AppCompatActivity() {
         webviewContainer = findViewById(R.id.webview_container)
         etUrl = findViewById(R.id.et_browser_url)
         btnClearUrl = findViewById(R.id.btn_clear_url)
-        btnClose = findViewById(R.id.btn_browser_close)
         btnHome = findViewById(R.id.btn_browser_home)
         btnTabSwitcher = findViewById(R.id.btn_tab_switcher)
         tvTabCount = findViewById(R.id.tv_tab_count)
@@ -269,10 +267,6 @@ class DevBrowserActivity : AppCompatActivity() {
         tvErrorDesc = findViewById(R.id.tv_error_desc)
         btnRetry = findViewById(R.id.btn_retry_load)
         topBar = findViewById(R.id.browser_top_bar)
-
-        btnClose.setOnClickListener {
-            minimizeToTerminal()
-        }
 
         btnHome.setOnClickListener {
             loadTargetUrl(DEFAULT_HOME_URL)

@@ -76,7 +76,12 @@ class TerminalManager(private val context: Context) {
     /**
      * Creates a new terminal session and starts the Ubuntu process.
      */
-    fun createSession(name: String? = null, cols: Int? = null, rows: Int? = null): TerminalSession {
+    fun createSession(
+        name: String? = null,
+        cols: Int? = null,
+        rows: Int? = null,
+        initialDir: String? = null
+    ): TerminalSession {
         val (defCols, defRows) = calculateDefaultDimensions()
         val effectiveCols = cols?.takeIf { it > 0 } ?: defCols
         val effectiveRows = rows?.takeIf { it > 0 } ?: defRows
@@ -88,7 +93,8 @@ class TerminalManager(private val context: Context) {
             val process = runtime.createSessionProcess(
                 sessionId = session.id,
                 cols = effectiveCols,
-                rows = effectiveRows
+                rows = effectiveRows,
+                initialWorkingDir = initialDir
             )
             val sessionProcess = SessionProcess(session, process)
             sessionProcess.terminalBuffer.resize(effectiveCols, effectiveRows)
@@ -98,7 +104,7 @@ class TerminalManager(private val context: Context) {
             // Start background I/O reader for this session immediately
             startSessionReader(sessionProcess)
 
-            Log.d(TAG, "Created session: ${session.id} (${session.name}) with size ${effectiveCols}x$effectiveRows")
+            Log.d(TAG, "Created session: ${session.id} (${session.name}) in ${initialDir ?: "default"} with size ${effectiveCols}x$effectiveRows")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to create session process: ${e.message}", e)
             session.isAlive = false
@@ -117,9 +123,14 @@ class TerminalManager(private val context: Context) {
     /**
      * Asynchronously creates a session on Dispatchers.IO to prevent freezing the UI thread / splash screen.
      */
-    suspend fun createSessionAsync(name: String? = null, cols: Int? = null, rows: Int? = null): TerminalSession =
+    suspend fun createSessionAsync(
+        name: String? = null,
+        cols: Int? = null,
+        rows: Int? = null,
+        initialDir: String? = null
+    ): TerminalSession =
         withContext(Dispatchers.IO) {
-            createSession(name, cols, rows)
+            createSession(name, cols, rows, initialDir)
         }
 
     private fun startSessionReader(sessionProcess: SessionProcess) {

@@ -18,12 +18,12 @@ class MainViewModel(private val terminalManager: TerminalManager) : ViewModel() 
     val activeSessionId: StateFlow<String?> = terminalManager.activeSessionId
     val sessionReadyFlow: SharedFlow<String> = terminalManager.sessionReadyFlow
 
-    fun createSession(name: String? = null): TerminalSession {
-        return terminalManager.createSession(name)
+    fun createSession(name: String? = null, initialDir: String? = null): TerminalSession {
+        return terminalManager.createSession(name, initialDir = initialDir)
     }
 
-    suspend fun createSessionAsync(name: String? = null): TerminalSession {
-        return terminalManager.createSessionAsync(name)
+    suspend fun createSessionAsync(name: String? = null, initialDir: String? = null): TerminalSession {
+        return terminalManager.createSessionAsync(name, initialDir = initialDir)
     }
 
     fun setActiveSession(sessionId: String) {

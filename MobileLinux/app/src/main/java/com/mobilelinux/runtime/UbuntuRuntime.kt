@@ -927,7 +927,8 @@ class UbuntuRuntime(private val context: Context) {
         sessionId: String,
         cols: Int = 80,
         rows: Int = 24,
-        execCommand: String? = null
+        execCommand: String? = null,
+        initialWorkingDir: String? = null
     ): Process {
         Log.d(TAG, "Creating session: $sessionId, mode=${if (isRooted) "chroot" else "proot"}")
 
@@ -946,9 +947,9 @@ class UbuntuRuntime(private val context: Context) {
         }
 
         val cmd = if (isRooted) {
-            buildChrootCommand(cols, rows, execCommand)
+            buildChrootCommand(cols, rows, execCommand, initialWorkingDir)
         } else {
-            buildProotCommand(sessionId, cols, rows, execCommand)
+            buildProotCommand(sessionId, cols, rows, execCommand, initialWorkingDir)
         }
 
         Log.d(TAG, "Command: ${cmd.joinToString(" ")}")
@@ -966,8 +967,15 @@ class UbuntuRuntime(private val context: Context) {
             .start()
     }
 
-    private fun buildProotCommand(sessionId: String, cols: Int, rows: Int, execCmd: String?): List<String> {
+    private fun buildProotCommand(
+        sessionId: String,
+        cols: Int,
+        rows: Int,
+        execCmd: String?,
+        initialWorkingDir: String? = null
+    ): List<String> {
         val shmDir = ensureSharedMemoryReady()
+        val workingDir = initialWorkingDir?.takeIf { it.isNotBlank() } ?: "/home/ubuntu"
 
         val cmd = mutableListOf(
             prootBinary.absolutePath,
@@ -980,7 +988,7 @@ class UbuntuRuntime(private val context: Context) {
             "--sysvipc",
             "--kill-on-exit",
             "--link2symlink",
-            "--cwd=/home/ubuntu"
+            "--cwd=$workingDir"
         )
 
         // Bind standard file descriptors if available
@@ -1076,8 +1084,14 @@ class UbuntuRuntime(private val context: Context) {
         return cmd
     }
 
-    private fun buildChrootCommand(cols: Int, rows: Int, execCmd: String?): List<String> {
+    private fun buildChrootCommand(
+        cols: Int,
+        rows: Int,
+        execCmd: String?,
+        initialWorkingDir: String? = null
+    ): List<String> {
         ensureSharedMemoryReady()
+        val workingDir = initialWorkingDir?.takeIf { it.isNotBlank() } ?: "/home/ubuntu"
         val cmd = mutableListOf(
             "su", "-c",
             buildString {
@@ -1095,9 +1109,9 @@ class UbuntuRuntime(private val context: Context) {
                 append("PATH=/home/ubuntu/.local/bin:/root/.local/bin:/home/ubuntu/go/bin:/root/go/bin:/home/ubuntu/.cargo/bin:/root/.cargo/bin:/home/ubuntu/miniforge3/bin:/home/ubuntu/miniforge3/condabin:/home/ubuntu/miniconda3/bin:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ")
                 append("USER=ubuntu SHELL=/usr/bin/bash ANDROID_HOST=true MOBILELINUX_MODE=chroot TMPDIR=/tmp ")
                 if (execCmd != null) {
-                    append("/usr/bin/bash -c '$execCmd'")
+                    append("/usr/bin/bash -c 'cd \"$workingDir\" && $execCmd'")
                 } else {
-                    append("/bin/bash /usr/local/bin/mobilelinux-shell.sh")
+                    append("/usr/bin/bash -c 'cd \"$workingDir\" && exec /bin/bash /usr/local/bin/mobilelinux-shell.sh'")
                 }
             }
         )

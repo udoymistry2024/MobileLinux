@@ -266,7 +266,8 @@
                 android:paddingStart="12dp"
                 android:paddingEnd="8dp"
                 android:clickable="true"
-                android:focusable="true">
+                android:focusable="false"
+                android:focusableInTouchMode="false">
 
                 <!-- Toggle / Chevron Indicator -->
                 <ImageView

@@ -127,6 +127,7 @@ class CodeIdeActivity : AppCompatActivity() {
     private var isServiceBound = false
     private var ideSessionId: String? = null
     private var isTerminalAttached = false
+    private var isDraggingConsole = false
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -299,31 +300,39 @@ class CodeIdeActivity : AppCompatActivity() {
         }
     }
 
+    private fun calculateMaxAvailableConsoleHeight(imeBottom: Int, statusBarTop: Int): Int {
+        val density = resources.displayMetrics.density
+        val minTerminalHeight = (80 * density).toInt()
+        val rootHeight = drawerLayout.height.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels
+        val toolbarHeight = findViewById<View>(R.id.ide_toolbar).height.takeIf { it > 0 } ?: (52 * density).toInt()
+        val tabsHeight = if (layoutTabsBar.visibility == View.VISIBLE) {
+            layoutTabsBar.height.takeIf { it > 0 } ?: (38 * density).toInt()
+        } else {
+            0
+        }
+        val consoleHeaderHeight = layoutConsoleHeader.height.takeIf { it > 0 } ?: (42 * density).toInt()
+        val extraKeysHeight = extraKeysView.height.takeIf { it > 0 } ?: (78 * density).toInt()
+        val dividerHeight = (4 * density).toInt()
+
+        val fixedOverhead = statusBarTop + toolbarHeight + tabsHeight + consoleHeaderHeight + extraKeysHeight + dividerHeight + imeBottom
+        // Leave at least 30dp for code editor visibility if possible
+        val maxAllowed = rootHeight - fixedOverhead - (30 * density).toInt()
+        return maxAllowed.coerceAtLeast(minTerminalHeight)
+    }
+
     private fun adjustConsoleHeightForKeyboard(isKeyboardVisible: Boolean, imeBottom: Int, statusBarTop: Int) {
         lastKeyboardVisible = isKeyboardVisible
         lastImeBottom = imeBottom
         lastStatusBarTop = statusBarTop
 
         if (layoutConsoleBody.visibility != View.VISIBLE) return
+        if (isDraggingConsole) return
 
         val density = resources.displayMetrics.density
         val minTerminalHeight = (80 * density).toInt()
 
         if (isKeyboardVisible) {
-            val rootHeight = drawerLayout.height.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels
-            val toolbarHeight = findViewById<View>(R.id.ide_toolbar).height.takeIf { it > 0 } ?: (52 * density).toInt()
-            val tabsHeight = if (layoutTabsBar.visibility == View.VISIBLE) {
-                layoutTabsBar.height.takeIf { it > 0 } ?: (38 * density).toInt()
-            } else {
-                0
-            }
-            val consoleHeaderHeight = layoutConsoleHeader.height.takeIf { it > 0 } ?: (42 * density).toInt()
-            val extraKeysHeight = extraKeysView.height.takeIf { it > 0 } ?: (78 * density).toInt()
-            val dividerHeight = (4 * density).toInt()
-
-            val fixedOverhead = statusBarTop + toolbarHeight + tabsHeight + consoleHeaderHeight + extraKeysHeight + dividerHeight + imeBottom
-            val maxAvailableConsoleHeight = (rootHeight - fixedOverhead).coerceAtLeast(minTerminalHeight)
-
+            val maxAvailableConsoleHeight = calculateMaxAvailableConsoleHeight(imeBottom, statusBarTop)
             val preferredHeight = if (userConsoleHeight > 0) userConsoleHeight else (220 * density).toInt()
 
             val targetHeight = if (activeFocusTarget == FocusTarget.TERMINAL) {
@@ -366,9 +375,12 @@ class CodeIdeActivity : AppCompatActivity() {
         val tm = terminalManager
         if (isTerminalAttached) return
 
-        // Look for an existing "IDE Terminal" session or create a new one
+        val initialDir = currentRootDir?.let { codeRunner.toLinuxPath(it) } ?: "/home/ubuntu"
+        lastExecutionDir = initialDir
+
+        // Look for an existing "IDE Terminal" session or create a new one directly in project directory
         val existingSession = tm.sessions.value.find { it.name == "IDE Terminal" }
-        val session = existingSession ?: tm.createSession("IDE Terminal")
+        val session = existingSession ?: tm.createSession("IDE Terminal", initialDir = initialDir)
         ideSessionId = session.id
 
         val sessionProcess = tm.getSessionProcess(session.id)
@@ -390,11 +402,8 @@ class CodeIdeActivity : AppCompatActivity() {
                 }
             }
 
-            // If we have an active project directory, navigate to it in bash
-            currentRootDir?.let { folder ->
-                val linuxPath = codeRunner.toLinuxPath(folder)
-                tm.sendInput(session.id, "cd \"$linuxPath\"\n".toByteArray())
-            }
+            // Note: Initial working directory is configured natively in PRoot/Chroot (--cwd).
+            // No piped "cd ..." command is typed into the shell, keeping terminal startup 100% clean.
         }
     }
 
@@ -428,10 +437,12 @@ class CodeIdeActivity : AppCompatActivity() {
         updateProjectBanner()
         fileTreeAdapter.setRootDir(folder)
 
+        val linuxPath = codeRunner.toLinuxPath(folder)
+        lastExecutionDir = linuxPath
+
         // Sync terminal working directory to newly opened project
         ideSessionId?.let { sessId ->
             val tm = terminalManager
-            val linuxPath = codeRunner.toLinuxPath(folder)
             tm.sendInput(sessId, "cd \"$linuxPath\"\n".toByteArray())
         }
 
@@ -958,17 +969,15 @@ class CodeIdeActivity : AppCompatActivity() {
         }
 
         // Touch Drag-to-Resize on Terminal Header
-        val minHeight = (80 * resources.displayMetrics.density).toInt()
         val defaultHeight = (220 * resources.displayMetrics.density).toInt()
         if (userConsoleHeight <= 0) {
             userConsoleHeight = defaultHeight
         }
         var touchStartY = 0f
         var initialHeight = 0
-        var isDrag = false
 
         layoutConsoleHeader.setOnTouchListener { _, event ->
-            val maxHeight = (resources.displayMetrics.heightPixels * 0.75).toInt()
+            val minHeight = (80 * resources.displayMetrics.density).toInt()
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     touchStartY = event.rawY
@@ -977,15 +986,15 @@ class CodeIdeActivity : AppCompatActivity() {
                     } else {
                         0
                     }
-                    isDrag = false
+                    isDraggingConsole = false
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val deltaY = touchStartY - event.rawY
                     if (Math.abs(deltaY) > 6 * resources.displayMetrics.density) {
-                        isDrag = true
+                        isDraggingConsole = true
                     }
-                    if (isDrag) {
+                    if (isDraggingConsole) {
                         if (layoutConsoleBody.visibility != View.VISIBLE) {
                             layoutConsoleBody.visibility = View.VISIBLE
                             val activeColor = getColor(R.color.accent_blue)
@@ -1008,22 +1017,30 @@ class CodeIdeActivity : AppCompatActivity() {
                             activeFocusTarget = FocusTarget.EDITOR
                             editorWebView.requestFocus()
                         } else {
-                            val clamped = newHeight.coerceIn(minHeight, maxHeight)
+                            val maxLimit = if (lastKeyboardVisible) {
+                                calculateMaxAvailableConsoleHeight(lastImeBottom, lastStatusBarTop)
+                            } else {
+                                (resources.displayMetrics.heightPixels * 0.75).toInt()
+                            }
+                            val clamped = newHeight.coerceIn(minHeight, maxLimit)
                             val params = layoutConsoleBody.layoutParams
                             params.height = clamped
                             layoutConsoleBody.layoutParams = params
-                            if (!lastKeyboardVisible) {
-                                userConsoleHeight = clamped
-                            }
+                            userConsoleHeight = clamped
                         }
                     }
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    if (!isDrag) {
+                    if (isDraggingConsole) {
+                        if (layoutConsoleBody.visibility == View.VISIBLE) {
+                            userConsoleHeight = layoutConsoleBody.height
+                            ideTerminalView.post { ideTerminalView.scrollToBottom() }
+                        }
+                        isDraggingConsole = false
+                    } else {
                         toggleConsole()
                     }
-                    isDrag = false
                     true
                 }
                 else -> false
@@ -1255,9 +1272,8 @@ class CodeIdeActivity : AppCompatActivity() {
             val linuxPath = codeRunner.toLinuxPath(file)
             val dir = File(linuxPath).parent ?: "/home/ubuntu"
             
-            // Clean execution: avoid redundant cd if already in target directory or default home
-            val execCmd = if (dir == lastExecutionDir || (lastExecutionDir == null && (dir == "/home/ubuntu" || dir == "/root"))) {
-                lastExecutionDir = dir
+            // Clean execution: avoid redundant cd if already in target directory
+            val execCmd = if (dir == lastExecutionDir) {
                 "$command\n"
             } else {
                 lastExecutionDir = dir

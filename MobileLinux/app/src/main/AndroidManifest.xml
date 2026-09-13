@@ -128,6 +128,15 @@
             android:theme="@style/Theme.MobileLinux"
             android:hardwareAccelerated="true" />
 
+        <!-- Dedicated Extensions Manager Page -->
+        <activity
+            android:name=".ui.ExtensionManagerActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified"
+            android:windowSoftInputMode="adjustResize"
+            android:parentActivityName=".ui.CodeIdeActivity"
+            android:theme="@style/Theme.MobileLinux" />
+
         <!-- Fullscreen Graphical Linux Desktop (XFCE4 & TigerVNC) -->
         <activity
             android:name=".ui.DesktopActivity"

@@ -268,8 +268,10 @@ object PackageRepository {
         }
 
         // 4. Standard APT packages
-        if (pkg.installCommand.contains("apt-get install -y") || pkg.installCommand.contains("apt-get install")) {
-            val raw = if (pkg.installCommand.contains("apt-get install -y")) {
+        if (pkg.installCommand.contains("pkg-install ") || pkg.installCommand.contains("apt-get install -y") || pkg.installCommand.contains("apt-get install")) {
+            val raw = if (pkg.installCommand.contains("pkg-install ")) {
+                pkg.installCommand.substringAfter("pkg-install ").trim()
+            } else if (pkg.installCommand.contains("apt-get install -y")) {
                 pkg.installCommand.substringAfter("apt-get install -y").trim()
             } else {
                 pkg.installCommand.substringAfter("apt-get install").trim().removePrefix("-y").trim()
@@ -282,13 +284,14 @@ object PackageRepository {
             }.filter { it.isNotBlank() }
             val cleanTargets = if (validPackageTokens.isNotEmpty()) validPackageTokens.joinToString(" ") else pkg.id
 
-            return "echo '[MobileLinux] Purging package $cleanTargets...'; " +
+            return "if [ -x /usr/local/bin/pkg-uninstall ]; then /usr/local/bin/pkg-uninstall $cleanTargets; else " +
+                    "echo '[MobileLinux] Purging package $cleanTargets...'; " +
                     "sudo apt-get -o DPkg::Lock::Timeout=10 purge -y $cleanTargets 2>&1 || true; " +
                     "sudo apt-get clean 2>/dev/null || true; " +
                     "for p in $cleanTargets ${pkg.id}; do rm -f \"/usr/bin/\$p\" \"/usr/local/bin/\$p\" \"/usr/sbin/\$p\" 2>/dev/null || true; done; " +
                     "if (${pkg.checkInstalledCommand}) >/dev/null 2>&1; then " +
                     "echo '[MobileLinux] ✗ $cleanTargets still found after purge'; exit 1; else " +
-                    "echo '[MobileLinux] ✓ Successfully uninstalled $cleanTargets!'; exit 0; fi"
+                    "echo '[MobileLinux] ✓ Successfully uninstalled $cleanTargets!'; exit 0; fi; fi"
         }
 
         // 5. Ruby gems

@@ -27,5 +27,6 @@ data class LinuxPackage(
     @Volatile var isActivated: Boolean = false,
     @Volatile var isActivating: Boolean = false,
     @Volatile var statusText: String = "",
-    @Volatile var progressPercent: Int = -1
+    @Volatile var progressPercent: Int = -1,
+    @Volatile var lastErrorLog: String? = null
 )

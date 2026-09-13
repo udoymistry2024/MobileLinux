@@ -9,13 +9,20 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.net.Uri
 import android.os.Bundle
 import android.os.IBinder
+import androidx.activity.result.contract.ActivityResultContracts
+import com.mobilelinux.ide.extension.ExtensionJsBridge
+import com.mobilelinux.ide.extension.ExtensionManager
+import com.mobilelinux.ide.extension.ExtensionsAdapter
+import com.mobilelinux.ide.extension.InstalledExtension
 import android.util.Log
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -25,6 +32,10 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.core.view.GravityCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -141,6 +152,9 @@ class CodeIdeActivity : AppCompatActivity() {
     private lateinit var terminalTabAdapter: IdeTerminalTabAdapter
     private var isTerminalAttached = false
     private var isDraggingConsole = false
+    // Extension Subsystem
+    private val extensionManager by lazy { ExtensionManager.getInstance(this) }
+    private val loadedExtensionIds = mutableSetOf<String>()
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -786,6 +800,7 @@ class CodeIdeActivity : AppCompatActivity() {
             onReady = {
                 runOnUiThread {
                     isEditorReady = true
+                    loadAllEnabledExtensions()
                     pendingFileToOpen?.let { file ->
                         loadFileIntoEditor(file)
                         pendingFileToOpen = null
@@ -845,6 +860,12 @@ class CodeIdeActivity : AppCompatActivity() {
         )
 
         editorWebView.addJavascriptInterface(bridge, "IdeBridge")
+        editorWebView.addJavascriptInterface(
+            ExtensionJsBridge(this, editorWebView) { cmd ->
+                sendCommandToActiveTerminal(cmd)
+            },
+            "ExtensionBridge"
+        )
         editorWebView.loadUrl("file:///android_asset/editor/index.html")
     }
 
@@ -1612,6 +1633,14 @@ class CodeIdeActivity : AppCompatActivity() {
                     editorWebView.evaluateJavascript("window.editorSetWordWrap($isWordWrap);", null)
                 },
 
+                MenuHelper.Item.Action(
+                    icon = R.drawable.ic_extension,
+                    title = "Extensions",
+                    badge = "${extensionManager.getEnabledExtensions().size} Active"
+                ) {
+                    startActivity(Intent(this, ExtensionManagerActivity::class.java))
+                },
+
                 MenuHelper.Item.Divider,
 
                 MenuHelper.Item.Action(
@@ -1871,6 +1900,79 @@ class CodeIdeActivity : AppCompatActivity() {
                 minimizeToTerminal()
             }
             .show()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (isEditorReady) {
+            syncExtensionsWithWebView()
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Extension Subsystem Methods
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private fun loadAllEnabledExtensions() {
+        if (!isEditorReady) return
+        val enabled = extensionManager.getEnabledExtensions()
+        for (ext in enabled) {
+            loadExtensionIntoWebView(ext)
+            loadedExtensionIds.add(ext.id)
+        }
+    }
+
+    private fun syncExtensionsWithWebView() {
+        val allExts = extensionManager.getInstalledExtensions()
+        val currentEnabledIds = allExts.filter { it.isEnabled }.map { it.id }.toSet()
+
+        // Unload extensions that were disabled or uninstalled in ExtensionManagerActivity
+        val toUnload = loadedExtensionIds - currentEnabledIds
+        for (id in toUnload) {
+            unloadExtensionFromWebView(id)
+        }
+
+        // Load extensions that are enabled and not yet loaded
+        for (ext in allExts.filter { it.isEnabled }) {
+            if (!loadedExtensionIds.contains(ext.id)) {
+                loadExtensionIntoWebView(ext)
+                loadedExtensionIds.add(ext.id)
+            }
+        }
+    }
+
+    private fun loadExtensionIntoWebView(ext: InstalledExtension) {
+        if (!isEditorReady) return
+        try {
+            val scriptFile = ext.mainScriptFile
+            if (!scriptFile.exists()) return
+            val jsCode = scriptFile.readText(Charsets.UTF_8)
+            val cssCode = ext.stylesFile?.takeIf { it.exists() }?.readText(Charsets.UTF_8) ?: ""
+            val safeJs = JSONObject.quote(jsCode)
+            val safeCss = JSONObject.quote(cssCode)
+            val eval = "window.loadExtension && window.loadExtension('${ext.id}', $safeJs, $safeCss);"
+            editorWebView.evaluateJavascript(eval, null)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load extension into webview: ${ext.id}", e)
+        }
+    }
+
+    private fun unloadExtensionFromWebView(extId: String) {
+        if (!isEditorReady) return
+        editorWebView.evaluateJavascript("window.unloadExtension && window.unloadExtension('$extId');", null)
+        loadedExtensionIds.remove(extId)
+    }
+
+    private fun sendCommandToActiveTerminal(cmd: String) {
+        runOnUiThread {
+            toggleConsole(show = true)
+            if (activeIdeSessionId == null) {
+                createNewIdeTerminalSession()
+            }
+            activeIdeSessionId?.let { sessId ->
+                terminalManager.sendInput(sessId, (cmd.trimEnd() + "\n").toByteArray())
+            }
+        }
     }
 
     private fun handleBackPressed() {

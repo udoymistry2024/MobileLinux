@@ -186,8 +186,14 @@ class PackageInstallationManager private constructor(private val context: Contex
                 // Priority 3: Ensure pip.conf break-system-packages
                 runtime.runCommand("sudo mkdir -p /etc && printf '[global]\\nbreak-system-packages = true\\n' | sudo tee /etc/pip.conf >/dev/null 2>&1 || true")
 
-                Log.d(TAG, "Starting install command for ${pkg.id}: ${pkg.installCommand.take(80)}...")
-                val result = runtime.runCommand(pkg.installCommand) { line ->
+                val effectiveCommand = if (pkg.installCommand.startsWith("sudo apt-get install -y ") && pkg.installCommand.contains("|| ((sudo apt-get update")) {
+                    val rawTargets = pkg.installCommand.removePrefix("sudo apt-get install -y ").substringBefore("||").trim()
+                    "if [ -x /usr/local/bin/pkg-install ]; then /usr/local/bin/pkg-install $rawTargets; else ${pkg.installCommand}; fi"
+                } else {
+                    pkg.installCommand
+                }
+                Log.d(TAG, "Starting install command for ${pkg.id}: ${effectiveCommand.take(80)}...")
+                val result = runtime.runCommand(effectiveCommand) { line ->
                     val parsed = parser.parseLine(line)
                     val now = System.currentTimeMillis()
                     if (parsed.percent != pkg.progressPercent || now - lastUpdateMs > 250) {
@@ -271,6 +277,7 @@ class PackageInstallationManager private constructor(private val context: Contex
                         pkg.isInstalled = false
                         pkg.progressPercent = -1
                         pkg.statusText = "Install completed, check failed"
+                        pkg.lastErrorLog = "Package check failed after installation.\nCommand: ${pkg.checkInstalledCommand}\nOutput:\n${checkResult.second}"
                         val currentSet = getCachedInstalledIds(prefs)
                         currentSet.remove(pkg.id)
                         prefs.edit().putStringSet("installed_ids", currentSet).apply()
@@ -283,11 +290,28 @@ class PackageInstallationManager private constructor(private val context: Contex
                     pkg.isInstalling = false
                     pkg.isInstalled = false
                     pkg.progressPercent = -1
+                    pkg.lastErrorLog = result.second
                     val errorSnippet = result.second.lines()
                         .map { it.replace(Regex("\u001B\\[[;?0-9]*[a-zA-Z]"), "").trim() }
-                        .filter { it.isNotBlank() && (it.startsWith("E:") || it.startsWith("npm error") || it.contains("error:", ignoreCase = true) || it.contains("failed", ignoreCase = true) || it.contains("not found", ignoreCase = true)) }
-                        .lastOrNull()?.take(70)
-                        ?: result.second.lines().map { it.trim() }.filter { it.isNotBlank() }.lastOrNull()?.take(70)
+                        .filter { line ->
+                            line.isNotBlank() &&
+                            !line.startsWith("[MobileLinux]") &&
+                            (line.startsWith("E:") ||
+                             line.startsWith("Err:") ||
+                             line.startsWith("npm error") ||
+                             line.contains("error:", ignoreCase = true) ||
+                             line.contains("failed", ignoreCase = true) ||
+                             line.contains("Could not resolve", ignoreCase = true) ||
+                             line.contains("Temporary failure", ignoreCase = true) ||
+                             line.contains("No module named", ignoreCase = true) ||
+                             line.contains("Connection timed out", ignoreCase = true) ||
+                             line.contains("not found", ignoreCase = true))
+                        }
+                        .lastOrNull()?.take(80)
+                        ?: result.second.lines()
+                            .map { it.replace(Regex("\u001B\\[[;?0-9]*[a-zA-Z]"), "").trim() }
+                            .filter { it.isNotBlank() && !it.startsWith("[MobileLinux]") }
+                            .lastOrNull()?.take(80)
 
                     pkg.statusText = if (!errorSnippet.isNullOrBlank()) {
                         "Failed (${result.first}): $errorSnippet"
@@ -303,6 +327,7 @@ class PackageInstallationManager private constructor(private val context: Contex
                 pkg.isInstalling = false
                 pkg.progressPercent = -1
                 pkg.statusText = "Error: ${e.message}"
+                pkg.lastErrorLog = "Exception during install:\n${e.stackTraceToString()}"
                 emitProgress(pkg, isFailed = true)
                 showToast("Error installing ${pkg.name}: ${e.message}")
             } finally {

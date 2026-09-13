@@ -634,13 +634,28 @@ class LibrariesActivity : AppCompatActivity() {
     }
 
     /**
-     * Copies the package install command directly to system clipboard
+     * Copies the package install command or displays the error log if installation failed
      */
     private fun copyPackageCommand(pkg: LinuxPackage) {
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val clip = ClipData.newPlainText("Install Command", pkg.installCommand)
-        clipboard.setPrimaryClip(clip)
-        Toast.makeText(this, "Copied install command for ${pkg.name}", Toast.LENGTH_SHORT).show()
+        if (!pkg.lastErrorLog.isNullOrBlank() && !pkg.isInstalled && !pkg.isInstalling) {
+            val clip = ClipData.newPlainText("Error Log", pkg.lastErrorLog)
+            clipboard.setPrimaryClip(clip)
+            com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle("Installation Log: ${pkg.name}")
+                .setMessage(pkg.lastErrorLog)
+                .setPositiveButton("Copy Full Log") { _, _ ->
+                    val c = ClipData.newPlainText("Error Log", pkg.lastErrorLog)
+                    clipboard.setPrimaryClip(c)
+                    Toast.makeText(this, "Copied error log for ${pkg.name}", Toast.LENGTH_SHORT).show()
+                }
+                .setNegativeButton("Close", null)
+                .show()
+        } else {
+            val clip = ClipData.newPlainText("Install Command", pkg.installCommand)
+            clipboard.setPrimaryClip(clip)
+            Toast.makeText(this, "Copied install command for ${pkg.name}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun dpToPx(dp: Int): Int {

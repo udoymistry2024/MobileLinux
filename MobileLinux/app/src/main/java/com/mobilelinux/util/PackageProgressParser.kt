@@ -141,7 +141,7 @@ class PackageProgressParser(
                 currentPercent = maxOf(currentPercent, 50)
                 "Fetching npm package..."
             }
-            (lower.contains("added ") && lower.contains("package")) || lower.contains("installation complete") || lower.contains("sync complete") || lower.contains("installed successfully") || lower.contains("✓ jupyter") || lower.contains("✓ miniforge") || lower.contains("✓ conda") || lower.contains("conda successfully installed") || lower.contains("conda installed successfully") -> {
+            (lower.contains("added ") && lower.contains("package")) || lower.contains("installation complete") || lower.contains("sync complete") || lower.contains("installed successfully") || lower.contains("✓ successfully installed") || lower.contains("successfully installed") || lower.contains("✓ jupyter") || lower.contains("✓ miniforge") || lower.contains("✓ conda") || lower.contains("conda successfully installed") || lower.contains("conda installed successfully") -> {
                 currentPercent = 100
                 "Installation complete"
             }
@@ -184,7 +184,7 @@ class PackageProgressParser(
                 currentPercent = maxOf(currentPercent, 85)
                 "Cleaning Conda environments..."
             }
-            lower.contains("permanently uninstalled") || lower.contains("successfully uninstalled") || lower.contains("purged from all environments") || lower.contains("conda permanently uninstalled") || lower.contains("conda successfully removed") -> {
+            lower.contains("permanently uninstalled") || lower.contains("successfully uninstalled") || lower.contains("successfully removed") || lower.contains("purged from all environments") || lower.contains("conda permanently uninstalled") || lower.contains("conda successfully removed") -> {
                 currentPercent = 100
                 "Uninstallation complete"
             }

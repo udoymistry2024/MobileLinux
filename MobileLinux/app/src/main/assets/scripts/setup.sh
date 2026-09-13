@@ -102,16 +102,18 @@ if /usr/bin/python3 -m pip --version >/dev/null 2>&1; then
     exec /usr/bin/python3 -m pip "$@"
 elif [ -x /usr/bin/pip3 ]; then
     exec /usr/bin/pip3 "$@"
+elif [ -x /home/ubuntu/miniforge3/bin/pip ]; then
+    exec /home/ubuntu/miniforge3/bin/pip "$@"
 fi
-echo -e "\033[1;36m[MobileLinux]\033[0m pip is not installed yet. Installing python3-pip..."
-export DEBIAN_FRONTEND=noninteractive
-sudo apt-get update -y && sudo apt-get install -y --no-install-recommends python3-pip
+if [ -x /usr/local/bin/ensure-pip ]; then
+    /usr/local/bin/ensure-pip || true
+fi
 if /usr/bin/python3 -m pip --version >/dev/null 2>&1; then
     exec /usr/bin/python3 -m pip "$@"
 elif [ -x /usr/bin/pip3 ]; then
     exec /usr/bin/pip3 "$@"
 else
-    echo -e "\033[1;31m[MobileLinux]\033[0m Failed to install pip."
+    echo -e "\033[1;31m[MobileLinux]\033[0m Failed to run pip. Ensure-pip could not bootstrap."
     exit 1
 fi
 EOF
@@ -134,6 +136,9 @@ Acquire::ForceIPv4 "true";
 APT::Get::Assume-Yes "true";
 APT::Get::AllowUnauthenticated "false";
 APT::Sandbox::User "root";
+Acquire::http::Timeout "15";
+Acquire::https::Timeout "15";
+Acquire::Retries "3";
 Acquire::http::Pipeline-Depth "0";
 Acquire::http::No-Cache "true";
 Acquire::Languages "none";
@@ -142,6 +147,159 @@ Dpkg::Options {
     "--force-confold";
 };
 EOF
+
+# Install get-pip.py offline asset if bundled
+mkdir -p "$ROOTFS_DIR/usr/local/share/mobilelinux"
+if [ -f "$SCRIPTS_DIR/get-pip.py" ]; then
+    cp "$SCRIPTS_DIR/get-pip.py" "$ROOTFS_DIR/usr/local/share/mobilelinux/get-pip.py"
+fi
+
+cat > "$ROOTFS_DIR/usr/local/bin/ensure-pip" << 'EOF'
+#!/bin/bash
+# MobileLinux Fast Pip Bootstrapper
+export PATH="/home/ubuntu/miniforge3/bin:/home/ubuntu/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
+
+if command -v pip3 >/dev/null 2>&1 && pip3 --version >/dev/null 2>&1; then
+    exit 0
+fi
+if python3 -m pip --version >/dev/null 2>&1; then
+    exit 0
+fi
+
+echo -e "\033[1;36m[MobileLinux]\033[0m Bootstrapping Python pip..."
+
+# 1. Local bundled get-pip.py (Instant, offline)
+if [ -f /usr/local/share/mobilelinux/get-pip.py ]; then
+    echo -e "\033[1;34m[MobileLinux]\033[0m Installing pip from local bundle..."
+    if python3 /usr/local/share/mobilelinux/get-pip.py --break-system-packages --no-warn-script-location --no-setuptools --no-wheel 2>&1; then
+        echo -e "\033[1;32m[MobileLinux]\033[0m ✓ Pip installed successfully from local bundle!"
+        exit 0
+    fi
+fi
+
+# 2. PyPA CDN via Python urllib
+echo -e "\033[1;34m[MobileLinux]\033[0m Downloading pip from PyPA CDN..."
+python3 -c "
+import urllib.request, sys
+try:
+    urllib.request.urlretrieve('https://bootstrap.pypa.io/get-pip.py', '/tmp/get-pip.py')
+    sys.exit(0)
+except Exception:
+    sys.exit(1)
+" 2>/dev/null
+
+if [ -f /tmp/get-pip.py ]; then
+    if python3 /tmp/get-pip.py --break-system-packages --no-warn-script-location 2>&1; then
+        rm -f /tmp/get-pip.py
+        echo -e "\033[1;32m[MobileLinux]\033[0m ✓ Pip installed successfully via PyPA CDN!"
+        exit 0
+    fi
+fi
+
+# 3. APT fallback via smart mirror
+echo -e "\033[1;34m[MobileLinux]\033[0m Fallback: Installing python3-pip via APT..."
+if [ -x /usr/local/bin/pkg-install ]; then
+    /usr/local/bin/pkg-install python3-pip python3-setuptools python3-wheel 2>&1 || true
+else
+    sudo apt-get install -y --no-install-recommends python3-pip python3-setuptools python3-wheel 2>&1 || true
+fi
+
+if command -v pip3 >/dev/null 2>&1 || python3 -m pip --version >/dev/null 2>&1; then
+    echo -e "\033[1;32m[MobileLinux]\033[0m ✓ Pip ready!"
+    exit 0
+else
+    echo -e "\033[1;31m[MobileLinux]\033[0m ✗ Failed to bootstrap pip. Check network connection."
+    exit 1
+fi
+EOF
+chmod +x "$ROOTFS_DIR/usr/local/bin/ensure-pip"
+
+cat > "$ROOTFS_DIR/usr/local/bin/pkg-install" << 'EOF'
+#!/bin/bash
+# MobileLinux Universal Smart Package Installer
+export DEBIAN_FRONTEND=noninteractive
+export PATH="/home/ubuntu/miniforge3/bin:/home/ubuntu/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
+
+if [ $# -eq 0 ]; then
+    echo "Usage: pkg-install <package-name> [package-name-2 ...]"
+    exit 1
+fi
+
+echo -e "\033[1;36m[MobileLinux]\033[0m Installing \033[1;32m$*\033[0m..."
+
+# Clean stale locks
+sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* /var/lib/dpkg/updates/* /var/cache/debconf/*.lock 2>/dev/null || true
+
+# Check if package index exists
+LISTS_COUNT=$(ls -1 /var/lib/apt/lists/ 2>/dev/null | grep -v "lock" | wc -l)
+if [ "$LISTS_COUNT" -lt 2 ]; then
+    echo -e "\033[1;34m[MobileLinux]\033[0m Initializing package index (one-time setup)..."
+    sudo apt-get update || true
+fi
+
+# Try install
+if sudo apt-get install -y --no-install-recommends "$@"; then
+    echo -e "\033[1;32m[MobileLinux]\033[0m ✓ Successfully installed $*"
+    exit 0
+fi
+
+# If failed, refresh index and retry
+echo -e "\033[1;33m[MobileLinux]\033[0m Updating package lists and retrying installation..."
+sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true
+sudo apt-get update || true
+
+if sudo apt-get install -y --no-install-recommends "$@"; then
+    echo -e "\033[1;32m[MobileLinux]\033[0m ✓ Successfully installed $*"
+    exit 0
+else
+    echo -e "\033[1;31m[MobileLinux]\033[0m ✗ Failed to install $*"
+    exit 1
+fi
+EOF
+chmod +x "$ROOTFS_DIR/usr/local/bin/pkg-install"
+
+cat > "$ROOTFS_DIR/usr/local/bin/pkg-uninstall" << 'EOF'
+#!/bin/bash
+# MobileLinux Universal Smart Package Uninstaller
+export DEBIAN_FRONTEND=noninteractive
+
+if [ $# -eq 0 ]; then
+    echo "Usage: pkg-uninstall <package-name> [package-name-2 ...]"
+    exit 1
+fi
+
+echo -e "\033[1;36m[MobileLinux]\033[0m Purging \033[1;33m$*\033[0m..."
+
+# Clean stale locks
+sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* /var/lib/dpkg/updates/* /var/cache/debconf/*.lock 2>/dev/null || true
+
+# Terminate active processes matching package
+for p in "$@"; do
+    pkill -9 -f "$p" 2>/dev/null || true
+done
+
+# Purge packages
+sudo apt-get purge -y "$@" 2>&1 || true
+sudo apt-get autoremove -y --purge 2>&1 || true
+sudo apt-get clean 2>/dev/null || true
+
+# Clean residual binary paths (protecting MobileLinux built-in wrappers)
+PROTECTED_WRAPPERS="sudo python python3 pip pip3 pkg-install pkg-uninstall pkg-install-python pkg-uninstall-python conda mamba jupyter jupyter-lab jupyter-notebook jupyter-start jupyter-restart desktop-start desktop-stop fix-permissions fix-perms xdg-open code firefox vlc libreoffice soffice"
+
+for p in "$@"; do
+    for bin_dir in /usr/bin /usr/sbin /usr/games; do
+        rm -f "$bin_dir/$p" 2>/dev/null || true
+    done
+    if [[ ! " $PROTECTED_WRAPPERS " =~ " $p " ]]; then
+        rm -f "/usr/local/bin/$p" 2>/dev/null || true
+    fi
+    rm -rf "/home/ubuntu/.$p" "/root/.$p" "/etc/$p" 2>/dev/null || true
+done
+
+echo -e "\033[1;32m[MobileLinux]\033[0m ✓ Successfully uninstalled and purged $*"
+exit 0
+EOF
+chmod +x "$ROOTFS_DIR/usr/local/bin/pkg-uninstall"
 
 cat > "$ROOTFS_DIR/usr/local/bin/pkg-install-python" << 'EOF'
 #!/bin/bash
@@ -393,15 +551,16 @@ rm -f "$ROOTFS_DIR/home/ubuntu/mobilelinux-shell.sh" "$ROOTFS_DIR/root/mobilelin
 log "✓ Command wrappers and pip config installed (sudo, python, pip, pkg-install-python, conda-sync)"
 
 # ===========================================================================
-# Step 7: Configure apt sources for Ubuntu 24.04 ARM64
+# Step 7: Configure standard official APT sources for Ubuntu 24.04 ARM64
 # ===========================================================================
+rm -f "$ROOTFS_DIR/etc/apt/sources.list.d/ubuntu.sources" 2>/dev/null || true
 cat > "$ROOTFS_DIR/etc/apt/sources.list" << 'EOF'
 deb http://ports.ubuntu.com/ubuntu-ports noble main restricted universe multiverse
 deb http://ports.ubuntu.com/ubuntu-ports noble-updates main restricted universe multiverse
 deb http://ports.ubuntu.com/ubuntu-ports noble-security main restricted universe multiverse
 deb http://ports.ubuntu.com/ubuntu-ports noble-backports main restricted universe multiverse
 EOF
-log "✓ APT sources configured (Ubuntu 24.04 Noble ARM64)"
+log "✓ Official Ubuntu Ports APT sources configured (Noble 24.04 ARM64)"
 
 # ===========================================================================
 # Step 8: Create /root home directory with bashrc

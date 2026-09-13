@@ -653,6 +653,183 @@
             actionBar.style.left = barX + 'px';
             actionBar.style.top = barY + 'px';
         }
+
+        // =========================================================================
+        // Extension Runtime Subsystem
+        // =========================================================================
+        window.activeExtensions = {};
+        window.__extensionCallbacks = {};
+        let __nextCallbackId = 1;
+
+        window.__extensionCallback = function(callbackId, exitCode, stdout, stderr) {
+            const cb = window.__extensionCallbacks[callbackId];
+            if (cb) {
+                delete window.__extensionCallbacks[callbackId];
+                try {
+                    cb(exitCode, stdout, stderr);
+                } catch (e) {
+                    console.error("Error in extension callback:", e);
+                }
+            }
+        };
+
+        function createExtensionApi(extId) {
+            return {
+                id: extId,
+                editor: {
+                    getValue: () => editor ? editor.getValue() : "",
+                    setValue: (val) => {
+                        if (!editor) return;
+                        isProgrammaticChange = true;
+                        editor.setValue(val, -1);
+                        isProgrammaticChange = false;
+                    },
+                    getSelectedText: () => editor ? editor.getSelectedText() : "",
+                    replaceSelection: (text) => {
+                        if (!editor) return;
+                        editor.insert(text);
+                    },
+                    insert: (text) => {
+                        if (!editor) return;
+                        editor.insert(text);
+                    },
+                    getCursor: () => editor ? editor.getCursorPosition() : { row: 0, column: 0 },
+                    setCursor: (row, col) => {
+                        if (!editor) return;
+                        editor.gotoLine(row + 1, col, true);
+                    },
+                    getFilePath: () => currentFilePath,
+                    getFileName: () => currentFilePath.split('/').pop(),
+                    addCommand: (cmd) => {
+                        if (!editor) return;
+                        editor.commands.addCommand({
+                            name: extId + "_" + (cmd.name || cmd.id),
+                            bindKey: cmd.bindKey,
+                            exec: () => cmd.exec && cmd.exec(editor)
+                        });
+                    }
+                },
+                ui: {
+                    showToast: (msg) => {
+                        if (window.ExtensionBridge && window.ExtensionBridge.showToast) {
+                            window.ExtensionBridge.showToast(msg);
+                        }
+                    },
+                    addToolbarButton: (opts) => {
+                        const btnId = "ext-btn-" + extId + "-" + opts.id;
+                        let btn = document.getElementById(btnId);
+                        if (!btn) {
+                            btn = document.createElement('button');
+                            btn.id = btnId;
+                            btn.className = 'selection-action-btn';
+                            btn.innerText = opts.label || opts.icon || opts.id;
+                            if (opts.tooltip) btn.title = opts.tooltip;
+                            btn.onclick = (e) => {
+                                e.stopPropagation();
+                                opts.onClick && opts.onClick();
+                            };
+                            document.getElementById('selection-action-bar').appendChild(btn);
+                        }
+                    },
+                    removeToolbarButton: (optsId) => {
+                        const btnId = "ext-btn-" + extId + "-" + optsId;
+                        const btn = document.getElementById(btnId);
+                        if (btn) btn.remove();
+                    }
+                },
+                terminal: {
+                    exec: (command, callback) => {
+                        const cbId = "cb_" + (__nextCallbackId++);
+                        if (callback) {
+                            window.__extensionCallbacks[cbId] = callback;
+                        }
+                        if (window.ExtensionBridge && window.ExtensionBridge.executeLinuxCommand) {
+                            window.ExtensionBridge.executeLinuxCommand(command, cbId);
+                        } else if (callback) {
+                            callback(-1, "", "ExtensionBridge not available");
+                        }
+                    },
+                    sendToConsole: (command) => {
+                        if (window.ExtensionBridge && window.ExtensionBridge.sendToTerminal) {
+                            window.ExtensionBridge.sendToTerminal(command);
+                        }
+                    }
+                },
+                storage: {
+                    get: (key) => {
+                        if (window.ExtensionBridge && window.ExtensionBridge.getSetting) {
+                            return window.ExtensionBridge.getSetting(extId, key);
+                        }
+                        return "";
+                    },
+                    set: (key, value) => {
+                        if (window.ExtensionBridge && window.ExtensionBridge.saveSetting) {
+                            window.ExtensionBridge.saveSetting(extId, key, String(value));
+                        }
+                    }
+                }
+            };
+        }
+
+        window.loadExtension = function(extId, scriptCode, cssCode) {
+            try {
+                if (window.activeExtensions[extId]) {
+                    window.unloadExtension(extId);
+                }
+
+                if (cssCode && cssCode.trim().length > 0) {
+                    const styleEl = document.createElement('style');
+                    styleEl.id = "ext-style-" + extId;
+                    styleEl.textContent = cssCode;
+                    document.head.appendChild(styleEl);
+                }
+
+                const api = createExtensionApi(extId);
+                const extFactory = new Function("ide", "module", "exports", scriptCode + "\n; return (typeof module !== 'undefined' && module.exports && Object.keys(module.exports).length > 0) ? module.exports : (typeof extension !== 'undefined' ? extension : null);");
+                const module = { exports: {} };
+                const instance = extFactory(api, module, module.exports);
+                const extInstance = instance || module.exports;
+
+                window.activeExtensions[extId] = {
+                    api: api,
+                    instance: extInstance
+                };
+
+                if (extInstance && typeof extInstance.init === 'function') {
+                    extInstance.init(api);
+                }
+
+                console.log("Extension loaded:", extId);
+                return true;
+            } catch (err) {
+                console.error("Failed to load extension " + extId + ":", err);
+                if (window.ExtensionBridge) {
+                    window.ExtensionBridge.showToast("Extension error (" + extId + "): " + err.message);
+                }
+                return false;
+            }
+        };
+
+        window.unloadExtension = function(extId) {
+            try {
+                const extObj = window.activeExtensions[extId];
+                if (extObj && extObj.instance && typeof extObj.instance.destroy === 'function') {
+                    extObj.instance.destroy();
+                }
+                const styleEl = document.getElementById("ext-style-" + extId);
+                if (styleEl) styleEl.remove();
+
+                const extButtons = document.querySelectorAll("[id^='ext-btn-" + extId + "-']");
+                extButtons.forEach(b => b.remove());
+
+                delete window.activeExtensions[extId];
+                console.log("Extension unloaded:", extId);
+                return true;
+            } catch (err) {
+                console.error("Failed to unload extension " + extId + ":", err);
+                return false;
+            }
+        };
     </script>
 </body>
 </html>

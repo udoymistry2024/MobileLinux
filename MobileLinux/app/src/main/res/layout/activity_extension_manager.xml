@@ -1,0 +1,310 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/root_extension_manager"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/terminal_bg"
+    android:orientation="vertical">
+
+    <!-- Top App Bar / Toolbar -->
+    <LinearLayout
+        android:id="@+id/toolbar_extension_manager"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/toolbar_bg"
+        android:elevation="3dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="10dp">
+
+        <!-- Back Button -->
+        <ImageView
+            android:id="@+id/btn_back"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:contentDescription="Back"
+            android:focusable="true"
+            android:padding="9dp"
+            android:src="@drawable/ic_arrow_back"
+            app:tint="@color/text_primary" />
+
+        <!-- Icon Badge -->
+        <ImageView
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginStart="4dp"
+            android:background="@drawable/bg_dialog_icon_circle"
+            android:contentDescription="Extension Icon"
+            android:padding="7dp"
+            android:src="@drawable/ic_extension"
+            app:tint="@color/accent_cyan" />
+
+        <!-- Title & Subtitle -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/inter_bold"
+                android:text="Extensions"
+                android:textColor="@color/text_primary"
+                android:textSize="17sp" />
+
+            <TextView
+                android:id="@+id/tv_header_count"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/inter_regular"
+                android:text="Manage &amp; install Code IDE extensions"
+                android:textColor="@color/text_secondary"
+                android:textSize="11.5sp" />
+
+        </LinearLayout>
+
+        <!-- Import Button in Header with comfortable margin from edge -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_toolbar_import"
+            android:layout_width="wrap_content"
+            android:layout_height="38dp"
+            android:layout_marginEnd="6dp"
+            android:backgroundTint="@color/accent_blue"
+            android:fontFamily="@font/inter_medium"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="14dp"
+            android:text="Import"
+            android:textAllCaps="false"
+            android:textColor="@android:color/white"
+            android:textSize="12.5sp"
+            app:cornerRadius="8dp"
+            app:icon="@drawable/ic_file_plus"
+            app:iconGravity="textStart"
+            app:iconPadding="6dp"
+            app:iconSize="15dp"
+            app:iconTint="@android:color/white" />
+
+    </LinearLayout>
+
+    <!-- Search Input Bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="42dp"
+        android:layout_marginStart="14dp"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="14dp"
+        android:background="@drawable/bg_search_bar"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp">
+
+        <ImageView
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:src="@drawable/ic_search"
+            app:tint="@color/text_secondary"
+            android:contentDescription="Search" />
+
+        <EditText
+            android:id="@+id/et_search_extensions"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="10dp"
+            android:layout_weight="1"
+            android:background="@null"
+            android:fontFamily="@font/inter_regular"
+            android:hint="Search installed extensions..."
+            android:imeOptions="actionSearch"
+            android:inputType="text"
+            android:maxLines="1"
+            android:textColor="@color/text_primary"
+            android:textColorHint="@color/text_hint"
+            android:textSize="13.5sp" />
+
+        <ImageView
+            android:id="@+id/btn_clear_search"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:padding="2dp"
+            android:src="@drawable/ic_close"
+            android:visibility="gone"
+            app:tint="@color/text_secondary"
+            tools:visibility="visible"
+            android:contentDescription="Clear" />
+
+    </LinearLayout>
+
+    <!-- Filter Pills Row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="14dp"
+        android:layout_marginTop="10dp"
+        android:layout_marginEnd="14dp"
+        android:layout_marginBottom="6dp"
+        android:orientation="horizontal">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/chip_filter_all"
+            style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:backgroundTint="@color/card_bg"
+            android:fontFamily="@font/inter_medium"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:text="All"
+            android:textAllCaps="false"
+            android:textColor="@color/accent_blue"
+            android:textSize="11.5sp"
+            app:cornerRadius="16dp"
+            app:strokeColor="@color/accent_blue"
+            app:strokeWidth="1dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/chip_filter_enabled"
+            style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:layout_marginStart="8dp"
+            android:backgroundTint="@color/card_bg"
+            android:fontFamily="@font/inter_medium"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:text="Enabled"
+            android:textAllCaps="false"
+            android:textColor="@color/text_secondary"
+            android:textSize="11.5sp"
+            app:cornerRadius="16dp"
+            app:strokeColor="@color/border_color"
+            app:strokeWidth="1dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/chip_filter_disabled"
+            style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:layout_marginStart="8dp"
+            android:backgroundTint="@color/card_bg"
+            android:fontFamily="@font/inter_medium"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:text="Disabled"
+            android:textAllCaps="false"
+            android:textColor="@color/text_secondary"
+            android:textSize="11.5sp"
+            app:cornerRadius="16dp"
+            app:strokeColor="@color/border_color"
+            app:strokeWidth="1dp" />
+
+    </LinearLayout>
+
+    <!-- Main Content Container -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <!-- RecyclerView -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_extensions"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingStart="14dp"
+            android:paddingTop="6dp"
+            android:paddingEnd="14dp"
+            android:paddingBottom="24dp"
+            android:overScrollMode="never" />
+
+        <!-- Empty State View -->
+        <LinearLayout
+            android:id="@+id/layout_empty_state"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:paddingStart="32dp"
+            android:paddingEnd="32dp"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <ImageView
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:alpha="0.75"
+                android:src="@drawable/ic_extension"
+                app:tint="@color/accent_cyan"
+                android:contentDescription="Empty" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:fontFamily="@font/inter_bold"
+                android:text="No Extensions Installed"
+                android:textColor="@color/text_primary"
+                android:textSize="16sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:gravity="center"
+                android:fontFamily="@font/inter_regular"
+                android:lineSpacingExtra="2dp"
+                android:text="Install custom language tools, formatters, and snippets from device storage (.mle or .zip)."
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+
+            <!-- Big Import Button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_empty_import"
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                android:layout_marginTop="20dp"
+                android:backgroundTint="@color/accent_blue"
+                android:fontFamily="@font/inter_medium"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:paddingStart="20dp"
+                android:paddingEnd="22dp"
+                android:text="Import Extension (.mle / .zip)"
+                android:textAllCaps="false"
+                android:textColor="@android:color/white"
+                android:textSize="13sp"
+                app:cornerRadius="10dp"
+                app:icon="@drawable/ic_file_plus"
+                app:iconGravity="textStart"
+                app:iconPadding="8dp"
+                app:iconSize="16dp"
+                app:iconTint="@android:color/white" />
+
+        </LinearLayout>
+
+    </FrameLayout>
+
+</LinearLayout>

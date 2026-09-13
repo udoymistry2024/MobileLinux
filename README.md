@@ -10,7 +10,7 @@
   [![Platform](https://img.shields.io/badge/Platform-Android%208.0%2B-3DDC84.svg?logo=android&logoColor=white)](https://github.com/udoymistry2024/MobileLinux/releases)
   [![OS: Ubuntu 24.04 LTS](https://img.shields.io/badge/Ubuntu-24.04%20LTS-E95420.svg?logo=ubuntu&logoColor=white)](https://ubuntu.com)
   [![Architecture](https://img.shields.io/badge/Arch-ARM64%20%7C%20ARMv7-007ACC.svg)](#architecture)
-  [![Version](https://img.shields.io/badge/Version-1.6.2-blueviolet.svg)](https://github.com/udoymistry2024/MobileLinux/releases)
+  [![Version](https://img.shields.io/badge/Version-1.8.0--stable-brightgreen.svg)](https://github.com/udoymistry2024/MobileLinux/releases)
 
   <p align="center">
     <a href="#key-features">Key Features</a> •
@@ -91,8 +91,8 @@ Whether you are compiling C/C++ projects with `gcc`, running a **Miniforge / Con
 ## 📲 Quick Start
 
 ### 1. Download & Install
-Download the latest signed release APK from [**GitHub Releases**](https://github.com/udoymistry2024/MobileLinux/releases):
-- **`MobileLinux-v1.6.2.apk`** (or `MobileLinux-latest.apk`)
+Download the official signed release APK from [**GitHub Releases**](https://github.com/udoymistry2024/MobileLinux/releases):
+- **`mobile-linux-v1.8.0-stable.apk`** (or latest release asset)
 
 Install the APK on any device running **Android 8.0 (Oreo) or higher** (Targeting Android 15 / API 35).
 
@@ -138,6 +138,38 @@ bash Miniforge3-Linux-aarch64.sh
 
 <a name="whats-new"></a>
 ## 🆕 What's New
+
+### v1.8.0-stable (Master Stable Release)
+- 🟢 **Full Ecosystem Master Stability Certification:**
+  - Complete architectural audit across all 12 core layers passed with zero blocking bugs or memory leaks.
+  - Full W^X compliance on Android 10, 11, 12, 13, 14, 15, and 16 using native library execution paths.
+  - 3-layer APT lock contention defense (`cleanupAptLocks` on host, guest lock cleanup, and background job cancellation).
+  - Dynamic host Android DNS synchronization before every session with fallback resolvers (`1.1.1.1`, `8.8.8.8`).
+- 🧩 **Dedicated Full-Screen Extension Manager (`ExtensionManagerActivity`):**
+  - Full-screen extensions center with modern GitHub dark UI cards.
+  - Real-time instant search across name, ID, description, and author with category filter chips (`All`, `Enabled`, `Disabled`).
+  - Native `.mle` / `.zip` file importing, one-click demo loaders, and live two-way sync with the Code IDE editor.
+- 📦 **Overhauled Package Management Engine (`pkg-install`, `pkg-uninstall`, `ensure-pip`):**
+  - Built-in Package Store featuring 376+ curated tools across 10 categories with live progress percentage parsing and error log extraction.
+  - Multi-threaded download and installation queue with 2-hour CPU WakeLock to prevent interruption when minimizing the app.
+  - Autonomous pip bootstrapper leveraging bundled offline `get-pip.py` (`/usr/local/share/mobilelinux/get-pip.py`).
+- 🖥️ **Full Linux Desktop Mode (XFCE4 & TigerVNC):**
+  - Fullscreen landscape mode with hardware-accelerated canvas preserving native screen aspect ratio up to 1080p@60fps.
+  - Multi-touch laptop trackpad simulation (two-finger scroll, double-tap drag) and full OTG/Bluetooth keyboard & mouse support.
+  - Floating HUD controls for on-the-fly soft keyboard toggle, resolution switching, and clean server shutdown.
+- 💻 **Native Mobile Code IDE:**
+  - Monaco editor with 40+ language syntax highlighting, multi-tab file management, and drawer-based project tree.
+  - Integrated PRoot Linux terminal bottom panel (VS Code style) sharing real-time session state.
+  - Polyglot Code Runner (`CodeRunner.kt`) supporting C, C++, Python, Rust, Go, JavaScript, Bash, and Java.
+- 🌐 **Integrated Chromium Developer Browser:**
+  - Multi-tab browser with universal force dark mode and tab switcher grid.
+  - Embedded Eruda Mobile DevTools for DOM inspection, network debugging, and console logging.
+  - Automatic `jupyter-mobile-patch.js` injection for flawless mobile JupyterLab and Jupyter Notebook touch UX.
+- 🎨 **Modern Anchored Popup Menus & Session Sidebar:**
+  - Replaced standard Android overflow menus with sleek dark-themed anchored popups (`MenuHelper.kt`).
+  - Long-press context menu on terminal sessions for instant renaming and closing.
+- 📦 **Verified Universal Signed Release APK:**
+  - Bundled universal release APK signed with v1/v2 release keys (`mobile-linux-v1.8.0-stable.apk`).
 
 ### v1.6.2
 - 💻 **Microsoft Visual Studio Code (GUI) Integration:**

@@ -1,0 +1,10 @@
+{
+  "id": "org.jupyter.notebook",
+  "name": "Jupyter Notebook",
+  "version": "1.2.0",
+  "description": "Interactive Jupyter Notebook support for MobileLinux Code IDE. Run code cells (# %%), start local Jupyter servers, execute kernels via Ubuntu PRoot, and convert .ipynb notebooks.",
+  "author": "Project Jupyter & MobileLinux",
+  "main": "main.js",
+  "styles": "styles.css",
+  "icon": "icon.png"
+}

@@ -98,7 +98,11 @@ class PackageInstallationManager private constructor(private val context: Contex
     /**
      * Enqueues a package for installation. Executes immediately if queue is idle.
      */
-    fun enqueueInstall(pkg: LinuxPackage, onQueued: ((Int) -> Unit)? = null) {
+    fun enqueueInstall(
+        pkg: LinuxPackage,
+        onStarted: (() -> Unit)? = null,
+        onQueued: ((Int) -> Unit)? = null
+    ) {
         synchronized(lock) {
             if (currentPackage?.id == pkg.id || installQueue.any { it.id == pkg.id }) {
                 Log.d(TAG, "${pkg.name} is already queued or installing.")
@@ -111,6 +115,7 @@ class PackageInstallationManager private constructor(private val context: Contex
                 acquireWakeLock()
                 startLinuxServiceIfNeeded()
                 executeInstall(pkg)
+                onStarted?.invoke()
             } else {
                 installQueue.addLast(pkg)
                 val queuePos = installQueue.size
@@ -431,26 +436,44 @@ class PackageInstallationManager private constructor(private val context: Contex
                     }
                 }
 
+                val isSuccessExit = result.first == 0
+                val checkResult = runtime.runCommand(pkg.checkInstalledCommand)
+                val isTrulyRemoved = checkResult.first != 0
+
                 val prefs = context.getSharedPreferences("packages_state_cache", Context.MODE_PRIVATE)
-                val currentSet = getCachedInstalledIds(prefs)
-                currentSet.remove(pkg.id)
 
-                if (pkg.id == "miniconda") {
-                    prefs.edit().putStringSet("installed_ids", currentSet).putBoolean("conda_active", false).apply()
-                    pkg.isActivated = false
+                if (isSuccessExit || isTrulyRemoved) {
+                    val currentSet = getCachedInstalledIds(prefs)
+                    currentSet.remove(pkg.id)
+
+                    if (pkg.id == "miniconda") {
+                        prefs.edit().putStringSet("installed_ids", currentSet).putBoolean("conda_active", false).apply()
+                        pkg.isActivated = false
+                    } else {
+                        prefs.edit().putStringSet("installed_ids", currentSet).apply()
+                    }
+
+                    pkg.isInstalled = false
+                    pkg.isUninstalling = false
+                    pkg.progressPercent = -1
+                    pkg.statusText = "Ready to install"
+                    pkg.lastErrorLog = null
+
+                    emitProgress(pkg, isUninstalling = false)
+                    showToast("${pkg.name} uninstalled and cleaned successfully.")
+                    onFinished?.invoke(true)
                 } else {
-                    prefs.edit().putStringSet("installed_ids", currentSet).apply()
+                    Log.e(TAG, "Uninstall failed for ${pkg.id} (code ${result.first}): ${result.second}")
+                    pkg.isInstalled = true
+                    pkg.isUninstalling = false
+                    pkg.progressPercent = -1
+                    pkg.statusText = "Uninstall failed (Exit code: ${result.first})"
+                    pkg.lastErrorLog = "Uninstall command failed with exit code ${result.first}.\nOutput:\n${result.second}"
+
+                    emitProgress(pkg, isFailed = true, isUninstalling = false)
+                    showToast("Failed to uninstall ${pkg.name}. Exit code: ${result.first}")
+                    onFinished?.invoke(false)
                 }
-
-                pkg.isInstalled = false
-                pkg.isUninstalling = false
-                pkg.progressPercent = -1
-                pkg.statusText = ""
-
-                val success = result.first == 0
-                emitProgress(pkg, isUninstalling = false)
-                showToast("${pkg.name} uninstalled and cleaned successfully.")
-                onFinished?.invoke(success)
             } catch (e: Exception) {
                 Log.e(TAG, "Uninstall failed for ${pkg.id}: ${e.message}", e)
                 pkg.isUninstalling = false

@@ -13,7 +13,9 @@ class IdeBridge(
     private val onCopyText: (String) -> Unit = {},
     private val onCutText: (String) -> Unit = {},
     private val onPasteReq: () -> Unit = {},
-    private val onCtrlReset: () -> Unit = {}
+    private val onCtrlReset: () -> Unit = {},
+    private val onCustomEditorChangedCallback: (Boolean, String) -> Unit = { _, _ -> },
+    private val onUndoRedoState: (canUndo: Boolean, canRedo: Boolean) -> Unit = { _, _ -> }
 ) {
     @JavascriptInterface
     fun onEditorReady() {
@@ -53,5 +55,15 @@ class IdeBridge(
     @JavascriptInterface
     fun onCtrlModifierReset() {
         onCtrlReset()
+    }
+
+    @JavascriptInterface
+    fun onCustomEditorChanged(isActive: Boolean, editorName: String) {
+        onCustomEditorChangedCallback(isActive, editorName)
+    }
+
+    @JavascriptInterface
+    fun onUndoRedoStateChanged(canUndo: Boolean, canRedo: Boolean) {
+        onUndoRedoState(canUndo, canRedo)
     }
 }

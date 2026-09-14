@@ -195,4 +195,21 @@ class ExtensionManager(private val context: Context) {
         }
         zipStream.close()
     }
+
+    fun getActiveIconTheme(): InstalledExtension? {
+        val activeThemeId = prefs.getString("active_icon_theme_id", null)
+        val enabled = getEnabledExtensions()
+        if (activeThemeId != null) {
+            enabled.find { it.id == activeThemeId && it.contributes.iconThemes.isNotEmpty() }?.let { return it }
+        }
+        return enabled.firstOrNull { it.contributes.iconThemes.isNotEmpty() }
+    }
+
+    fun setActiveIconTheme(themeId: String?) {
+        if (themeId == null) {
+            prefs.edit().remove("active_icon_theme_id").apply()
+        } else {
+            prefs.edit().putString("active_icon_theme_id", themeId).apply()
+        }
+    }
 }

@@ -77,6 +77,105 @@ class ExtensionJsBridge(
         return prefs.getString("${extId}_$key", "") ?: ""
     }
 
+    @JavascriptInterface
+    fun startKernelSession(sessionId: String?, callbackId: String?) {
+        if (sessionId.isNullOrBlank() || callbackId.isNullOrBlank()) return
+        val kernelManager = KernelSessionManager.getInstance(context)
+        kernelManager.startSession(sessionId) { ok, msg ->
+            mainHandler.post {
+                val safeMsg = JSONObject.quote(msg)
+                val js = "window.__extensionKernelCallback && window.__extensionKernelCallback('$callbackId', { ok: $ok, message: $safeMsg });"
+                webView.evaluateJavascript(js, null)
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun executeInKernel(sessionId: String?, code: String?, reqId: String?, callbackId: String?) {
+        if (sessionId.isNullOrBlank() || reqId.isNullOrBlank() || callbackId.isNullOrBlank()) return
+        val kernelManager = KernelSessionManager.getInstance(context)
+        kernelManager.execute(sessionId, code ?: "", reqId) { result ->
+            mainHandler.post {
+                val js = "window.__extensionKernelCallback && window.__extensionKernelCallback('$callbackId', ${result.toString()});"
+                webView.evaluateJavascript(js, null)
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun restartKernelSession(sessionId: String?, callbackId: String?) {
+        if (sessionId.isNullOrBlank() || callbackId.isNullOrBlank()) return
+        val kernelManager = KernelSessionManager.getInstance(context)
+        kernelManager.restart(sessionId, "restart_${System.currentTimeMillis()}") { result ->
+            mainHandler.post {
+                val js = "window.__extensionKernelCallback && window.__extensionKernelCallback('$callbackId', ${result.toString()});"
+                webView.evaluateJavascript(js, null)
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun stopKernelSession(sessionId: String?) {
+        if (sessionId.isNullOrBlank()) return
+        KernelSessionManager.getInstance(context).stop(sessionId)
+    }
+
+    // =========================================================================
+    // Universal Process & Daemon Subsystem (Supports any language/script)
+    // =========================================================================
+
+    @JavascriptInterface
+    fun spawnProcess(processId: String?, command: String?, workingDir: String?) {
+        if (processId.isNullOrBlank() || command.isNullOrBlank()) return
+        val manager = KernelSessionManager.getInstance(context)
+        manager.spawnProcess(processId, command, workingDir) { id, event, data ->
+            mainHandler.post {
+                val safeData = JSONObject.quote(data)
+                val js = "window.__extensionProcessCallback && window.__extensionProcessCallback('$id', '$event', $safeData);"
+                webView.evaluateJavascript(js, null)
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun writeProcessStdin(processId: String?, data: String?): Boolean {
+        if (processId.isNullOrBlank() || data == null) return false
+        return KernelSessionManager.getInstance(context).writeProcessStdin(processId, data)
+    }
+
+    @JavascriptInterface
+    fun killProcess(processId: String?): Boolean {
+        if (processId.isNullOrBlank()) return false
+        return KernelSessionManager.getInstance(context).killProcess(processId)
+    }
+
+    // =========================================================================
+    // Extension Workspace Filesystem API
+    // =========================================================================
+
+    @JavascriptInterface
+    fun readFile(path: String?): String {
+        if (path.isNullOrBlank()) return ""
+        return try {
+            java.io.File(path).readText(Charsets.UTF_8)
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
+    @JavascriptInterface
+    fun writeFile(path: String?, content: String?): Boolean {
+        if (path.isNullOrBlank() || content == null) return false
+        return try {
+            val f = java.io.File(path)
+            f.parentFile?.mkdirs()
+            f.writeText(content, Charsets.UTF_8)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     private fun deliverCallback(callbackId: String, exitCode: Int, stdout: String, stderr: String) {
         mainHandler.post {
             val safeStdout = JSONObject.quote(stdout)
@@ -86,3 +185,4 @@ class ExtensionJsBridge(
         }
     }
 }
+

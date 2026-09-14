@@ -267,7 +267,44 @@ object PackageRepository {
                     "if (${pkg.checkInstalledCommand}) >/dev/null 2>&1; then echo '[MobileLinux] ✗ $pipName still found'; exit 1; else echo '[MobileLinux] ✓ Successfully uninstalled $pipName!'; exit 0; fi; fi"
         }
 
-        // 4. Standard APT packages
+        // 4. Global NPM packages (checked before APT to prevent packages that install nodejs npm from purging nodejs)
+        if (pkg.installCommand.contains("npm install -g")) {
+            val raw = pkg.installCommand.substringAfter("npm install -g").trim()
+            val npmPkgs = raw.split(";")[0].split("&&")[0].trim()
+            return "echo '[MobileLinux] Removing NPM package $npmPkgs...'; " +
+                    "sudo npm uninstall -g $npmPkgs 2>&1 || true; " +
+                    "for p in $npmPkgs ${pkg.id}; do rm -f \"/usr/local/bin/\$p\" \"/usr/bin/\$p\" \"/home/ubuntu/.local/bin/\$p\" 2>/dev/null || true; done; " +
+                    "if (${pkg.checkInstalledCommand}) >/dev/null 2>&1; then echo '[MobileLinux] ✗ $npmPkgs still found'; exit 1; else echo '[MobileLinux] ✓ Successfully uninstalled $npmPkgs!'; exit 0; fi"
+        }
+
+        // 5. Ruby gems (checked before APT to prevent packages that install ruby-full from purging ruby)
+        if (pkg.installCommand.contains("gem install")) {
+            val gemName = pkg.installCommand.substringAfter("gem install").trim().substringBefore(" ").substringBefore(";").substringBefore("&&")
+            val targetGem = if (gemName.isNotBlank()) gemName else pkg.id
+            return "echo '[MobileLinux] Removing Ruby gem $targetGem...'; " +
+                    "gem uninstall -a -x $targetGem 2>&1 || true; " +
+                    "rm -f /usr/local/bin/$targetGem /usr/bin/$targetGem /home/ubuntu/.local/bin/$targetGem 2>/dev/null || true; " +
+                    "if (${pkg.checkInstalledCommand}) >/dev/null 2>&1; then echo '[MobileLinux] ✗ $targetGem still found'; exit 1; else echo '[MobileLinux] ✓ Successfully uninstalled $targetGem!'; exit 0; fi"
+        }
+
+        // 6. General pip packages
+        if (pkg.installCommand.contains("pip install") || pkg.installCommand.contains("pip3 install")) {
+            val moduleName = if (pkg.checkInstalledCommand.contains("import ")) {
+                Regex("""import\s+([a-zA-Z0-9_]+)""").find(pkg.checkInstalledCommand)?.groupValues?.getOrNull(1) ?: pkg.id.replace('-', '_')
+            } else {
+                pkg.id.replace('-', '_')
+            }
+            return "if [ -x /usr/local/bin/pkg-uninstall-python ]; then /usr/local/bin/pkg-uninstall-python ${pkg.id} python3-${pkg.id} $moduleName; else " +
+                    "echo '[MobileLinux] Purging Python package ${pkg.id}...'; " +
+                    "pip3 uninstall -y --break-system-packages ${pkg.id} 2>&1 || true; " +
+                    "/home/ubuntu/miniforge3/bin/pip uninstall -y ${pkg.id} 2>&1 || true; " +
+                    "sudo apt-get -o DPkg::Lock::Timeout=10 purge -y python3-${pkg.id} 2>&1 || true; " +
+                    "rm -rf /home/ubuntu/.local/lib/python*/site-packages/${pkg.id}* /home/ubuntu/.local/lib/python*/site-packages/$moduleName* 2>/dev/null || true; " +
+                    "rm -f /home/ubuntu/.local/bin/${pkg.id} /usr/local/bin/${pkg.id} /usr/bin/${pkg.id} 2>/dev/null || true; " +
+                    "if (${pkg.checkInstalledCommand}) >/dev/null 2>&1; then echo '[MobileLinux] ✗ ${pkg.id} still found'; exit 1; else echo '[MobileLinux] ✓ Successfully uninstalled ${pkg.id}!'; exit 0; fi; fi"
+        }
+
+        // 7. Standard APT packages
         if (pkg.installCommand.contains("pkg-install ") || pkg.installCommand.contains("apt-get install -y") || pkg.installCommand.contains("apt-get install")) {
             val raw = if (pkg.installCommand.contains("pkg-install ")) {
                 pkg.installCommand.substringAfter("pkg-install ").trim()
@@ -292,43 +329,6 @@ object PackageRepository {
                     "if (${pkg.checkInstalledCommand}) >/dev/null 2>&1; then " +
                     "echo '[MobileLinux] ✗ $cleanTargets still found after purge'; exit 1; else " +
                     "echo '[MobileLinux] ✓ Successfully uninstalled $cleanTargets!'; exit 0; fi; fi"
-        }
-
-        // 5. Ruby gems
-        if (pkg.installCommand.contains("gem install")) {
-            val gemName = pkg.installCommand.substringAfter("gem install").trim().substringBefore(" ").substringBefore(";").substringBefore("&&")
-            val targetGem = if (gemName.isNotBlank()) gemName else pkg.id
-            return "echo '[MobileLinux] Removing Ruby gem $targetGem...'; " +
-                    "gem uninstall -a -x $targetGem 2>&1 || true; " +
-                    "rm -f /usr/local/bin/$targetGem /usr/bin/$targetGem /home/ubuntu/.local/bin/$targetGem 2>/dev/null || true; " +
-                    "if (${pkg.checkInstalledCommand}) >/dev/null 2>&1; then echo '[MobileLinux] ✗ $targetGem still found'; exit 1; else echo '[MobileLinux] ✓ Successfully uninstalled $targetGem!'; exit 0; fi"
-        }
-
-        // 6. Global NPM packages
-        if (pkg.installCommand.contains("npm install -g")) {
-            val raw = pkg.installCommand.substringAfter("npm install -g").trim()
-            val npmPkgs = raw.split(";")[0].split("&&")[0].trim()
-            return "echo '[MobileLinux] Removing NPM package $npmPkgs...'; " +
-                    "sudo npm uninstall -g $npmPkgs 2>&1 || true; " +
-                    "for p in $npmPkgs ${pkg.id}; do rm -f \"/usr/local/bin/\$p\" \"/usr/bin/\$p\" \"/home/ubuntu/.local/bin/\$p\" 2>/dev/null || true; done; " +
-                    "if (${pkg.checkInstalledCommand}) >/dev/null 2>&1; then echo '[MobileLinux] ✗ $npmPkgs still found'; exit 1; else echo '[MobileLinux] ✓ Successfully uninstalled $npmPkgs!'; exit 0; fi"
-        }
-
-        // 7. General pip packages
-        if (pkg.installCommand.contains("pip install") || pkg.installCommand.contains("pip3 install")) {
-            val moduleName = if (pkg.checkInstalledCommand.contains("import ")) {
-                Regex("""import\s+([a-zA-Z0-9_]+)""").find(pkg.checkInstalledCommand)?.groupValues?.getOrNull(1) ?: pkg.id.replace('-', '_')
-            } else {
-                pkg.id.replace('-', '_')
-            }
-            return "if [ -x /usr/local/bin/pkg-uninstall-python ]; then /usr/local/bin/pkg-uninstall-python ${pkg.id} python3-${pkg.id} $moduleName; else " +
-                    "echo '[MobileLinux] Purging Python package ${pkg.id}...'; " +
-                    "pip3 uninstall -y --break-system-packages ${pkg.id} 2>&1 || true; " +
-                    "/home/ubuntu/miniforge3/bin/pip uninstall -y ${pkg.id} 2>&1 || true; " +
-                    "sudo apt-get -o DPkg::Lock::Timeout=10 purge -y python3-${pkg.id} 2>&1 || true; " +
-                    "rm -rf /home/ubuntu/.local/lib/python*/site-packages/${pkg.id}* /home/ubuntu/.local/lib/python*/site-packages/$moduleName* 2>/dev/null || true; " +
-                    "rm -f /home/ubuntu/.local/bin/${pkg.id} /usr/local/bin/${pkg.id} /usr/bin/${pkg.id} 2>/dev/null || true; " +
-                    "if (${pkg.checkInstalledCommand}) >/dev/null 2>&1; then echo '[MobileLinux] ✗ ${pkg.id} still found'; exit 1; else echo '[MobileLinux] ✓ Successfully uninstalled ${pkg.id}!'; exit 0; fi; fi"
         }
 
         // Default fallback: direct purge by id
@@ -468,9 +468,10 @@ object PackageRepository {
             category = PackageCategory.CYBER_SECURITY,
             version = "Latest",
             description = "Fast passive subdomain discovery tool that enumerates valid subdomains for websites.",
-            installCommand = "sudo apt-get install -y subfinder || ((sudo apt-get update || true) && sudo apt-get install -y subfinder)",
-            checkInstalledCommand = "which subfinder",
-            launchUrl = null
+            installCommand = "(sudo apt-get install -y subfinder 2>/dev/null) || ((which go >/dev/null 2>&1 || sudo apt-get install -y golang-go git) && export PATH=\"/home/ubuntu/go/bin:/root/go/bin:\$PATH\" && go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest && sudo cp -f /home/ubuntu/go/bin/subfinder /usr/local/bin/subfinder 2>/dev/null || true)",
+            checkInstalledCommand = "which subfinder || test -f /home/ubuntu/go/bin/subfinder || test -f /usr/local/bin/subfinder",
+            launchUrl = null,
+            uninstallCommand = "echo '[MobileLinux] Removing Subfinder...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y subfinder 2>&1 || true; rm -f /home/ubuntu/go/bin/subfinder /root/go/bin/subfinder /usr/local/bin/subfinder /usr/bin/subfinder 2>/dev/null || true; echo '[MobileLinux] Subfinder uninstalled!'"
         ),
         LinuxPackage(
             id = "httpx-pd",
@@ -478,9 +479,10 @@ object PackageRepository {
             category = PackageCategory.CYBER_SECURITY,
             version = "Latest",
             description = "Fast and multi-purpose HTTP toolkit allowing multiple probes using retryablehttp library.",
-            installCommand = "sudo apt-get install -y httpx || ((sudo apt-get update || true) && sudo apt-get install -y httpx)",
-            checkInstalledCommand = "which httpx",
-            launchUrl = null
+            installCommand = "(sudo apt-get install -y httpx 2>/dev/null) || ((which go >/dev/null 2>&1 || sudo apt-get install -y golang-go git) && export PATH=\"/home/ubuntu/go/bin:/root/go/bin:\$PATH\" && go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest && sudo cp -f /home/ubuntu/go/bin/httpx /usr/local/bin/httpx 2>/dev/null || true)",
+            checkInstalledCommand = "which httpx || test -f /home/ubuntu/go/bin/httpx || test -f /usr/local/bin/httpx",
+            launchUrl = null,
+            uninstallCommand = "echo '[MobileLinux] Removing HTTPx...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y httpx 2>&1 || true; rm -f /home/ubuntu/go/bin/httpx /root/go/bin/httpx /usr/local/bin/httpx /usr/bin/httpx 2>/dev/null || true; echo '[MobileLinux] HTTPx uninstalled!'"
         ),
         LinuxPackage(
             id = "nuclei",
@@ -498,9 +500,10 @@ object PackageRepository {
             category = PackageCategory.CYBER_SECURITY,
             version = "Latest",
             description = "In-depth attack surface mapping and external asset discovery using open source information.",
-            installCommand = "sudo apt-get install -y amass || ((sudo apt-get update || true) && sudo apt-get install -y amass)",
-            checkInstalledCommand = "which amass",
-            launchUrl = null
+            installCommand = "(sudo apt-get install -y amass 2>/dev/null) || ((which go >/dev/null 2>&1 || sudo apt-get install -y golang-go git) && export PATH=\"/home/ubuntu/go/bin:/root/go/bin:\$PATH\" && go install -v github.com/owasp-amass/amass/v4/...@master && sudo cp -f /home/ubuntu/go/bin/amass /usr/local/bin/amass 2>/dev/null || true)",
+            checkInstalledCommand = "which amass || test -f /home/ubuntu/go/bin/amass || test -f /usr/local/bin/amass",
+            launchUrl = null,
+            uninstallCommand = "echo '[MobileLinux] Removing OWASP Amass...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y amass 2>&1 || true; rm -f /home/ubuntu/go/bin/amass /root/go/bin/amass /usr/local/bin/amass /usr/bin/amass 2>/dev/null || true; echo '[MobileLinux] OWASP Amass uninstalled!'"
         ),
         LinuxPackage(
             id = "wpscan",
@@ -508,9 +511,10 @@ object PackageRepository {
             category = PackageCategory.CYBER_SECURITY,
             version = "Latest",
             description = "Black box WordPress security scanner written in Ruby to find known plugin/theme vulnerabilities.",
-            installCommand = "sudo apt-get install -y wpscan || ((sudo apt-get update || true) && sudo apt-get install -y wpscan)",
+            installCommand = "(sudo apt-get install -y wpscan 2>/dev/null) || ((sudo apt-get install -y ruby-full ruby-dev build-essential libcurl4-openssl-dev libxml2 libxml2-dev libxslt1-dev || true) && sudo gem install wpscan)",
             checkInstalledCommand = "which wpscan",
-            launchUrl = null
+            launchUrl = null,
+            uninstallCommand = "echo '[MobileLinux] Removing WPScan...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y wpscan 2>&1 || true; sudo gem uninstall -a -x wpscan 2>&1 || true; rm -f /usr/local/bin/wpscan /usr/bin/wpscan 2>/dev/null || true; echo '[MobileLinux] WPScan uninstalled!'"
         ),
         LinuxPackage(
             id = "sherlock",
@@ -588,9 +592,10 @@ object PackageRepository {
             category = PackageCategory.CYBER_SECURITY,
             version = "Latest",
             description = "Automated tool for detecting and exploiting command injection security vulnerabilities.",
-            installCommand = "sudo apt-get install -y commix || ((sudo apt-get update || true) && sudo apt-get install -y commix)",
-            checkInstalledCommand = "which commix",
-            launchUrl = null
+            installCommand = "(sudo apt-get install -y commix 2>/dev/null) || pip3 install --break-system-packages --no-cache-dir commix || (sudo git clone --depth 1 https://github.com/commixproject/commix.git /opt/commix && sudo ln -sf /opt/commix/commix.py /usr/local/bin/commix && sudo chmod +x /usr/local/bin/commix)",
+            checkInstalledCommand = "which commix || test -f /opt/commix/commix.py",
+            launchUrl = null,
+            uninstallCommand = "echo '[MobileLinux] Removing Commix...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y commix 2>&1 || true; pip3 uninstall -y --break-system-packages commix 2>&1 || true; sudo rm -rf /opt/commix /usr/local/bin/commix 2>/dev/null || true; echo '[MobileLinux] Commix uninstalled!'"
         ),
         LinuxPackage(
             id = "binwalk",
@@ -778,9 +783,10 @@ object PackageRepository {
             category = PackageCategory.CYBER_SECURITY,
             version = "Latest",
             description = "LLMNR, NBT-NS and MDNS poisoner with built-in rogue authentication servers.",
-            installCommand = "sudo apt-get install -y responder || ((sudo apt-get update || true) && sudo apt-get install -y responder)",
-            checkInstalledCommand = "which responder",
-            launchUrl = null
+            installCommand = "(sudo apt-get install -y responder 2>/dev/null) || (sudo apt-get install -y git python3-pip && sudo git clone --depth 1 https://github.com/lgandx/Responder.git /opt/responder && sudo ln -sf /opt/responder/Responder.py /usr/local/bin/responder && sudo chmod +x /usr/local/bin/responder)",
+            checkInstalledCommand = "which responder || test -f /opt/responder/Responder.py",
+            launchUrl = null,
+            uninstallCommand = "echo '[MobileLinux] Removing Responder...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y responder 2>&1 || true; sudo rm -rf /opt/responder /usr/local/bin/responder 2>/dev/null || true; echo '[MobileLinux] Responder uninstalled!'"
         ),
         LinuxPackage(
             id = "crackmapexec",
@@ -998,9 +1004,10 @@ object PackageRepository {
             category = PackageCategory.CYBER_SECURITY,
             version = "Latest",
             description = "Software to identify password hash algorithms (MD5, SHA1, SHA256, NTLM, etc.).",
-            installCommand = "sudo apt-get install -y hash-identifier || ((sudo apt-get update || true) && sudo apt-get install -y hash-identifier)",
-            checkInstalledCommand = "which hash-identifier",
-            launchUrl = null
+            installCommand = "(sudo apt-get install -y hash-identifier 2>/dev/null) || pip3 install --break-system-packages --no-cache-dir hash-identifier || (sudo curl -fsSL https://raw.githubusercontent.com/blackarch/hash-identifier/master/hash-id.py -o /usr/local/bin/hash-identifier && sudo chmod +x /usr/local/bin/hash-identifier)",
+            checkInstalledCommand = "which hash-identifier || test -f /usr/local/bin/hash-identifier",
+            launchUrl = null,
+            uninstallCommand = "echo '[MobileLinux] Removing Hash-Identifier...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y hash-identifier 2>&1 || true; pip3 uninstall -y --break-system-packages hash-identifier 2>&1 || true; sudo rm -f /usr/local/bin/hash-identifier /usr/bin/hash-identifier 2>/dev/null || true; echo '[MobileLinux] Hash-Identifier uninstalled!'"
         ),
         LinuxPackage(
             id = "apktool",
@@ -1018,9 +1025,10 @@ object PackageRepository {
             category = PackageCategory.CYBER_SECURITY,
             version = "2.x",
             description = "Tools to convert Android .dex files to Java .class files for code analysis.",
-            installCommand = "sudo apt-get install -y dex2jar || ((sudo apt-get update || true) && sudo apt-get install -y dex2jar)",
-            checkInstalledCommand = "which d2j-dex2jar || which dex2jar",
-            launchUrl = null
+            installCommand = "(sudo apt-get install -y dex2jar 2>/dev/null) || (sudo apt-get install -y default-jre-headless unzip curl && curl -fsSL https://github.com/pxb1988/dex2jar/releases/download/v2.4/dex-tools-v2.4.zip -o /tmp/d2j.zip && sudo unzip -q -o /tmp/d2j.zip -d /opt/ && sudo chmod +x /opt/dex-tools-v2.4/*.sh && sudo ln -sf /opt/dex-tools-v2.4/d2j-dex2jar.sh /usr/local/bin/d2j-dex2jar && sudo ln -sf /opt/dex-tools-v2.4/d2j-dex2jar.sh /usr/local/bin/dex2jar && rm -f /tmp/d2j.zip)",
+            checkInstalledCommand = "which d2j-dex2jar || which dex2jar || test -f /opt/dex-tools-v2.4/d2j-dex2jar.sh",
+            launchUrl = null,
+            uninstallCommand = "echo '[MobileLinux] Removing Dex2Jar...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y dex2jar 2>&1 || true; sudo rm -rf /opt/dex-tools* /usr/local/bin/d2j-dex2jar /usr/local/bin/dex2jar 2>/dev/null || true; echo '[MobileLinux] Dex2Jar uninstalled!'"
         ),
         LinuxPackage(
             id = "jadx",
@@ -1028,9 +1036,10 @@ object PackageRepository {
             category = PackageCategory.CYBER_SECURITY,
             version = "Latest",
             description = "Command line and GUI tools for producing Java source code from Android Dex and Apk files.",
-            installCommand = "sudo apt-get install -y jadx || ((sudo apt-get update || true) && sudo apt-get install -y jadx)",
-            checkInstalledCommand = "which jadx",
-            launchUrl = null
+            installCommand = "(sudo apt-get install -y jadx 2>/dev/null) || (sudo apt-get install -y default-jre-headless unzip curl && curl -fsSL https://github.com/skylot/jadx/releases/download/v1.5.0/jadx-1.5.0.zip -o /tmp/jadx.zip && sudo mkdir -p /opt/jadx && sudo unzip -q -o /tmp/jadx.zip -d /opt/jadx && sudo chmod +x /opt/jadx/bin/jadx && sudo ln -sf /opt/jadx/bin/jadx /usr/local/bin/jadx && rm -f /tmp/jadx.zip)",
+            checkInstalledCommand = "which jadx || test -f /opt/jadx/bin/jadx",
+            launchUrl = null,
+            uninstallCommand = "echo '[MobileLinux] Removing JADX...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y jadx 2>&1 || true; sudo rm -rf /opt/jadx /usr/local/bin/jadx 2>/dev/null || true; echo '[MobileLinux] JADX uninstalled!'"
         ),
         LinuxPackage(
             id = "yara",
@@ -1118,9 +1127,10 @@ object PackageRepository {
             category = PackageCategory.CYBER_SECURITY,
             version = "Latest",
             description = "Tool to exploit Hash Length Extension attacks against various hash algorithms.",
-            installCommand = "sudo apt-get install -y hashpump || ((sudo apt-get update || true) && sudo apt-get install -y hashpump)",
+            installCommand = "(sudo apt-get install -y hashpump 2>/dev/null) || (sudo apt-get install -y g++ make libssl-dev git && sudo git clone --depth 1 https://github.com/bwall/HashPump.git /tmp/hashpump && cd /tmp/hashpump && make && sudo make install && cd / && rm -rf /tmp/hashpump)",
             checkInstalledCommand = "which hashpump",
-            launchUrl = null
+            launchUrl = null,
+            uninstallCommand = "echo '[MobileLinux] Removing HashPump...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y hashpump 2>&1 || true; sudo rm -f /usr/local/bin/hashpump /usr/bin/hashpump 2>/dev/null || true; echo '[MobileLinux] HashPump uninstalled!'"
         ),
         LinuxPackage(
             id = "snort",
@@ -1227,7 +1237,7 @@ object PackageRepository {
             category = PackageCategory.DATA_SCIENCE,
             version = "Python 3",
             description = "Simple and efficient tools for predictive data analysis, clustering, and machine learning.",
-            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python scikit-learn python3-sklearn; else (sudo apt-get install -y python3-sklearn || ((sudo apt-get update || true) && sudo apt-get install -y python3-sklearn)) || pip3 install --break-system-packages --no-cache-dir scikit-learn; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir scikit-learn 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir scikit-learn 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir scikit-learn 2>/dev/null || true; fi; fi",
+            installCommand = "if [ -x /usr/local/bin/pkg-install-python ]; then /usr/local/bin/pkg-install-python scikit-learn python3-sklearn sklearn; else (sudo apt-get install -y python3-sklearn || ((sudo apt-get update || true) && sudo apt-get install -y python3-sklearn)) || pip3 install --break-system-packages --no-cache-dir scikit-learn; for p in /home/ubuntu/miniforge3/bin/pip /root/miniconda3/bin/pip /home/ubuntu/miniforge3/envs/*/bin/pip /root/miniconda3/envs/*/bin/pip /home/ubuntu/.conda/envs/*/bin/pip /root/.conda/envs/*/bin/pip; do [ -x \"\$p\" ] && \"\$p\" install --no-cache-dir scikit-learn 2>/dev/null || true; done; if [ -f /home/ubuntu/.conda/environments.txt ]; then while IFS= read -r e; do [ -x \"\$e/bin/pip\" ] && \"\$e/bin/pip\" install --no-cache-dir scikit-learn 2>/dev/null || true; done < /home/ubuntu/.conda/environments.txt; fi; if [ -n \"\$CONDA_PREFIX\" ] && [ -x \"\$CONDA_PREFIX/bin/pip\" ]; then \"\$CONDA_PREFIX/bin/pip\" install --no-cache-dir scikit-learn 2>/dev/null || true; fi; fi",
             checkInstalledCommand = "python3 -c 'import sklearn' 2>/dev/null || ([ -x /home/ubuntu/miniforge3/bin/python ] && /home/ubuntu/miniforge3/bin/python -c 'import sklearn' 2>/dev/null)",
             launchUrl = null
         ),
@@ -1952,9 +1962,10 @@ object PackageRepository {
             category = PackageCategory.RUNTIMES,
             version = "Latest",
             description = "Standard package manager for Ruby libraries and command-line programs.",
-            installCommand = "sudo apt-get install -y rubygems || ((sudo apt-get update || true) && sudo apt-get install -y rubygems)",
+            installCommand = "sudo apt-get install -y ruby-full || ((sudo apt-get update || true) && sudo apt-get install -y ruby-full)",
             checkInstalledCommand = "which gem",
-            launchUrl = null
+            launchUrl = null,
+            uninstallCommand = "echo '[MobileLinux] Removing RubyGems...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y rubygems ruby-rubygems 2>&1 || true; echo '[MobileLinux] RubyGems cleaned!'"
         ),
         LinuxPackage(
             id = "php-cli",
@@ -2032,9 +2043,10 @@ object PackageRepository {
             category = PackageCategory.RUNTIMES,
             version = "1.x",
             description = "High-level, high-performance dynamic programming language for technical computing.",
-            installCommand = "sudo apt-get install -y julia || ((sudo apt-get update || true) && sudo apt-get install -y julia)",
+            installCommand = "(sudo apt-get install -y julia 2>/dev/null) || (sudo apt-get install -y curl tar && curl -fsSL https://julialang-s3.julialang.org/bin/linux/aarch64/1.10/julia-1.10.4-linux-aarch64.tar.gz -o /tmp/julia.tar.gz && sudo tar -C /usr/local -xzf /tmp/julia.tar.gz --strip-components=1 && rm -f /tmp/julia.tar.gz)",
             checkInstalledCommand = "which julia",
-            launchUrl = null
+            launchUrl = null,
+            uninstallCommand = "echo '[MobileLinux] Removing Julia...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y julia 2>&1 || true; sudo rm -rf /usr/local/bin/julia /usr/local/lib/julia /usr/local/share/julia 2>/dev/null || true; echo '[MobileLinux] Julia uninstalled!'"
         ),
         LinuxPackage(
             id = "erlang",
@@ -2172,9 +2184,10 @@ object PackageRepository {
             category = PackageCategory.RUNTIMES,
             version = "3.x",
             description = "Client-optimized language for fast apps on any platform by Google.",
-            installCommand = "sudo apt-get install -y dart || ((sudo apt-get update || true) && sudo apt-get install -y dart)",
+            installCommand = "(sudo apt-get install -y dart 2>/dev/null) || (sudo apt-get install -y curl unzip && curl -fsSL https://storage.googleapis.com/dart-archive/channels/stable/release/latest/sdk/dartsdk-linux-arm64-release.zip -o /tmp/dart.zip && sudo unzip -q -o /tmp/dart.zip -d /opt/ && sudo ln -sf /opt/dart-sdk/bin/dart /usr/local/bin/dart && rm -f /tmp/dart.zip)",
             checkInstalledCommand = "which dart",
-            launchUrl = null
+            launchUrl = null,
+            uninstallCommand = "echo '[MobileLinux] Removing Dart SDK...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y dart 2>&1 || true; sudo rm -rf /opt/dart-sdk /usr/local/bin/dart 2>/dev/null || true; echo '[MobileLinux] Dart SDK uninstalled!'"
         ),
         LinuxPackage(
             id = "zig",
@@ -2182,9 +2195,10 @@ object PackageRepository {
             category = PackageCategory.RUNTIMES,
             version = "0.12+",
             description = "General-purpose programming language and toolchain for maintaining robust, optimal software.",
-            installCommand = "sudo apt-get install -y zig || ((sudo apt-get update || true) && sudo apt-get install -y zig)",
+            installCommand = "(sudo apt-get install -y zig 2>/dev/null) || (sudo apt-get install -y curl xz-utils && curl -fsSL https://ziglang.org/download/0.12.0/zig-linux-aarch64-0.12.0.tar.xz -o /tmp/zig.tar.xz && sudo tar -C /opt -xf /tmp/zig.tar.xz && sudo ln -sf /opt/zig-linux-aarch64-0.12.0/zig /usr/local/bin/zig && rm -f /tmp/zig.tar.xz)",
             checkInstalledCommand = "which zig",
-            launchUrl = null
+            launchUrl = null,
+            uninstallCommand = "echo '[MobileLinux] Removing Zig...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y zig 2>&1 || true; sudo rm -rf /opt/zig-* /usr/local/bin/zig 2>/dev/null || true; echo '[MobileLinux] Zig uninstalled!'"
         ),
         LinuxPackage(
             id = "fortran",
@@ -2722,9 +2736,10 @@ object PackageRepository {
             category = PackageCategory.DEV_TOOLS,
             version = "Latest",
             description = "Simple terminal UI for git commands that makes branch management and commits effortless.",
-            installCommand = "sudo apt-get install -y lazygit || ((sudo apt-get update || true) && sudo apt-get install -y lazygit)",
-            checkInstalledCommand = "which lazygit",
-            launchUrl = null
+            installCommand = "(sudo apt-get install -y lazygit 2>/dev/null) || ((which go >/dev/null 2>&1 || sudo apt-get install -y golang-go) && export PATH=\"/home/ubuntu/go/bin:\$PATH\" && go install github.com/jesseduffield/lazygit@latest && sudo cp -f /home/ubuntu/go/bin/lazygit /usr/local/bin/lazygit 2>/dev/null || true)",
+            checkInstalledCommand = "which lazygit || test -f /home/ubuntu/go/bin/lazygit",
+            launchUrl = null,
+            uninstallCommand = "echo '[MobileLinux] Removing Lazygit...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y lazygit 2>&1 || true; rm -f /home/ubuntu/go/bin/lazygit /usr/local/bin/lazygit 2>/dev/null || true; echo '[MobileLinux] Lazygit uninstalled!'"
         ),
         LinuxPackage(
             id = "tig",
@@ -2792,9 +2807,10 @@ object PackageRepository {
             category = PackageCategory.DEV_TOOLS,
             version = "Latest",
             description = "The power of curl with the ease of use of httpie.",
-            installCommand = "sudo apt-get install -y curlie || ((sudo apt-get update || true) && sudo apt-get install -y curlie)",
-            checkInstalledCommand = "which curlie",
-            launchUrl = null
+            installCommand = "(sudo apt-get install -y curlie 2>/dev/null) || ((which go >/dev/null 2>&1 || sudo apt-get install -y golang-go) && export PATH=\"/home/ubuntu/go/bin:\$PATH\" && go install github.com/rs/curlie@latest && sudo cp -f /home/ubuntu/go/bin/curlie /usr/local/bin/curlie 2>/dev/null || true)",
+            checkInstalledCommand = "which curlie || test -f /home/ubuntu/go/bin/curlie",
+            launchUrl = null,
+            uninstallCommand = "echo '[MobileLinux] Removing Curlie...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y curlie 2>&1 || true; rm -f /home/ubuntu/go/bin/curlie /usr/local/bin/curlie 2>/dev/null || true; echo '[MobileLinux] Curlie uninstalled!'"
         ),
         LinuxPackage(
             id = "axel",
@@ -2862,9 +2878,10 @@ object PackageRepository {
             category = PackageCategory.DEV_TOOLS,
             version = "Latest",
             description = "Infrastructure as code tool to build, change, and version cloud infrastructure safely.",
-            installCommand = "sudo apt-get install -y terraform || ((sudo apt-get update || true) && sudo apt-get install -y terraform)",
+            installCommand = "(sudo apt-get install -y terraform 2>/dev/null) || (sudo apt-get install -y curl unzip && curl -fsSL https://releases.hashicorp.com/terraform/1.8.5/terraform_1.8.5_linux_arm64.zip -o /tmp/tf.zip && sudo unzip -q -o /tmp/tf.zip -d /usr/local/bin/ && sudo chmod +x /usr/local/bin/terraform && rm -f /tmp/tf.zip)",
             checkInstalledCommand = "which terraform",
-            launchUrl = null
+            launchUrl = null,
+            uninstallCommand = "echo '[MobileLinux] Removing Terraform...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y terraform 2>&1 || true; sudo rm -f /usr/local/bin/terraform /usr/bin/terraform 2>/dev/null || true; echo '[MobileLinux] Terraform uninstalled!'"
         ),
         LinuxPackage(
             id = "packer",
@@ -2872,9 +2889,10 @@ object PackageRepository {
             category = PackageCategory.DEV_TOOLS,
             version = "Latest",
             description = "Tool for creating identical machine images for multiple platforms from a single source.",
-            installCommand = "sudo apt-get install -y packer || ((sudo apt-get update || true) && sudo apt-get install -y packer)",
+            installCommand = "(sudo apt-get install -y packer 2>/dev/null) || (sudo apt-get install -y curl unzip && curl -fsSL https://releases.hashicorp.com/packer/1.10.3/packer_1.10.3_linux_arm64.zip -o /tmp/packer.zip && sudo unzip -q -o /tmp/packer.zip -d /usr/local/bin/ && sudo chmod +x /usr/local/bin/packer && rm -f /tmp/packer.zip)",
             checkInstalledCommand = "which packer",
-            launchUrl = null
+            launchUrl = null,
+            uninstallCommand = "echo '[MobileLinux] Removing Packer...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y packer 2>&1 || true; sudo rm -f /usr/local/bin/packer /usr/bin/packer 2>/dev/null || true; echo '[MobileLinux] Packer uninstalled!'"
         ),
         LinuxPackage(
             id = "kubectl",
@@ -2882,9 +2900,10 @@ object PackageRepository {
             category = PackageCategory.DEV_TOOLS,
             version = "Latest",
             description = "Command line tool for controlling Kubernetes clusters and inspecting pods/services.",
-            installCommand = "sudo apt-get install -y kubectl || ((sudo apt-get update || true) && sudo apt-get install -y kubectl)",
+            installCommand = "(sudo apt-get install -y kubectl 2>/dev/null) || (sudo apt-get install -y curl && curl -fsSL \"https://dl.k8s.io/release/\$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/arm64/kubectl\" -o /tmp/kubectl && sudo install -o root -g root -m 0755 /tmp/kubectl /usr/local/bin/kubectl && rm -f /tmp/kubectl)",
             checkInstalledCommand = "which kubectl",
-            launchUrl = null
+            launchUrl = null,
+            uninstallCommand = "echo '[MobileLinux] Removing Kubectl...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y kubectl 2>&1 || true; sudo rm -f /usr/local/bin/kubectl /usr/bin/kubectl 2>/dev/null || true; echo '[MobileLinux] Kubectl uninstalled!'"
         ),
         LinuxPackage(
             id = "helm",
@@ -2892,9 +2911,10 @@ object PackageRepository {
             category = PackageCategory.DEV_TOOLS,
             version = "Latest",
             description = "The package manager for Kubernetes to manage complex apps and charts.",
-            installCommand = "sudo apt-get install -y helm || ((sudo apt-get update || true) && sudo apt-get install -y helm)",
+            installCommand = "(sudo apt-get install -y helm 2>/dev/null) || (sudo apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash)",
             checkInstalledCommand = "which helm",
-            launchUrl = null
+            launchUrl = null,
+            uninstallCommand = "echo '[MobileLinux] Removing Helm...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y helm 2>&1 || true; sudo rm -f /usr/local/bin/helm /usr/bin/helm 2>/dev/null || true; echo '[MobileLinux] Helm uninstalled!'"
         ),
         LinuxPackage(
             id = "k9s",
@@ -2902,9 +2922,10 @@ object PackageRepository {
             category = PackageCategory.DEV_TOOLS,
             version = "Latest",
             description = "Kubernetes CLI To Manage Your Clusters In Style with curses-based real-time dashboard.",
-            installCommand = "sudo apt-get install -y k9s || ((sudo apt-get update || true) && sudo apt-get install -y k9s)",
+            installCommand = "(sudo apt-get install -y k9s 2>/dev/null) || (sudo apt-get install -y curl tar && curl -fsSL https://github.com/derailed/k9s/releases/download/v0.32.4/k9s_Linux_arm64.tar.gz -o /tmp/k9s.tar.gz && sudo tar -C /usr/local/bin -xzf /tmp/k9s.tar.gz k9s && sudo chmod +x /usr/local/bin/k9s && rm -f /tmp/k9s.tar.gz)",
             checkInstalledCommand = "which k9s",
-            launchUrl = null
+            launchUrl = null,
+            uninstallCommand = "echo '[MobileLinux] Removing K9s...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y k9s 2>&1 || true; sudo rm -f /usr/local/bin/k9s /usr/bin/k9s 2>/dev/null || true; echo '[MobileLinux] K9s uninstalled!'"
         ),
         LinuxPackage(
             id = "docker-cli",
@@ -2972,9 +2993,10 @@ object PackageRepository {
             category = PackageCategory.DEV_TOOLS,
             version = "v2",
             description = "Unified tool to manage your Amazon Web Services from the terminal.",
-            installCommand = "sudo apt-get install -y awscli || ((sudo apt-get update || true) && sudo apt-get install -y awscli)",
+            installCommand = "sudo apt-get install -y awscli || ((sudo apt-get update || true) && sudo apt-get install -y awscli) || pip3 install --break-system-packages --no-cache-dir awscli",
             checkInstalledCommand = "which aws",
-            launchUrl = null
+            launchUrl = null,
+            uninstallCommand = "echo '[MobileLinux] Removing AWS CLI...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y awscli 2>&1 || true; pip3 uninstall -y --break-system-packages awscli 2>&1 || true; rm -f /usr/local/bin/aws /usr/bin/aws /home/ubuntu/.local/bin/aws 2>/dev/null || true; echo '[MobileLinux] AWS CLI uninstalled!'"
         ),
         LinuxPackage(
             id = "checkinstall",
@@ -3012,9 +3034,10 @@ object PackageRepository {
             category = PackageCategory.DEV_TOOLS,
             version = "Latest",
             description = "Sloc, Cloc and Code: very fast accurate code counter with complexity estimates.",
-            installCommand = "sudo apt-get install -y scc || ((sudo apt-get update || true) && sudo apt-get install -y scc)",
-            checkInstalledCommand = "which scc",
-            launchUrl = null
+            installCommand = "(sudo apt-get install -y scc 2>/dev/null) || ((which go >/dev/null 2>&1 || sudo apt-get install -y golang-go) && export PATH=\"/home/ubuntu/go/bin:\$PATH\" && go install github.com/boyter/scc/v3@latest && sudo cp -f /home/ubuntu/go/bin/scc /usr/local/bin/scc 2>/dev/null || true)",
+            checkInstalledCommand = "which scc || test -f /home/ubuntu/go/bin/scc",
+            launchUrl = null,
+            uninstallCommand = "echo '[MobileLinux] Removing Scc...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y scc 2>&1 || true; rm -f /home/ubuntu/go/bin/scc /usr/local/bin/scc 2>/dev/null || true; echo '[MobileLinux] Scc uninstalled!'"
         ),
         LinuxPackage(
             id = "hyperfine",
@@ -3032,9 +3055,10 @@ object PackageRepository {
             category = PackageCategory.DEV_TOOLS,
             version = "Latest",
             description = "Modern replacement for ps written in Rust with color output and human-readable units.",
-            installCommand = "sudo apt-get install -y procs || ((sudo apt-get update || true) && sudo apt-get install -y procs)",
+            installCommand = "(sudo apt-get install -y procs 2>/dev/null) || (sudo apt-get install -y curl unzip && curl -fsSL https://github.com/dalance/procs/releases/download/v0.14.5/procs-v0.14.5-aarch64-linux.zip -o /tmp/procs.zip && sudo unzip -q -o /tmp/procs.zip -d /usr/local/bin/ && sudo chmod +x /usr/local/bin/procs && rm -f /tmp/procs.zip)",
             checkInstalledCommand = "which procs",
-            launchUrl = null
+            launchUrl = null,
+            uninstallCommand = "echo '[MobileLinux] Removing Procs...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y procs 2>&1 || true; sudo rm -f /usr/local/bin/procs /usr/bin/procs 2>/dev/null || true; echo '[MobileLinux] Procs uninstalled!'"
         )
         )
     }
@@ -3257,9 +3281,10 @@ object PackageRepository {
             category = PackageCategory.DATABASES,
             version = "Latest",
             description = "Distributed, highly available, and data center-aware tool for service discovery and config.",
-            installCommand = "sudo apt-get install -y consul || ((sudo apt-get update || true) && sudo apt-get install -y consul)",
+            installCommand = "(sudo apt-get install -y consul 2>/dev/null) || (sudo apt-get install -y curl unzip && curl -fsSL https://releases.hashicorp.com/consul/1.18.1/consul_1.18.1_linux_arm64.zip -o /tmp/consul.zip && sudo unzip -q -o /tmp/consul.zip -d /usr/local/bin/ && sudo chmod +x /usr/local/bin/consul && rm -f /tmp/consul.zip)",
             checkInstalledCommand = "which consul",
-            launchUrl = "http://127.0.0.1:8500"
+            launchUrl = "http://127.0.0.1:8500",
+            uninstallCommand = "echo '[MobileLinux] Removing Consul...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y consul 2>&1 || true; sudo rm -f /usr/local/bin/consul /usr/bin/consul 2>/dev/null || true; echo '[MobileLinux] Consul uninstalled!'"
         ),
         LinuxPackage(
             id = "vault",
@@ -3267,9 +3292,10 @@ object PackageRepository {
             category = PackageCategory.DATABASES,
             version = "Latest",
             description = "Tool for secrets management, encryption as a service, and privileged access management.",
-            installCommand = "sudo apt-get install -y vault || ((sudo apt-get update || true) && sudo apt-get install -y vault)",
+            installCommand = "(sudo apt-get install -y vault 2>/dev/null) || (sudo apt-get install -y curl unzip && curl -fsSL https://releases.hashicorp.com/vault/1.16.2/vault_1.16.2_linux_arm64.zip -o /tmp/vault.zip && sudo unzip -q -o /tmp/vault.zip -d /usr/local/bin/ && sudo chmod +x /usr/local/bin/vault && rm -f /tmp/vault.zip)",
             checkInstalledCommand = "which vault",
-            launchUrl = "http://127.0.0.1:8200"
+            launchUrl = "http://127.0.0.1:8200",
+            uninstallCommand = "echo '[MobileLinux] Removing Vault...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y vault 2>&1 || true; sudo rm -f /usr/local/bin/vault /usr/bin/vault 2>/dev/null || true; echo '[MobileLinux] Vault uninstalled!'"
         ),
         LinuxPackage(
             id = "influxdb-client",
@@ -3297,9 +3323,10 @@ object PackageRepository {
             category = PackageCategory.DATABASES,
             version = "Latest",
             description = "Operational dashboards for your data here, there, or anywhere.",
-            installCommand = "sudo apt-get install -y grafana || ((sudo apt-get update || true) && sudo apt-get install -y grafana)",
-            checkInstalledCommand = "which grafana-server",
-            launchUrl = "http://127.0.0.1:3000"
+            installCommand = "(sudo apt-get install -y grafana 2>/dev/null) || (sudo apt-get install -y curl tar && curl -fsSL https://dl.grafana.com/oss/release/grafana-10.4.2.linux-arm64.tar.gz -o /tmp/grafana.tar.gz && sudo tar -C /opt -xzf /tmp/grafana.tar.gz && sudo ln -sf /opt/grafana-*/bin/grafana-server /usr/local/bin/grafana-server && rm -f /tmp/grafana.tar.gz)",
+            checkInstalledCommand = "which grafana-server || test -f /usr/local/bin/grafana-server",
+            launchUrl = "http://127.0.0.1:3000",
+            uninstallCommand = "echo '[MobileLinux] Removing Grafana...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y grafana 2>&1 || true; sudo rm -rf /opt/grafana* /usr/local/bin/grafana-server 2>/dev/null || true; echo '[MobileLinux] Grafana uninstalled!'"
         ),
         LinuxPackage(
             id = "certbot",
@@ -3367,9 +3394,10 @@ object PackageRepository {
             category = PackageCategory.DATABASES,
             version = "Latest",
             description = "Universal command-line interface for SQL databases: PostgreSQL, MySQL, SQLite, Oracle, etc.",
-            installCommand = "sudo apt-get install -y usql || ((sudo apt-get update || true) && sudo apt-get install -y usql)",
-            checkInstalledCommand = "which usql",
-            launchUrl = null
+            installCommand = "(sudo apt-get install -y usql 2>/dev/null) || ((which go >/dev/null 2>&1 || sudo apt-get install -y golang-go) && export PATH=\"/home/ubuntu/go/bin:\$PATH\" && go install github.com/xo/usql@latest && sudo cp -f /home/ubuntu/go/bin/usql /usr/local/bin/usql 2>/dev/null || true)",
+            checkInstalledCommand = "which usql || test -f /home/ubuntu/go/bin/usql",
+            launchUrl = null,
+            uninstallCommand = "echo '[MobileLinux] Removing USQL...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y usql 2>&1 || true; rm -f /home/ubuntu/go/bin/usql /usr/local/bin/usql 2>/dev/null || true; echo '[MobileLinux] USQL uninstalled!'"
         ),
         LinuxPackage(
             id = "k6",
@@ -3377,9 +3405,10 @@ object PackageRepository {
             category = PackageCategory.DATABASES,
             version = "Latest",
             description = "Modern load testing tool, using Go and JavaScript for developer happiness.",
-            installCommand = "sudo apt-get install -y k6 || ((sudo apt-get update || true) && sudo apt-get install -y k6)",
+            installCommand = "(sudo apt-get install -y k6 2>/dev/null) || (sudo apt-get install -y curl tar && curl -fsSL https://github.com/grafana/k6/releases/download/v0.50.0/k6-v0.50.0-linux-arm64.tar.gz -o /tmp/k6.tar.gz && sudo tar -C /tmp -xzf /tmp/k6.tar.gz && sudo mv /tmp/k6-v0.50.0-linux-arm64/k6 /usr/local/bin/ && sudo chmod +x /usr/local/bin/k6 && rm -rf /tmp/k6*)",
             checkInstalledCommand = "which k6",
-            launchUrl = null
+            launchUrl = null,
+            uninstallCommand = "echo '[MobileLinux] Removing k6...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y k6 2>&1 || true; sudo rm -f /usr/local/bin/k6 /usr/bin/k6 2>/dev/null || true; echo '[MobileLinux] k6 uninstalled!'"
         ),
         LinuxPackage(
             id = "wrk",
@@ -3407,9 +3436,10 @@ object PackageRepository {
             category = PackageCategory.DATABASES,
             version = "Latest",
             description = "Versatile HTTP load testing tool built out of a need to drill HTTP services with constant request rates.",
-            installCommand = "sudo apt-get install -y vegeta || ((sudo apt-get update || true) && sudo apt-get install -y vegeta)",
+            installCommand = "(sudo apt-get install -y vegeta 2>/dev/null) || (sudo apt-get install -y curl tar && curl -fsSL https://github.com/tsenart/vegeta/releases/download/v12.12.0/vegeta_12.12.0_linux_arm64.tar.gz -o /tmp/vegeta.tar.gz && sudo tar -C /usr/local/bin -xzf /tmp/vegeta.tar.gz vegeta && sudo chmod +x /usr/local/bin/vegeta && rm -f /tmp/vegeta.tar.gz)",
             checkInstalledCommand = "which vegeta",
-            launchUrl = null
+            launchUrl = null,
+            uninstallCommand = "echo '[MobileLinux] Removing Vegeta...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y vegeta 2>&1 || true; sudo rm -f /usr/local/bin/vegeta /usr/bin/vegeta 2>/dev/null || true; echo '[MobileLinux] Vegeta uninstalled!'"
         ),
         LinuxPackage(
             id = "cockroachdb",
@@ -3552,9 +3582,10 @@ object PackageRepository {
             category = PackageCategory.UTILITIES,
             version = "Latest",
             description = "Neofetch-like tool written in C for instant system information and terminal logo display.",
-            installCommand = "sudo apt-get install -y fastfetch || ((sudo apt-get update || true) && sudo apt-get install -y fastfetch)",
+            installCommand = "(sudo apt-get install -y fastfetch 2>/dev/null) || (sudo apt-get install -y curl tar && curl -fsSL https://github.com/fastfetch-cli/fastfetch/releases/download/2.11.0/fastfetch-linux-aarch64.tar.gz -o /tmp/ff.tar.gz && sudo tar -C /usr/local/bin -xzf /tmp/ff.tar.gz --strip-components=3 usr/bin/fastfetch && sudo chmod +x /usr/local/bin/fastfetch && rm -f /tmp/ff.tar.gz)",
             checkInstalledCommand = "which fastfetch",
-            launchUrl = null
+            launchUrl = null,
+            uninstallCommand = "echo '[MobileLinux] Removing Fastfetch...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y fastfetch 2>&1 || true; sudo rm -f /usr/local/bin/fastfetch /usr/bin/fastfetch 2>/dev/null || true; echo '[MobileLinux] Fastfetch uninstalled!'"
         ),
         LinuxPackage(
             id = "neofetch",
@@ -3672,9 +3703,10 @@ object PackageRepository {
             category = PackageCategory.UTILITIES,
             version = "Latest",
             description = "A more intuitive version of du in Rust that provides an instant visual tree of directory sizes.",
-            installCommand = "sudo apt-get install -y du-dust || ((sudo apt-get update || true) && sudo apt-get install -y du-dust)",
-            checkInstalledCommand = "which dust || which du-dust",
-            launchUrl = null
+            installCommand = "(sudo apt-get install -y du-dust 2>/dev/null) || (sudo apt-get install -y curl tar && curl -fsSL https://github.com/bootandy/dust/releases/download/v1.0.0/dust-v1.0.0-aarch64-unknown-linux-gnu.tar.gz -o /tmp/dust.tar.gz && sudo tar -C /tmp -xzf /tmp/dust.tar.gz && sudo mv /tmp/dust-v1.0.0-aarch64-unknown-linux-gnu/dust /usr/local/bin/dust && sudo chmod +x /usr/local/bin/dust && rm -rf /tmp/dust*)",
+            checkInstalledCommand = "which dust",
+            launchUrl = null,
+            uninstallCommand = "echo '[MobileLinux] Removing Dust...'; sudo apt-get -o DPkg::Lock::Timeout=10 purge -y du-dust 2>&1 || true; sudo rm -f /usr/local/bin/dust /usr/bin/dust 2>/dev/null || true; echo '[MobileLinux] Dust uninstalled!'"
         ),
         LinuxPackage(
             id = "tree",

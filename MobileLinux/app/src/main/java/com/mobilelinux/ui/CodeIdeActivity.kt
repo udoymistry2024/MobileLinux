@@ -155,6 +155,8 @@ class CodeIdeActivity : AppCompatActivity() {
     // Extension Subsystem
     private val extensionManager by lazy { ExtensionManager.getInstance(this) }
     private val loadedExtensionIds = mutableSetOf<String>()
+    private var isCustomEditorActive = false
+    private var currentCustomEditorName = ""
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -276,9 +278,18 @@ class CodeIdeActivity : AppCompatActivity() {
             showCustomRunDialog()
             true
         }
-        btnRunCode.tooltipText = "Run Code (Long-press to customize)"
-        btnUndo.setOnClickListener { editorWebView.evaluateJavascript("window.editorUndo();", null) }
-        btnRedo.setOnClickListener { editorWebView.evaluateJavascript("window.editorRedo();", null) }
+        btnUndo.isEnabled = false
+        btnUndo.alpha = 0.35f
+        btnRedo.isEnabled = false
+        btnRedo.alpha = 0.35f
+        btnUndo.setOnClickListener {
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+            editorWebView.evaluateJavascript("window.editorUndo();", null)
+        }
+        btnRedo.setOnClickListener {
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+            editorWebView.evaluateJavascript("window.editorRedo();", null)
+        }
         btnIdeOverflow.setOnClickListener { showOverflowMenu(it) }
 
         findViewById<View>(R.id.btn_empty_open_files).setOnClickListener {
@@ -856,6 +867,28 @@ class CodeIdeActivity : AppCompatActivity() {
                 runOnUiThread {
                     resetEditorCtrlState()
                 }
+            },
+            onCustomEditorChangedCallback = { isActive, editorName ->
+                runOnUiThread {
+                    isCustomEditorActive = isActive
+                    currentCustomEditorName = editorName
+                    if (isActive) {
+                        btnRunCode.tooltipText = "Run in $editorName"
+                    } else {
+                        btnRunCode.tooltipText = "Run Code (Long-press to customize)"
+                    }
+                }
+            },
+            onUndoRedoState = { canUndo, canRedo ->
+                runOnUiThread {
+                    btnUndo.isEnabled = canUndo
+                    btnUndo.setColorFilter(if (canUndo) getColor(R.color.text_primary) else getColor(R.color.text_secondary))
+                    btnUndo.alpha = if (canUndo) 1.0f else 0.35f
+
+                    btnRedo.isEnabled = canRedo
+                    btnRedo.setColorFilter(if (canRedo) getColor(R.color.text_primary) else getColor(R.color.text_secondary))
+                    btnRedo.alpha = if (canRedo) 1.0f else 0.35f
+                }
             }
         )
 
@@ -1384,6 +1417,11 @@ class CodeIdeActivity : AppCompatActivity() {
             return
         }
 
+        if (isCustomEditorActive) {
+            editorWebView.evaluateJavascript("window.editorRunCustomEditor && window.editorRunCustomEditor();", null)
+            return
+        }
+
         val activeTab = openTabs[activeTabIndex]
         saveCurrentFile()
 
@@ -1868,6 +1906,9 @@ class CodeIdeActivity : AppCompatActivity() {
             } catch (ignored: Exception) {}
             isServiceBound = false
         }
+        try {
+            com.mobilelinux.ide.extension.KernelSessionManager.getInstance(this).stopAll()
+        } catch (ignored: Exception) {}
         super.onDestroy()
     }
 

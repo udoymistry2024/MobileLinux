@@ -16,7 +16,7 @@
             height: 100%;
             overflow: hidden;
             background-color: #0D1117;
-            font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Roboto Mono', 'Noto Sans Bengali', 'SolaimanLipi', 'Kalpurush', 'Siyam Rupali', monospace, sans-serif;
         }
         #editor {
             position: absolute;
@@ -26,6 +26,15 @@
             left: 0;
             font-size: 14px;
             line-height: 1.5;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Roboto Mono', 'Noto Sans Bengali', 'SolaimanLipi', 'Kalpurush', 'Siyam Rupali', monospace, sans-serif !important;
+        }
+        .ace_editor, .ace_text-layer, .ace_line, .ace_text-input {
+            font-family: 'JetBrains Mono', 'Fira Code', 'Roboto Mono', 'Noto Sans Bengali', 'SolaimanLipi', 'Kalpurush', 'Siyam Rupali', monospace, sans-serif !important;
+            letter-spacing: 0px !important;
+            font-feature-settings: "liga" 1, "calt" 1;
+        }
+        .ace_cursor {
+            border-left-width: 2px !important;
         }
         /* Mobile scrollbar adjustments */
         .ace_scrollbar {
@@ -120,9 +129,9 @@
             color: #ffffff;
         }
     </style>
-</head>
 <body>
     <div id="editor"></div>
+    <div id="custom-editor-container" style="display:none; position:absolute; top:0; left:0; right:0; bottom:0; z-index:10; background:#0D1117; overflow-y:auto; -webkit-overflow-scrolling:touch;"></div>
 
     <!-- Mobile Touch Selection Handles -->
     <div id="selection-start-handle" class="mobile-selection-handle"></div>
@@ -164,6 +173,246 @@
         let isProgrammaticChange = false;
         let isDirty = false;
         let currentFilePath = "";
+        window.lastFocusedEmbeddedEditor = null;
+
+        window.getActiveEmbeddedEditor = function() {
+            const ae = document.activeElement;
+            if (ae) {
+                const container = ae.closest('.nb-ace-editor') || ae.closest('.ace_editor');
+                if (container && container.env && container.env.editor) {
+                    return container.env.editor;
+                }
+            }
+            return window.lastFocusedEmbeddedEditor;
+        };
+
+        // --- Complex Script & Indic / Bengali Typography & Zero-Width Support ---
+        function isIndicVirama(code) {
+            return code === 0x09CD || // Bengali Virama / Hasanta (্)
+                   code === 0x094D || // Devanagari Virama (्)
+                   code === 0x0A4D || // Gurmukhi Virama (੍)
+                   code === 0x0ACD || // Gujarati Virama (્)
+                   code === 0x0B4D || // Oriya Virama (୍)
+                   code === 0x0BCD || // Tamil Virama (்)
+                   code === 0x0C4D || // Telugu Virama (్)
+                   code === 0x0CCD || // Kannada Virama (್)
+                   code === 0x0D4D || // Malayalam Virama (്)
+                   code === 0x200D;   // Zero Width Joiner
+        }
+
+        function isZeroWidthMark(code, str, idx) {
+            // 1. Bengali Combining Non-Spacing Marks
+            // Candrabindu (0x0981 ঁ), Nukta (0x09BC ়), Virama / Hasanta (0x09CD ্)
+            // Note: Vowel signs (া, ি, ী, ু, ূ, ৃ, ে, ৈ, ো, ৌ), Anusvara (ং), Visarga (ঃ) have physical horizontal width
+            // and must NOT be zero-width.
+            if (code === 0x0981 || code === 0x09BC || code === 0x09CD) return true;
+            
+            // 2. Devanagari Combining Non-Spacing Marks
+            // Candrabindu (0x0901), Nukta (0x093C), Virama (0x094D), Vedic accents (0x0951-0x0954)
+            if (code === 0x0901 || code === 0x093C || code === 0x094D) return true;
+            if (code >= 0x0951 && code <= 0x0954) return true;
+
+            // 3. Other Indic Combining Non-spacing marks / Viramas
+            if (code === 0x0A3C || code === 0x0A4D || // Gurmukhi
+                code === 0x0ABC || code === 0x0ACD || // Gujarati
+                code === 0x0B3C || code === 0x0B4D || // Oriya
+                code === 0x0BCD ||                   // Tamil
+                code === 0x0C4D ||                   // Telugu
+                code === 0x0CCD ||                   // Kannada
+                code === 0x0D4D) return true;        // Malayalam
+
+            // 4. Combining Diacritical Marks (U+0300-U+036F)
+            if (code >= 0x0300 && code <= 0x036F) return true;
+
+            // 5. Zero-width formatters & invisible marks
+            if (code === 0x200B || code === 0x200C || code === 0x200D || code === 0xFEFF || code === 0x200E || code === 0x200F) return true;
+
+            // 6. Indic Conjunct continuation (consonant preceded by virama merges into ligature)
+            if (idx > 0 && isIndicVirama(str.charCodeAt(idx - 1))) {
+                if (code >= 0x0980 && code <= 0x0D7F) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        function isEastAsianWide(code) {
+            return code < 4352 ? false : (
+                (code >= 4352 && code <= 4447) ||
+                (code >= 4515 && code <= 4519) ||
+                (code >= 4602 && code <= 4607) ||
+                (code >= 9001 && code <= 9002) ||
+                (code >= 11904 && code <= 11929) ||
+                (code >= 11931 && code <= 12019) ||
+                (code >= 12032 && code <= 12245) ||
+                (code >= 12272 && code <= 12283) ||
+                (code >= 12288 && code <= 12350) ||
+                (code >= 12353 && code <= 12438) ||
+                (code >= 12441 && code <= 12543) ||
+                (code >= 12549 && code <= 12589) ||
+                (code >= 12593 && code <= 12686) ||
+                (code >= 12688 && code <= 12730) ||
+                (code >= 12736 && code <= 12771) ||
+                (code >= 12784 && code <= 12830) ||
+                (code >= 12832 && code <= 12871) ||
+                (code >= 12880 && code <= 13054) ||
+                (code >= 13056 && code <= 19903) ||
+                (code >= 19968 && code <= 42124) ||
+                (code >= 42128 && code <= 42182) ||
+                (code >= 43360 && code <= 43388) ||
+                (code >= 44032 && code <= 55203) ||
+                (code >= 63744 && code <= 64255) ||
+                (code >= 65072 && code <= 65106) ||
+                (code >= 65108 && code <= 65126) ||
+                (code >= 65128 && code <= 65131) ||
+                (code >= 65281 && code <= 65376) ||
+                (code >= 65504 && code <= 65510)
+            );
+        }
+
+        function calculateCustomStringScreenWidth(session, str, maxCols, startCol) {
+            if (maxCols === 0) return [0, 0];
+            if (maxCols == null) maxCols = Infinity;
+            startCol = startCol || 0;
+            let col = startCol;
+            let i;
+            for (i = 0; i < str.length; i++) {
+                const code = str.charCodeAt(i);
+                if (code === 9) {
+                    col += session.getScreenTabSize(col);
+                } else if (isZeroWidthMark(code, str, i)) {
+                    col += 0;
+                } else if (code >= 4352 && isEastAsianWide(code)) {
+                    col += 2;
+                } else {
+                    col += 1;
+                }
+                if (col > maxCols) break;
+            }
+            return [col, i];
+        }
+
+        // Patch EditSession prototype so all opened files inherit complex script width calculation
+        try {
+            const EditSession = ace.require("ace/edit_session").EditSession;
+            if (EditSession && EditSession.prototype) {
+                EditSession.prototype.$getStringScreenWidth = function(str, maxCols, startCol) {
+                    return calculateCustomStringScreenWidth(this, str, maxCols, startCol);
+                };
+            }
+        } catch (err) {
+            console.error("Failed to patch EditSession prototype:", err);
+        }
+
+        function configureAceForComplexScripts(edt) {
+            if (!edt) return;
+
+            // 1. Keep hidden input textarea physically anchored to the cursor position & quiet during composition
+            if (edt.renderer) {
+                edt.renderer['$keepTextAreaAtCursor'] = true;
+
+                // Stop Ace from injecting fake DOM placeholder spans that cause cursor jumping & jitter on Android
+                edt.renderer.setCompositionText = function(text) {
+                    if (typeof this.$moveTextAreaToCursor === 'function') {
+                        this.$moveTextAreaToCursor();
+                    }
+                };
+                edt.renderer.showComposition = function(text) {
+                    this.$composition = text;
+                };
+                edt.renderer.hideComposition = function() {
+                    this.$composition = null;
+                };
+
+                const populateCharSizes = () => {
+                    if (edt.renderer.$fontMetrics && edt.renderer.$fontMetrics.charSizes) {
+                        const zwCodes = [
+                            0x0981, 0x09BC, 0x09CD, // Bengali Candrabindu, Nukta, Virama
+                            0x0901, 0x093C, 0x094D, // Devanagari Candrabindu, Nukta, Virama
+                            0x0951, 0x0952, 0x0953, 0x0954,
+                            0x0A3C, 0x0A4D, 0x0ABC, 0x0ACD, 0x0B3C, 0x0B4D, 0x0BCD, 0x0C4D, 0x0CCD, 0x0D4D,
+                            0x200B, 0x200C, 0x200D, 0xFEFF, 0x200E, 0x200F
+                        ];
+                        for (let c = 0x0300; c <= 0x036F; c++) zwCodes.push(c);
+                        zwCodes.forEach(code => {
+                            edt.renderer.$fontMetrics.charSizes[String.fromCharCode(code)] = 0;
+                        });
+                    }
+                };
+                populateCharSizes();
+                edt.renderer.on('changeCharacterSize', populateCharSizes);
+            }
+
+            // 2. Direct session method fallback
+            if (edt.session) {
+                if (typeof edt.session.setUndoSelect === 'function') {
+                    edt.session.setUndoSelect(false);
+                }
+                edt.session.$undoSelect = false;
+                edt.session.$getStringScreenWidth = function(str, maxCols, startCol) {
+                    return calculateCustomStringScreenWidth(this, str, maxCols, startCol);
+                };
+            }
+
+            // 3. Android IME Composition & Keyboard Buffer Protection
+            const textarea = edt.textInput && edt.textInput.getElement();
+            if (textarea && !textarea.$imeInterceptionInstalled) {
+                textarea.$imeInterceptionInstalled = true;
+                let isComposing = false;
+                edt.$isComposing = false;
+
+                const onStartComposition = () => {
+                    isComposing = true;
+                    edt.$isComposing = true;
+                    // Suppress autocompleter popup during composition
+                    if (edt.completer && typeof edt.completer.detach === 'function') {
+                        edt.completer.detach();
+                    }
+                };
+
+                const onEndComposition = () => {
+                    setTimeout(() => {
+                        isComposing = false;
+                        edt.$isComposing = false;
+                        if (edt.renderer && typeof edt.renderer.$moveTextAreaToCursor === 'function') {
+                            edt.renderer.$moveTextAreaToCursor();
+                        }
+                    }, 40);
+                };
+
+                textarea.addEventListener('compositionstart', onStartComposition, true);
+                textarea.addEventListener('compositionupdate', onStartComposition, true);
+                textarea.addEventListener('compositionend', onEndComposition, true);
+
+                textarea.addEventListener('beforeinput', (e) => {
+                    if (e.isComposing || e.inputType === 'insertCompositionText' || e.inputType === 'deleteCompositionText') {
+                        onStartComposition();
+                    } else if (e.inputType === 'insertText' && !e.isComposing) {
+                        onEndComposition();
+                    }
+                }, true);
+
+                // Note: Do NOT intercept or block textarea.setSelectionRange!
+                // Blocking setSelectionRange breaks Ace's internal diff calculations (q(e)),
+                // which causes words to split or scramble when typing space or letters on Android keyboards.
+
+                // Guard autocomplete popup from showing during composition or when typing Bengali/non-ASCII
+                const guardCompleter = () => {
+                    if (edt.completer && !edt.completer.$imeGuarded) {
+                        edt.completer.$imeGuarded = true;
+                        const origShowPopup = edt.completer.showPopup.bind(edt.completer);
+                        edt.completer.showPopup = function(editor, prefix) {
+                            if (isComposing || edt.$isComposing) return;
+                            if (prefix && !/^[a-zA-Z0-9_$.]+$/.test(prefix)) return;
+                            return origShowPopup(editor, prefix);
+                        };
+                    }
+                };
+                guardCompleter();
+                edt.on('change', guardCompleter);
+            }
+        }
 
         window.addEventListener('DOMContentLoaded', () => {
             ace.config.set('basePath', '.');
@@ -186,6 +435,9 @@
                 autoScrollEditorIntoView: true
             });
 
+            // Initialize complex script and IME support for main editor
+            configureAceForComplexScripts(editor);
+
             // Handle dirty state on user edit
             editor.session.on('change', () => {
                 if (isProgrammaticChange) return;
@@ -195,6 +447,9 @@
                         window.IdeBridge.onContentChanged(true);
                     }
                 }
+                if (typeof window.updateUndoRedoStatus === 'function') {
+                    window.updateUndoRedoStatus();
+                }
             });
 
             // Track cursor movement
@@ -202,6 +457,9 @@
                 const pos = editor.getCursorPosition();
                 if (window.IdeBridge && window.IdeBridge.onCursorChanged) {
                     window.IdeBridge.onCursorChanged(pos.row + 1, pos.column + 1);
+                }
+                if (typeof window.updateUndoRedoStatus === 'function') {
+                    window.updateUndoRedoStatus();
                 }
             });
 
@@ -233,7 +491,11 @@
                 if (!c) return;
                 switch(c[0]) {
                     case 'A':
+                        const curScrollTopA = editor.session.getScrollTop();
+                        const curScrollLeftA = editor.session.getScrollLeft();
                         editor.selectAll();
+                        editor.session.setScrollTop(curScrollTopA);
+                        editor.session.setScrollLeft(curScrollLeftA);
                         updateSelectionHandles();
                         break;
                     case 'C':
@@ -308,23 +570,151 @@
         });
 
         // Bridge methods called from Kotlin
+        window.customEditorProviders = {};
+        let activeCustomEditor = null;
+        const workspaceListeners = {
+            onDidOpenFile: [],
+            onWillSaveFile: [],
+            onDidSaveFile: [],
+            onDidChangeActiveTab: []
+        };
+
+        function dispatchWorkspaceEvent(eventName, payload) {
+            const list = workspaceListeners[eventName] || [];
+            list.forEach(fn => {
+                try { fn(payload); } catch (e) { console.error("Workspace listener error:", e); }
+            });
+        }
+
+        function findMatchingCustomEditor(filepath) {
+            if (!filepath) return null;
+            const fname = filepath.split('/').pop().toLowerCase();
+            for (const id in window.customEditorProviders) {
+                const provider = window.customEditorProviders[id];
+                const patterns = provider.selector || ["*.ipynb"];
+                for (let pat of patterns) {
+                    pat = pat.trim().toLowerCase();
+                    if (pat === '*' || pat === '*.*') return provider;
+                    if (pat.startsWith('*.')) {
+                        const ext = pat.substring(1);
+                        if (fname.endsWith(ext)) return provider;
+                    } else if (pat === fname) {
+                        return provider;
+                    }
+                }
+            }
+            return null;
+        }
+
         window.editorSetFile = function(path, content, mode) {
+            currentFilePath = path;
+            dispatchWorkspaceEvent('onDidOpenFile', { path: path, content: content });
+
+            const matchingProvider = findMatchingCustomEditor(path);
+            const customContainer = document.getElementById('custom-editor-container');
+            const aceContainer = document.getElementById('editor');
+
+            if (matchingProvider) {
+                if (activeCustomEditor && activeCustomEditor.provider && typeof activeCustomEditor.provider.onUnmount === 'function') {
+                    try {
+                        activeCustomEditor.provider.onUnmount(customContainer);
+                    } catch (e) {
+                        console.error("Error unmounting custom editor:", e);
+                    }
+                }
+
+                aceContainer.style.display = 'none';
+                customContainer.style.display = 'block';
+                customContainer.innerHTML = '';
+                hideSelectionUI();
+
+                activeCustomEditor = {
+                    providerId: matchingProvider.id,
+                    provider: matchingProvider,
+                    path: path
+                };
+
+                try {
+                    matchingProvider.onMount(customContainer, {
+                        path: path,
+                        content: content,
+                        markDirty: () => {
+                            isDirty = true;
+                            if (window.IdeBridge && window.IdeBridge.onContentChanged) {
+                                window.IdeBridge.onContentChanged(true);
+                            }
+                            if (typeof window.updateUndoRedoStatus === 'function') {
+                                window.updateUndoRedoStatus();
+                            }
+                        }
+                    });
+                } catch (e) {
+                    console.error("Error mounting custom editor:", e);
+                    customContainer.innerHTML = '<div style="color:#ff6b6b;padding:20px;font-family:sans-serif;"><h3>Failed to load custom editor</h3><pre>' + e.message + '</pre></div>';
+                }
+
+                isDirty = false;
+                if (window.IdeBridge && window.IdeBridge.onCustomEditorChanged) {
+                    window.IdeBridge.onCustomEditorChanged(true, matchingProvider.displayName || matchingProvider.id);
+                }
+                if (window.IdeBridge && window.IdeBridge.onContentChanged) {
+                    window.IdeBridge.onContentChanged(false);
+                }
+                if (typeof window.updateUndoRedoStatus === 'function') {
+                    window.updateUndoRedoStatus();
+                }
+                return;
+            }
+
+            if (activeCustomEditor) {
+                if (activeCustomEditor.provider && typeof activeCustomEditor.provider.onUnmount === 'function') {
+                    try {
+                        activeCustomEditor.provider.onUnmount(customContainer);
+                    } catch (e) {}
+                }
+                activeCustomEditor = null;
+            }
+
+            customContainer.style.display = 'none';
+            customContainer.innerHTML = '';
+            aceContainer.style.display = 'block';
+
+            if (window.IdeBridge && window.IdeBridge.onCustomEditorChanged) {
+                window.IdeBridge.onCustomEditorChanged(false, "");
+            }
+
             if (!editor) return;
             isProgrammaticChange = true;
-            currentFilePath = path;
             editor.setValue(content || "", -1);
             editor.session.setMode("ace/mode/" + (mode || "text"));
+            configureAceForComplexScripts(editor);
+            if (typeof editor.session.setUndoSelect === 'function') {
+                editor.session.setUndoSelect(false);
+            }
+            editor.session.$undoSelect = false;
             editor.session.getUndoManager().reset();
             isDirty = false;
             isProgrammaticChange = false;
             if (window.IdeBridge && window.IdeBridge.onContentChanged) {
                 window.IdeBridge.onContentChanged(false);
             }
+            if (typeof window.updateUndoRedoStatus === 'function') {
+                window.updateUndoRedoStatus();
+            }
         };
 
         window.editorGetContent = function() {
+            if (activeCustomEditor && activeCustomEditor.provider && typeof activeCustomEditor.provider.serialize === 'function') {
+                return activeCustomEditor.provider.serialize();
+            }
             if (!editor) return "";
             return editor.getValue();
+        };
+
+        window.editorRunCustomEditor = function() {
+            if (activeCustomEditor && activeCustomEditor.provider && typeof activeCustomEditor.provider.run === 'function') {
+                activeCustomEditor.provider.run();
+            }
         };
 
         window.editorMarkClean = function() {
@@ -340,14 +730,169 @@
             editor.focus();
         };
 
+        window.updateUndoRedoStatus = function() {
+            let canUndo = false;
+            let canRedo = false;
+
+            if (activeCustomEditor) {
+                if (activeCustomEditor.provider && typeof activeCustomEditor.provider.hasUndo === 'function') {
+                    try {
+                        canUndo = !!activeCustomEditor.provider.hasUndo();
+                        canRedo = !!activeCustomEditor.provider.hasRedo();
+                    } catch (e) {}
+                } else {
+                    const activeEdt = window.getActiveEmbeddedEditor();
+                    if (activeEdt && activeEdt.session && activeEdt.session.getUndoManager) {
+                        const um = activeEdt.session.getUndoManager();
+                        canUndo = !!(um && typeof um.hasUndo === 'function' && um.hasUndo());
+                        canRedo = !!(um && typeof um.hasRedo === 'function' && um.hasRedo());
+                    } else {
+                        canUndo = isDirty;
+                        canRedo = false;
+                    }
+                }
+            } else if (editor && editor.session) {
+                const um = editor.session.getUndoManager();
+                if (um && typeof um.hasUndo === 'function') {
+                    canUndo = !!um.hasUndo();
+                    canRedo = !!um.hasRedo();
+                }
+            }
+
+            if (window.IdeBridge && typeof window.IdeBridge.onUndoRedoStateChanged === 'function') {
+                try {
+                    window.IdeBridge.onUndoRedoStateChanged(canUndo, canRedo);
+                } catch (e) {}
+            }
+        };
+
         window.editorUndo = function() {
+            if (activeCustomEditor) {
+                let handled = false;
+                if (activeCustomEditor.provider && typeof activeCustomEditor.provider.undo === 'function') {
+                    try {
+                        handled = activeCustomEditor.provider.undo();
+                    } catch (e) {
+                        console.error("Custom editor undo error:", e);
+                    }
+                }
+                if (!handled) {
+                    const activeEdt = window.getActiveEmbeddedEditor();
+                    if (activeEdt && activeEdt.session && activeEdt.session.getUndoManager) {
+                        try {
+                            activeEdt.undo();
+                            if (typeof activeEdt.focus === 'function') activeEdt.focus();
+                            handled = true;
+                        } catch (e) {
+                            console.error("Embedded editor undo error:", e);
+                        }
+                    } else {
+                        const activeEl = document.activeElement;
+                        if (activeEl && (activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'INPUT')) {
+                            try {
+                                document.execCommand('undo');
+                                handled = true;
+                            } catch (e) {}
+                        }
+                    }
+                }
+                window.updateUndoRedoStatus();
+                return;
+            }
+
             if (!editor) return;
-            editor.undo();
+
+            // Commit any active IME composition cleanly before undoing
+            const ta = editor.textInput && editor.textInput.getElement ? editor.textInput.getElement() : null;
+            if (ta && (editor.$isComposing || ta.value)) {
+                try {
+                    if (editor.$isComposing) {
+                        ta.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: ta.value || '' }));
+                        editor.$isComposing = false;
+                    }
+                } catch (e) {}
+            }
+
+            if (editor.session) {
+                if (typeof editor.session.setUndoSelect === 'function') {
+                    editor.session.setUndoSelect(false);
+                }
+                editor.session.$undoSelect = false;
+            }
+
+            editor.undo(true);
+            editor.selection.clearSelection();
+            hideSelectionUI();
+
+            if (editor.renderer && typeof editor.renderer.$moveTextAreaToCursor === 'function') {
+                editor.renderer.$moveTextAreaToCursor();
+            }
+            if (editor.textInput && typeof editor.textInput.resetSelection === 'function') {
+                try {
+                    editor.textInput.resetSelection();
+                } catch (e) {}
+            }
+            editor.focus();
+            window.updateUndoRedoStatus();
         };
 
         window.editorRedo = function() {
+            if (activeCustomEditor) {
+                let handled = false;
+                if (activeCustomEditor.provider && typeof activeCustomEditor.provider.redo === 'function') {
+                    try {
+                        handled = activeCustomEditor.provider.redo();
+                    } catch (e) {
+                        console.error("Custom editor redo error:", e);
+                    }
+                }
+                if (!handled) {
+                    const activeEdt = window.getActiveEmbeddedEditor();
+                    if (activeEdt && activeEdt.session && activeEdt.session.getUndoManager) {
+                        try {
+                            activeEdt.redo();
+                            if (typeof activeEdt.focus === 'function') activeEdt.focus();
+                            handled = true;
+                        } catch (e) {
+                            console.error("Embedded editor redo error:", e);
+                        }
+                    } else {
+                        const activeEl = document.activeElement;
+                        if (activeEl && (activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'INPUT')) {
+                            try {
+                                document.execCommand('redo');
+                                handled = true;
+                            } catch (e) {}
+                        }
+                    }
+                }
+                window.updateUndoRedoStatus();
+                return;
+            }
+
             if (!editor) return;
-            editor.redo();
+
+            if (editor.session) {
+                if (typeof editor.session.setUndoSelect === 'function') {
+                    editor.session.setUndoSelect(false);
+                }
+                editor.session.$undoSelect = false;
+            }
+
+            editor.redo(true);
+            editor.selection.clearSelection();
+            hideSelectionUI();
+
+            if (editor.renderer && typeof editor.renderer.$moveTextAreaToCursor === 'function') {
+                editor.renderer.$moveTextAreaToCursor();
+            }
+            if (editor.textInput && typeof editor.textInput.resetSelection === 'function') {
+                try {
+                    editor.textInput.resetSelection();
+                } catch (e) {}
+            }
+            editor.focus();
+            window.updateUndoRedoStatus();
         };
 
         window.editorSetTheme = function(themeName) {
@@ -410,14 +955,18 @@
                     editor.selection.clearSelection();
                     break;
                 case 'SELECT_ALL':
+                    const curScrollTopSp = editor.session.getScrollTop();
+                    const curScrollLeftSp = editor.session.getScrollLeft();
                     editor.selectAll();
+                    editor.session.setScrollTop(curScrollTopSp);
+                    editor.session.setScrollLeft(curScrollLeftSp);
                     updateSelectionHandles();
                     break;
                 case 'UNDO':
-                    editor.undo();
+                    window.editorUndo();
                     break;
                 case 'REDO':
-                    editor.redo();
+                    window.editorRedo();
                     break;
             }
             editor.focus();
@@ -479,7 +1028,11 @@
             document.getElementById('btn-select-all').addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                const curScrollTopBtn = editor.session.getScrollTop();
+                const curScrollLeftBtn = editor.session.getScrollLeft();
                 editor.selectAll();
+                editor.session.setScrollTop(curScrollTopBtn);
+                editor.session.setScrollLeft(curScrollLeftBtn);
                 updateSelectionHandles();
             });
 
@@ -623,33 +1176,65 @@
             const lineHeight = editor.renderer.lineHeight || 20;
 
             const editorRect = document.getElementById('editor').getBoundingClientRect();
-            const isStartVisible = startCoord.pageY >= editorRect.top - lineHeight && startCoord.pageY <= editorRect.bottom;
-            const isEndVisible = endCoord.pageY >= editorRect.top - lineHeight && endCoord.pageY <= editorRect.bottom;
 
-            if (!isStartVisible && !isEndVisible) {
+            // Check if any portion of the selection intersects the visible viewport
+            const firstRow = editor.renderer.getFirstFullyVisibleRow();
+            const lastRow = editor.renderer.getLastFullyVisibleRow();
+            const isRangeInView = (endPos.row >= firstRow && startPos.row <= lastRow);
+
+            if (!isRangeInView) {
                 hideSelectionUI();
                 return;
             }
 
+            const isStartVisible = startCoord.pageY >= editorRect.top - 8 && startCoord.pageY <= editorRect.bottom + 8;
+            const isEndVisible = endCoord.pageY >= editorRect.top - 8 && endCoord.pageY <= editorRect.bottom + 8;
+
             // Start Handle
-            startHandle.style.display = isStartVisible ? 'block' : 'none';
-            startHandle.style.left = (startCoord.pageX - 24) + 'px';
-            startHandle.style.top = (startCoord.pageY + lineHeight) + 'px';
+            if (isStartVisible) {
+                startHandle.style.display = 'block';
+                startHandle.style.left = (startCoord.pageX - 24) + 'px';
+                startHandle.style.top = (startCoord.pageY + lineHeight) + 'px';
+            } else {
+                startHandle.style.display = 'none';
+            }
 
             // End Handle
-            endHandle.style.display = isEndVisible ? 'block' : 'none';
-            endHandle.style.left = endCoord.pageX + 'px';
-            endHandle.style.top = (endCoord.pageY + lineHeight) + 'px';
+            if (isEndVisible) {
+                endHandle.style.display = 'block';
+                endHandle.style.left = endCoord.pageX + 'px';
+                endHandle.style.top = (endCoord.pageY + lineHeight) + 'px';
+            } else {
+                endHandle.style.display = 'none';
+            }
 
             // Action Bar
             actionBar.style.display = 'flex';
-            const barWidth = actionBar.offsetWidth || 230;
-            let barX = (startCoord.pageX + endCoord.pageX) / 2 - (barWidth / 2);
-            barX = Math.max(10, Math.min(window.innerWidth - barWidth - 10, barX));
-            let barY = startCoord.pageY - 44;
-            if (barY < editorRect.top + 5) {
-                barY = Math.max(startCoord.pageY, endCoord.pageY) + lineHeight + 32;
+            const barWidth = actionBar.offsetWidth || 240;
+            const barHeight = actionBar.offsetHeight || 38;
+
+            // X-positioning
+            let barX;
+            if (isStartVisible && isEndVisible && startPos.row === endPos.row) {
+                barX = (startCoord.pageX + endCoord.pageX) / 2 - (barWidth / 2);
+            } else {
+                barX = (window.innerWidth - barWidth) / 2;
             }
+            barX = Math.max(10, Math.min(window.innerWidth - barWidth - 10, barX));
+
+            // Y-positioning
+            let barY;
+            if (!isStartVisible || startCoord.pageY < editorRect.top + 48) {
+                // If selection starts above visible screen or near top edge, dock at top of visible screen
+                barY = editorRect.top + 14;
+            } else {
+                // Sit above the start coordinates
+                barY = startCoord.pageY - barHeight - 10;
+            }
+
+            // Clamp within visible editor bounds
+            barY = Math.max(editorRect.top + 10, Math.min(editorRect.bottom - barHeight - 10, barY));
+
             actionBar.style.left = barX + 'px';
             actionBar.style.top = barY + 'px';
         }
@@ -659,6 +1244,8 @@
         // =========================================================================
         window.activeExtensions = {};
         window.__extensionCallbacks = {};
+        window.__extensionKernelCallbacks = {};
+        window.__extensionProcessCallbacks = {};
         let __nextCallbackId = 1;
 
         window.__extensionCallback = function(callbackId, exitCode, stdout, stderr) {
@@ -669,6 +1256,29 @@
                     cb(exitCode, stdout, stderr);
                 } catch (e) {
                     console.error("Error in extension callback:", e);
+                }
+            }
+        };
+
+        window.__extensionKernelCallback = function(callbackId, data) {
+            const cb = window.__extensionKernelCallbacks[callbackId];
+            if (cb) {
+                delete window.__extensionKernelCallbacks[callbackId];
+                try {
+                    cb(data);
+                } catch (e) {
+                    console.error("Error in extension kernel callback:", e);
+                }
+            }
+        };
+
+        window.__extensionProcessCallback = function(processId, event, data) {
+            const cb = window.__extensionProcessCallbacks[processId];
+            if (cb) {
+                try {
+                    cb(event, data);
+                } catch (e) {
+                    console.error("Error in extension process callback:", e);
                 }
             }
         };
@@ -707,6 +1317,215 @@
                             bindKey: cmd.bindKey,
                             exec: () => cmd.exec && cmd.exec(editor)
                         });
+                    },
+                    // Embedded Editor Factory: pre-configured Ace editor instance with auto-brackets & live suggestions
+                    createEmbeddedEditor: (containerEl, options) => {
+                        if (!containerEl) throw new Error("Container element required");
+                        options = options || {};
+                        const mode = options.mode || "python";
+                        const edt = ace.edit(containerEl);
+                        edt.setTheme("ace/theme/one_dark");
+                        edt.session.setMode("ace/mode/" + mode);
+                        edt.setOptions({
+                            enableBasicAutocompletion: options.autoComplete !== false,
+                            enableLiveAutocompletion: options.autoComplete !== false,
+                            enableSnippets: options.snippets !== false,
+                            showPrintMargin: false,
+                            highlightActiveLine: !!options.highlightActiveLine,
+                            showGutter: options.lineNumbers !== false,
+                            fontSize: options.fontSize || "13px",
+                            fontFamily: options.fontFamily || "'JetBrains Mono', 'Fira Code', 'Roboto Mono', 'Noto Sans Bengali', 'SolaimanLipi', 'Kalpurush', monospace, sans-serif",
+                            minLines: options.minLines || 2,
+                            maxLines: options.maxLines || 45,
+                            autoScrollEditorIntoView: true,
+                            wrap: !!options.wrap
+                        });
+                        configureAceForComplexScripts(edt);
+                        if (edt.session) {
+                            if (typeof edt.session.setUndoSelect === 'function') {
+                                edt.session.setUndoSelect(false);
+                            }
+                            edt.session.$undoSelect = false;
+                        }
+                        if (options.value) {
+                            edt.setValue(options.value, -1);
+                            edt.session.getUndoManager().reset();
+                        }
+                        edt.on('focus', () => {
+                            window.lastFocusedEmbeddedEditor = edt;
+                            if (typeof window.updateUndoRedoStatus === 'function') {
+                                window.updateUndoRedoStatus();
+                            }
+                        });
+                        edt.on('blur', () => {
+                            setTimeout(() => {
+                                if (typeof window.updateUndoRedoStatus === 'function') {
+                                    window.updateUndoRedoStatus();
+                                }
+                            }, 50);
+                        });
+                        edt.session.on('change', () => {
+                            if (typeof options.onChange === 'function') {
+                                options.onChange(edt.getValue());
+                            }
+                            if (typeof window.updateUndoRedoStatus === 'function') {
+                                window.updateUndoRedoStatus();
+                            }
+                        });
+                        if (typeof options.onRun === 'function') {
+                            edt.commands.addCommand({
+                                name: 'runCellShift',
+                                bindKey: { win: 'Shift-Enter', mac: 'Shift-Enter' },
+                                exec: () => options.onRun()
+                            });
+                            edt.commands.addCommand({
+                                name: 'runCellCtrl',
+                                bindKey: { win: 'Ctrl-Enter', mac: 'Command-Enter' },
+                                exec: () => options.onRun()
+                            });
+                        }
+                        return edt;
+                    }
+                },
+                customEditor: {
+                    registerProvider: (providerId, providerDef) => {
+                        const fullId = extId + "." + providerId;
+                        window.customEditorProviders[fullId] = {
+                            id: fullId,
+                            displayName: providerDef.displayName || providerDef.title || providerId,
+                            selector: providerDef.selector || providerDef.filenamePatterns || ["*.ipynb"],
+                            onMount: providerDef.onMount,
+                            onUnmount: providerDef.onUnmount,
+                            serialize: providerDef.serialize,
+                            run: providerDef.run,
+                            undo: providerDef.undo,
+                            redo: providerDef.redo,
+                            hasUndo: providerDef.hasUndo,
+                            hasRedo: providerDef.hasRedo
+                        };
+                        // Remount if current file matches newly registered custom editor
+                        if (currentFilePath && findMatchingCustomEditor(currentFilePath)?.id === fullId) {
+                            const content = activeCustomEditor ? window.editorGetContent() : (editor ? editor.getValue() : "");
+                            window.editorSetFile(currentFilePath, content, "text");
+                        }
+                    },
+                    unregisterProvider: (providerId) => {
+                        const fullId = extId + "." + providerId;
+                        delete window.customEditorProviders[fullId];
+                        if (activeCustomEditor && activeCustomEditor.providerId === fullId) {
+                            window.editorSetFile(currentFilePath, "", "text");
+                        }
+                    }
+                },
+                workspace: {
+                    onDidOpenFile: (listener) => {
+                        workspaceListeners.onDidOpenFile.push(listener);
+                    },
+                    onWillSaveFile: (listener) => {
+                        workspaceListeners.onWillSaveFile.push(listener);
+                    },
+                    onDidSaveFile: (listener) => {
+                        workspaceListeners.onDidSaveFile.push(listener);
+                    },
+                    onDidChangeActiveTab: (listener) => {
+                        workspaceListeners.onDidChangeActiveTab.push(listener);
+                    },
+                    markDirty: () => {
+                        isDirty = true;
+                        if (window.IdeBridge && window.IdeBridge.onContentChanged) {
+                            window.IdeBridge.onContentChanged(true);
+                        }
+                    },
+                    getCurrentFilePath: () => currentFilePath,
+                    getExtensionDir: () => "/data/user/0/com.mobilelinux.app/files/ide_extensions/" + extId,
+                    fs: {
+                        readFile: (path) => {
+                            if (window.ExtensionBridge && window.ExtensionBridge.readFile) {
+                                return window.ExtensionBridge.readFile(path);
+                            }
+                            return "";
+                        },
+                        writeFile: (path, content) => {
+                            if (window.ExtensionBridge && window.ExtensionBridge.writeFile) {
+                                return window.ExtensionBridge.writeFile(path, content);
+                            }
+                            return false;
+                        }
+                    }
+                },
+                process: {
+                    spawn: (command, args, options) => {
+                        options = options || {};
+                        const procId = "proc_" + (__nextCallbackId++);
+                        const allArgs = args || [];
+                        const cmdStr = [command].concat(allArgs).join(" ");
+                        const listeners = { stdout: [], stderr: [], exit: [], error: [], spawned: [] };
+
+                        window.__extensionProcessCallbacks[procId] = (event, data) => {
+                            const list = listeners[event] || [];
+                            list.forEach(fn => {
+                                try { fn(data); } catch (e) { console.error("Process listener error:", e); }
+                            });
+                        };
+
+                        if (window.ExtensionBridge && window.ExtensionBridge.spawnProcess) {
+                            window.ExtensionBridge.spawnProcess(procId, cmdStr, options.cwd || null);
+                        }
+
+                        return {
+                            id: procId,
+                            on: function(event, fn) {
+                                if (listeners[event]) listeners[event].push(fn);
+                                return this;
+                            },
+                            write: function(data) {
+                                if (window.ExtensionBridge && window.ExtensionBridge.writeProcessStdin) {
+                                    return window.ExtensionBridge.writeProcessStdin(procId, data);
+                                }
+                                return false;
+                            },
+                            kill: function() {
+                                if (window.ExtensionBridge && window.ExtensionBridge.killProcess) {
+                                    return window.ExtensionBridge.killProcess(procId);
+                                }
+                                return false;
+                            }
+                        };
+                    }
+                },
+                kernel: {
+                    startSession: (sessionId, callback) => {
+                        const cbId = "kcb_" + (__nextCallbackId++);
+                        if (callback) window.__extensionKernelCallbacks[cbId] = callback;
+                        if (window.ExtensionBridge && window.ExtensionBridge.startKernelSession) {
+                            window.ExtensionBridge.startKernelSession(sessionId, cbId);
+                        } else if (callback) {
+                            callback({ ok: false, message: "ExtensionBridge kernel unavailable" });
+                        }
+                    },
+                    execute: (sessionId, code, callback) => {
+                        const cbId = "kcb_" + (__nextCallbackId++);
+                        const reqId = "req_" + (__nextCallbackId++);
+                        if (callback) window.__extensionKernelCallbacks[cbId] = callback;
+                        if (window.ExtensionBridge && window.ExtensionBridge.executeInKernel) {
+                            window.ExtensionBridge.executeInKernel(sessionId, code, reqId, cbId);
+                        } else if (callback) {
+                            callback({ status: "error", error: "ExtensionBridge kernel unavailable" });
+                        }
+                    },
+                    restart: (sessionId, callback) => {
+                        const cbId = "kcb_" + (__nextCallbackId++);
+                        if (callback) window.__extensionKernelCallbacks[cbId] = callback;
+                        if (window.ExtensionBridge && window.ExtensionBridge.restartKernelSession) {
+                            window.ExtensionBridge.restartKernelSession(sessionId, cbId);
+                        } else if (callback) {
+                            callback({ status: "error", error: "ExtensionBridge kernel unavailable" });
+                        }
+                    },
+                    stop: (sessionId) => {
+                        if (window.ExtensionBridge && window.ExtensionBridge.stopKernelSession) {
+                            window.ExtensionBridge.stopKernelSession(sessionId);
+                        }
                     }
                 },
                 ui: {
@@ -714,6 +1533,38 @@
                         if (window.ExtensionBridge && window.ExtensionBridge.showToast) {
                             window.ExtensionBridge.showToast(msg);
                         }
+                    },
+                    showConfirm: (title, message, onConfirm, onCancel) => {
+                        const modalId = "ext-confirm-modal";
+                        let modal = document.getElementById(modalId);
+                        if (modal) modal.remove();
+
+                        modal = document.createElement('div');
+                        modal.id = modalId;
+                        modal.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;";
+                        modal.innerHTML = `
+                            <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;width:100%;max-width:380px;box-shadow:0 8px 24px rgba(0,0,0,0.6);overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,sans-serif;">
+                                <div style="padding:14px 16px;border-bottom:1px solid #21262d;">
+                                    <h3 style="margin:0;font-size:15px;color:#e6edf3;">${title || "Confirm"}</h3>
+                                </div>
+                                <div style="padding:14px 16px;color:#8b949e;font-size:13px;line-height:1.5;">
+                                    <p style="margin:0;">${message || "Are you sure?"}</p>
+                                </div>
+                                <div style="padding:12px 16px;border-top:1px solid #21262d;display:flex;align-items:center;justify-content:flex-end;gap:8px;background:#0d1117;">
+                                    <button id="ext-modal-cancel" style="padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;background:#21262d;color:#c9d1d9;border:1px solid #30363d;">Cancel</button>
+                                    <button id="ext-modal-confirm" style="padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;background:#da3633;color:#fff;border:1px solid #f85149;">Confirm</button>
+                                </div>
+                            </div>
+                        `;
+                        document.body.appendChild(modal);
+                        document.getElementById('ext-modal-cancel').onclick = () => {
+                            modal.remove();
+                            if (onCancel) onCancel();
+                        };
+                        document.getElementById('ext-modal-confirm').onclick = () => {
+                            modal.remove();
+                            if (onConfirm) onConfirm();
+                        };
                     },
                     addToolbarButton: (opts) => {
                         const btnId = "ext-btn-" + extId + "-" + opts.id;
@@ -735,6 +1586,15 @@
                         const btnId = "ext-btn-" + extId + "-" + optsId;
                         const btn = document.getElementById(btnId);
                         if (btn) btn.remove();
+                    },
+                    injectThemeCss: (themeId, cssText) => {
+                        let styleEl = document.getElementById("theme-style-" + extId + "-" + themeId);
+                        if (!styleEl) {
+                            styleEl = document.createElement('style');
+                            styleEl.id = "theme-style-" + extId + "-" + themeId;
+                            document.head.appendChild(styleEl);
+                        }
+                        styleEl.textContent = cssText;
                     }
                 },
                 terminal: {
@@ -821,6 +1681,16 @@
 
                 const extButtons = document.querySelectorAll("[id^='ext-btn-" + extId + "-']");
                 extButtons.forEach(b => b.remove());
+
+                const extThemes = document.querySelectorAll("[id^='theme-style-" + extId + "-']");
+                extThemes.forEach(t => t.remove());
+
+                // Unregister custom editor providers registered by this extension
+                for (const pid in window.customEditorProviders) {
+                    if (pid.startsWith(extId + ".")) {
+                        delete window.customEditorProviders[pid];
+                    }
+                }
 
                 delete window.activeExtensions[extId];
                 console.log("Extension unloaded:", extId);

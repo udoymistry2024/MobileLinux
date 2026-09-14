@@ -10,7 +10,7 @@
   [![Platform](https://img.shields.io/badge/Platform-Android%208.0%2B-3DDC84.svg?logo=android&logoColor=white)](https://github.com/udoymistry2024/MobileLinux/releases)
   [![OS: Ubuntu 24.04 LTS](https://img.shields.io/badge/Ubuntu-24.04%20LTS-E95420.svg?logo=ubuntu&logoColor=white)](https://ubuntu.com)
   [![Architecture](https://img.shields.io/badge/Arch-ARM64%20%7C%20ARMv7-007ACC.svg)](#architecture)
-  [![Version](https://img.shields.io/badge/Version-1.8.2--stable-brightgreen.svg)](https://github.com/udoymistry2024/MobileLinux/releases)
+  [![Version](https://img.shields.io/badge/Version-1.8.9--stable-brightgreen.svg)](https://github.com/udoymistry2024/MobileLinux/releases)
 
   <p align="center">
     <a href="#key-features">Key Features</a> •
@@ -65,6 +65,12 @@ Whether you are compiling C/C++ projects with `gcc`, running a **Miniforge / Con
   Create unlimited parallel terminal sessions and seamlessly switch between them using the smooth navigation drawer.
 - ⌨️ **Mobile-Optimized Keyboard Bar:**
   Dedicated touch bar with `ESC`, `Tab`, `Ctrl`, `Alt`, `Shift`, `Paste`, direction arrows (`↑ ↓ ← →`), and standard terminal modifiers.
+- 🧩 **Extensible Mobile Code IDE & Extension System (`.mle`):**
+  Full-fledged IDE with multi-tab editor, tree drawer, and dedicated Extension Center. Supports custom editors (like the interactive **Jupyter Notebook** `.ipynb` editor), universal process execution, persistent Python kernel daemons (`KernelSessionManager`), and `.mle` plugin packages.
+- ✍️ **Bengali & Complex Script Typography Engine:**
+  Zero-width combining marks (কার-চিহ্ন, যুক্তাক্ষর) visual column calculation, OpenType ligatures, and Android IME buffer protection, enabling smooth, accurate cursor placement and Bengali typing without glitches.
+- 🔄 **Precision Undo/Redo & Floating Action Bar:**
+  Haptic-feedback Undo/Redo without unwanted code selection or handle popups; smart floating selection bar docked at the screen top with scroll preservation on "Select All".
 - 🔋 **Background Persistence:**
   Android Foreground Service + WakeLock ensures your long-running scripts, downloads, and compilation tasks continue running when the screen is turned off or the app is minimized.
 
@@ -92,9 +98,10 @@ Whether you are compiling C/C++ projects with `gcc`, running a **Miniforge / Con
 
 ### 1. Download & Install
 Download the official signed release APK from [**GitHub Releases**](https://github.com/udoymistry2024/MobileLinux/releases):
-- **`MobileLinux-v1.8.2.apk`** (latest release asset)
+- **`MobileLinux-v1.8.9.apk`** (latest release asset)
 
 Install the APK on any device running **Android 8.0 (Oreo) or higher** (Targeting Android 15 / API 35).
+
 
 ### 2. First Launch
 1. Open **MobileLinux**.
@@ -138,6 +145,53 @@ bash Miniforge3-Linux-aarch64.sh
 
 <a name="whats-new"></a>
 ## 🆕 What's New
+
+### v1.8.9 (Jupyter Notebook Autocomplete & Scrollable DataFrame Output)
+- 💡 **Jupyter Notebook Real-time Code Autocompletion:**
+  - Restored real-time keyword, identifier, and function suggestions in notebook cells (e.g. typing `pri` immediately suggests `print`).
+  - Embedded cell editors now activate Ace's live autocomplete engine (`enableBasicAutocompletion`, `enableLiveAutocompletion`, and snippets) without interfering with IME composition.
+- 📊 **Rich, Scrollable Pandas DataFrame Output:**
+  - **Native HTML Table Rendering:** Integrated native `_repr_html_()` support in `kernel_runner.py` and extension renderers. DataFrames (e.g. `sns.load_dataset("titanic")`) now render as crisp, styled HTML tables instead of messy broken text.
+  - **Horizontal Touch Scrolling:** Output containers and tables now feature smooth horizontal touch scrolling (`overflow-x: auto; -webkit-overflow-scrolling: touch;`), allowing seamless swiping across dozens of dataset columns.
+  - **Columnar Text Alignment:** Replaced `white-space: pre-wrap; word-break: break-all;` with `white-space: pre !important; word-break: normal !important;` for `.nb-output-stdout`, ensuring text-based tables and explicit `print(df)` outputs never scramble columns across lines.
+- 🧹 **Automated Release APK Lifecycle:**
+  - Automated build lifecycle packages `MobileLinux-v1.8.9.apk` at the repository root and purges older artifacts.
+
+### v1.8.8 (Undo/Redo Subsystem & Selection UX Overhaul)
+- 🔄 **Undo & Redo Subsystem Complete Overhaul:**
+  - **Auto-Selection Elimination:** Disabled Ace Editor's default `$undoSelect` behavior across all files and Jupyter Notebook cells. Undoing and redoing edits no longer highlights code or pops up selection handles.
+  - **Dynamic Action Bar States & Haptic Feedback:** Top action bar Undo and Redo icons dynamically reflect availability (bright 100% alpha when actions exist, dim 35% when empty) and provide tactile haptic tap feedback.
+  - **Cross-Engine Support:** Seamless Undo/Redo support for standard source files (`.py`, `.html`, `.js`, etc.) and Jupyter Notebook (`.ipynb`) code cells and markdown textareas.
+- 📋 **Selection Action Bar & "Select All" Usability:**
+  - **Screen-Top Docking:** When selecting all or selecting across multi-page/large files, the floating action bar (`Cut | Copy | Paste | Select All`) stays pinned at the top of the visible screen (`top: 14px`, horizontally centered).
+  - **Scroll Position Preservation:** Selecting all (`btn-select-all`, `Ctrl+A`, or special key) retains the user's current reading and editing scroll location, eliminating unwanted jumps to the bottom of large files.
+- 🧹 **Automated Release APK Lifecycle:**
+  - Automated build lifecycle keeps `MobileLinux-v1.8.8.apk` at the repository root and purges older artifacts.
+
+### v1.8.7 (Bengali & Complex Script Engine, Jupyter Notebook Stability)
+- ✍️ **Code IDE Bengali & Complex Script IME Stabilization:**
+  - **Zero-Width & Complex Script Engine:** Integrated visual column calculation in Ace Editor for Bengali, Devanagari, and Indic languages. Combining marks (কার-চিহ্ন, হসন্ত/যুক্তাক্ষর) and ligatures now have 0 additional width, eliminating phantom cursor jumps and aligning the cursor accurately with text.
+  - **Android IME Composition Buffer Protection:** Prevented `textarea.setSelectionRange` resets from interrupting software keyboard (Gboard, Ridmik Keyboard, Samsung Keyboard) composition spans, preventing scrambled or fragmented characters while typing.
+  - **Focus Hijacking Guard:** Autocomplete popups are automatically suppressed during active IME composition.
+  - **Typography & OpenType Ligatures:** Integrated system Bengali font stack (`Noto Sans Bengali`, `SolaimanLipi`, `Kalpurush`) with OpenType ligatures (`liga`, `calt`).
+  - **Universal Support:** Applied across all programming and text files (`.py`, `.txt`, `.md`, `.sh`, `.c`, `.js`) as well as custom embedded editors.
+- 📓 **Jupyter Notebook Extension Architecture Stabilization (v1.0.1):**
+  - Schema compliance with standard `nbformat` v4 (`nbformat.validate()` passed with 0 errors).
+  - Persistent notebook reload: inline images (`image/png`), tables, and outputs render correctly on reload.
+  - Stdin safety shield preventing background daemon hangs on interactive `input()`.
+  - Clean notebook initialization: blank notebooks open with a single empty code cell, removing demo starter cells.
+- 🧹 **Automated Release APK Lifecycle:**
+  - Automated build lifecycle keeps `MobileLinux-v1.8.7.apk` at the repository root and purges older artifacts.
+
+### v1.8.6 (Package Ecosystem & Stability Release)
+- 📦 **Comprehensive Package Ecosystem Audit & 384 Packages Hardened:**
+  - Complete zero-failure overhaul of all 384 tools across 10 categories (CLI Tools, Languages, Web Servers, Databases, Cyber Security, etc.).
+  - Added robust resilient fallbacks for 32 tools not present in standard Ubuntu Noble repositories (e.g. `subfinder`, `httpx-pd`, `amass`, `wpscan`, `commix`, `terraform`, `kubectl`, `helm`, `k9s`, `dart`, `zig`).
+  - Fixed uninstaller prioritization order: global NPM packages, Ruby gems, and Pip modules now uninstall cleanly without purging runtime environments.
+  - Hardened uninstall verification in `PackageInstallationManager` to ensure accurate package state and cache sync.
+  - Enhanced Script Copy in UI: Clicking the copy button now reliably copies install commands directly to clipboard while offering an error log copy dialog if previous errors occurred.
+- 🧹 **Automated Release APK Lifecycle:**
+  - Automated build lifecycle script packages and keeps `MobileLinux-v1.8.6.apk` at the repository root while purging outdated APK artifacts.
 
 ### v1.8.2 (IDE Icon Update)
 - 🎨 **Code IDE Authentic & Pixel-Crisp File Icons:**
@@ -254,6 +308,8 @@ graph TD
         C --> D[TerminalView - Custom Hardware Accelerated Canvas]
         C --> E[TerminalBuffer - VT100 / xterm-256color Parser]
         C --> F[SessionManager & Background Foreground Service]
+        C --> IDE[Code IDE Activity - Ace Editor & File Tree]
+        C --> EXT[Extension Subsystem & ExtensionManager]
     end
     
     subgraph "Container Layer (PRoot / Chroot)"
@@ -261,6 +317,8 @@ graph TD
         G --> H["/dev/shm & /run/shm Host-Backed Mount (01777)"]
         G --> I[System V IPC Emulation Engine --sysvipc]
         G --> J["Dynamic PTY Subsystem (mobilelinux-pty.py)"]
+        EXT --> KERNEL["KernelSessionManager (kernel_runner.py)"]
+        KERNEL --> G
     end
     
     subgraph "Ubuntu 24.04 LTS Userland (glibc)"
@@ -269,6 +327,7 @@ graph TD
         G --> M[Python 3 / Miniconda / PyTorch]
         G --> N[GCC / Clang / Make Build Tools]
         G --> O[GNU Nano / Vim / Tmux]
+        KERNEL --> PYKERNEL[Interactive Python Kernel & Matplotlib/Pandas]
     end
 ```
 

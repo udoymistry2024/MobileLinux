@@ -503,10 +503,15 @@ class LibrariesActivity : AppCompatActivity() {
             return
         }
 
-        installerManager.enqueueInstall(pkg) { queuePos ->
-            Toast.makeText(this, "${pkg.name} added to queue (Position #$queuePos)", Toast.LENGTH_SHORT).show()
-        }
-        Toast.makeText(this, "Starting installation of ${pkg.name}...", Toast.LENGTH_SHORT).show()
+        installerManager.enqueueInstall(
+            pkg,
+            onStarted = {
+                Toast.makeText(this, "Starting installation of ${pkg.name}...", Toast.LENGTH_SHORT).show()
+            },
+            onQueued = { queuePos ->
+                Toast.makeText(this, "${pkg.name} added to queue (Position #$queuePos)", Toast.LENGTH_SHORT).show()
+            }
+        )
     }
 
     private fun launchPackage(pkg: LinuxPackage) {
@@ -634,19 +639,23 @@ class LibrariesActivity : AppCompatActivity() {
     }
 
     /**
-     * Copies the package install command or displays the error log if installation failed
+     * Copies the package install command to clipboard. If installation previously failed,
+     * offers a dialog allowing the user to copy either the install script or the error log.
      */
     private fun copyPackageCommand(pkg: LinuxPackage) {
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         if (!pkg.lastErrorLog.isNullOrBlank() && !pkg.isInstalled && !pkg.isInstalling) {
-            val clip = ClipData.newPlainText("Error Log", pkg.lastErrorLog)
-            clipboard.setPrimaryClip(clip)
             com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
-                .setTitle("Installation Log: ${pkg.name}")
-                .setMessage(pkg.lastErrorLog)
-                .setPositiveButton("Copy Full Log") { _, _ ->
-                    val c = ClipData.newPlainText("Error Log", pkg.lastErrorLog)
-                    clipboard.setPrimaryClip(c)
+                .setTitle("Package: ${pkg.name}")
+                .setMessage("Installation previously encountered an error:\n\n${pkg.lastErrorLog}")
+                .setPositiveButton("Copy Install Script") { _, _ ->
+                    val clip = ClipData.newPlainText("Install Command", pkg.installCommand)
+                    clipboard.setPrimaryClip(clip)
+                    Toast.makeText(this, "Copied install command for ${pkg.name}", Toast.LENGTH_SHORT).show()
+                }
+                .setNeutralButton("Copy Error Log") { _, _ ->
+                    val clip = ClipData.newPlainText("Error Log", pkg.lastErrorLog)
+                    clipboard.setPrimaryClip(clip)
                     Toast.makeText(this, "Copied error log for ${pkg.name}", Toast.LENGTH_SHORT).show()
                 }
                 .setNegativeButton("Close", null)

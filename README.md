@@ -10,7 +10,7 @@
   [![Platform](https://img.shields.io/badge/Platform-Android%208.0%2B-3DDC84.svg?logo=android&logoColor=white)](https://github.com/udoymistry2024/MobileLinux/releases)
   [![OS: Ubuntu 24.04 LTS](https://img.shields.io/badge/Ubuntu-24.04%20LTS-E95420.svg?logo=ubuntu&logoColor=white)](https://ubuntu.com)
   [![Architecture](https://img.shields.io/badge/Arch-ARM64%20%7C%20ARMv7-007ACC.svg)](#architecture)
-  [![Version](https://img.shields.io/badge/Version-1.8.0--stable-brightgreen.svg)](https://github.com/udoymistry2024/MobileLinux/releases)
+  [![Version](https://img.shields.io/badge/Version-1.8.2--stable-brightgreen.svg)](https://github.com/udoymistry2024/MobileLinux/releases)
 
   <p align="center">
     <a href="#key-features">Key Features</a> •
@@ -92,7 +92,7 @@ Whether you are compiling C/C++ projects with `gcc`, running a **Miniforge / Con
 
 ### 1. Download & Install
 Download the official signed release APK from [**GitHub Releases**](https://github.com/udoymistry2024/MobileLinux/releases):
-- **`mobile-linux-v1.8.0-stable.apk`** (or latest release asset)
+- **`MobileLinux-v1.8.2.apk`** (latest release asset)
 
 Install the APK on any device running **Android 8.0 (Oreo) or higher** (Targeting Android 15 / API 35).
 
@@ -138,6 +138,15 @@ bash Miniforge3-Linux-aarch64.sh
 
 <a name="whats-new"></a>
 ## 🆕 What's New
+
+### v1.8.2 (IDE Icon Update)
+- 🎨 **Code IDE Authentic & Pixel-Crisp File Icons:**
+  - Integrated 24+ high-resolution, pixel-crisp vector file icons matching VS Code / Material Icon standards.
+  - Custom designed icons for Python, JavaScript, TypeScript, HTML5, CSS3, C, C++, Java, Kotlin, Rust, Go, Shell, JSON, YAML, XML, SQL, Markdown, Git, Docker, and Archives.
+  - Solved subpixel aliasing and reversed glyphs: crisp bold `JS` badge, official continuous CSS3 '3' and HTML5 '5' shields, canonical Devicon Python interlocking snakes, solid C/C++ hexagons, and bold Java coffee cup.
+  - Optimized icon sizing in project file tree (20dp) and editor tabs (18dp) for high-DPI smartphone screens.
+- 🧹 **Automated Release APK Purge:**
+  - Integrated automated cleanup rule in Gradle build lifecycle to automatically remove older APK versions and preserve only the single latest release package (`MobileLinux-v1.8.2.apk`) in the project root.
 
 ### v1.8.0-stable (Master Stable Release)
 - 🟢 **Full Ecosystem Master Stability Certification:**

@@ -43,8 +43,7 @@ class FolderPickerAdapter(
                 onFolderClick(file)
             }
         } else {
-            holder.ivIcon.setImageResource(R.drawable.ic_file)
-            holder.ivIcon.imageTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.text_secondary))
+            FileIconProvider.applyToFileImageView(holder.ivIcon, file.name, false)
             holder.ivArrow.visibility = View.GONE
             holder.itemView.isClickable = false
             holder.itemView.setOnClickListener(null)

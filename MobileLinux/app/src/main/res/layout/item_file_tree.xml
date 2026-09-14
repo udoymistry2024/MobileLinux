@@ -31,11 +31,10 @@
     <!-- File/Folder Icon -->
     <ImageView
         android:id="@+id/iv_type_icon"
-        android:layout_width="18dp"
-        android:layout_height="18dp"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
         android:layout_marginStart="4dp"
         android:src="@drawable/ic_folder"
-        android:tint="@color/accent_blue"
         android:contentDescription="Type" />
 
     <!-- File/Folder Name -->

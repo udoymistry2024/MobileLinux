@@ -91,23 +91,10 @@ class FileTreeAdapter(
         if (node.isDirectory) {
             holder.ivChevron.visibility = View.VISIBLE
             holder.ivChevron.rotation = if (node.isExpanded) 90f else 0f
-            holder.ivTypeIcon.setImageResource(R.drawable.ic_folder)
-            holder.ivTypeIcon.setColorFilter(ContextCompat.getColor(context, R.color.accent_blue))
+            FileIconProvider.applyToFileImageView(holder.ivTypeIcon, node.file.name, true)
         } else {
             holder.ivChevron.visibility = View.INVISIBLE
-            holder.ivTypeIcon.setImageResource(R.drawable.ic_file)
-
-            val mode = IdeTab.detectMode(node.file.name)
-            val iconColor = when (mode) {
-                "python" -> R.color.accent_yellow
-                "javascript", "typescript" -> R.color.accent_orange
-                "c_cpp" -> R.color.accent_blue
-                "sh" -> R.color.accent_green
-                "html", "css" -> R.color.accent_purple
-                "rust" -> R.color.accent_red
-                else -> R.color.text_secondary
-            }
-            holder.ivTypeIcon.setColorFilter(ContextCompat.getColor(context, iconColor))
+            FileIconProvider.applyToFileImageView(holder.ivTypeIcon, node.file.name, false)
         }
 
         // Node click

@@ -52,17 +52,8 @@ class IdeTabsAdapter(
             holder.tabCloseBtn.setColorFilter(ContextCompat.getColor(context, R.color.text_secondary))
         }
 
-        // Language icon tinting
-        val iconColor = when (tab.mode) {
-            "python" -> R.color.accent_yellow
-            "javascript", "typescript" -> R.color.accent_orange
-            "c_cpp" -> R.color.accent_blue
-            "sh" -> R.color.accent_green
-            "html", "css" -> R.color.accent_purple
-            "rust" -> R.color.accent_red
-            else -> R.color.accent_cyan
-        }
-        holder.tabIcon.setColorFilter(ContextCompat.getColor(context, iconColor))
+        // Language icon
+        FileIconProvider.applyToFileImageView(holder.tabIcon, tab.file.name, false)
 
         holder.tabContainer.setOnClickListener {
             onTabClick(holder.adapterPosition)

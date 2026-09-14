@@ -1,0 +1,18 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Blue Rounded Badge -->
+    <path
+        android:fillColor="#083FA1"
+        android:pathData="M3,5h18c1.1,0 2,0.9 2,2v10c0,1.1 -0.9,2 -2,2H3c-1.1,0 -2,-0.9 -2,-2V7c0,-1.1 0.9,-2 2,-2z" />
+    <!-- White 'M' Lettering -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M5,15.5V8.5h2l2,2.5 2,-2.5h2v7h-2v-4.2l-2,2.2 -2,-2.2v4.2H5z" />
+    <!-- White Down Arrow '↓' -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M16.5,8.5h2v4.5h2l-3,3.5 -3,-3.5h2V8.5z" />
+</vector>

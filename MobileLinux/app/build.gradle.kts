@@ -12,8 +12,8 @@ android {
         applicationId = "com.mobilelinux.app"
         minSdk = 26          // Android 8.0 minimum
         targetSdk = 35       // Target Android 15
-        versionCode = 107
-        versionName = "1.8.0"
+        versionCode = 109
+        versionName = "1.8.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -109,9 +109,9 @@ afterEvaluate {
                 ?.maxByOrNull { it.lastModified() }
 
             if (builtApk != null && builtApk.exists()) {
-                // Remove all old MobileLinux-*.apk files from root
+                // Remove all old APK files from root
                 rootFolder.listFiles()
-                    ?.filter { it.name.startsWith("MobileLinux-") && it.extension == "apk" }
+                    ?.filter { it.extension == "apk" }
                     ?.forEach { old ->
                         old.delete()
                         println("🗑️  Deleted old APK: ${old.name}")
